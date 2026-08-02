@@ -588,14 +588,34 @@ export interface SceneTerritoryInput {
   };
 }
 
+/**
+ * One pale coast hex, optionally ATTRIBUTED to the territory whose land it grew out of (its
+ * index in `territories`, the same index every other `owner` here keys on).
+ *
+ * Why attribution exists at all: the coast is derived from the UNION of all claimed land, so it
+ * is naturally one global moat with no owner. That was fine while it only ever drew the settled
+ * forest — but the Act 2 regrow (ADR-0282) hides an island until it forms, and an unattributed
+ * moat kept drawing the WHOLE forest's silhouette from frame one, pre-announcing every island
+ * before it existed (ADR-0286). Naming the island each coast hex belongs to is what lets a
+ * per-story hide reach it.
+ *
+ * OPTIONAL on purpose: absent ⇒ the hex renders exactly as it did before this field existed, with
+ * no id on its node and nothing per-story to key on. Every caller that does not attribute its
+ * coast (the website fold, every test fixture) is byte-identical.
+ */
+export interface SceneEmptyHex extends Axial {
+  readonly owner?: number;
+}
+
 /** The whole scene's structural input. `territories` is in OWNER order — the same
  *  index `relaxedCells[].owner` / `drawTiles[].owner` / `wheatSets[i]` key on. */
 export interface SceneInput {
   offset: Pt;
   width: number;
   height: number;
-  /** Pale coast tiles (1–2 rings beyond claimed land). */
-  empties: Axial[];
+  /** Pale coast tiles (1–2 rings beyond claimed land), each optionally ATTRIBUTED to the
+   *  territory whose land it grew out of ({@link SceneEmptyHex}). */
+  empties: SceneEmptyHex[];
   /** Mesh substrate cells; `null` ⇒ the classic extruded-hex ground (`drawTiles`). */
   relaxedCells: RelaxedCell[] | null;
   /** Claimed tiles + owning-territory index (used when `relaxedCells` is null). */
@@ -617,6 +637,16 @@ export interface SceneInput {
    *  tree. OPTIONAL and back-compat: ABSENT ⇒ every island renders BYTE-FOR-BYTE (the same lock as
    *  `parcels`/`uatCriteria`; the public website fold never sends it). */
   garden?: SceneGardenInput;
+  /** The unified world-art vegetation vocabulary (grounded-art, ADR-0226). PRESENT ⇒ every island's
+   *  living surface reads as ONE language, studio-side: grass = a capability's tests (the decorative
+   *  wildflower / anemone / heather-bell accents retired, so a flower means UAT and only UAT), the UAT
+   *  criteria as SMALL flowers folded into the grass (form-reads-verdict), an unhealthy capability's
+   *  grass reads as dead grass (the existing status wilt), and the human-witness signpost retired.
+   *  OPTIONAL and back-compat: ABSENT ⇒ every island renders BYTE-FOR-BYTE (the same absence lock as
+   *  `parcels`/`uatCriteria`/`garden`; the public website fold never sends it, so its render is
+   *  unchanged). The garden composition (`garden`) is a SEPARATE flag and takes precedence on its
+   *  island — the vegetation vocabulary governs the non-garden islands. */
+  vegetation?: SceneVegetationInput;
 }
 
 /** DORMANT: the scene-graph's def id the baked standing-stone once used (ADR-0218). No longer emitted
@@ -659,6 +689,27 @@ export interface SceneGardenInput {
   islandId: string;
   /** the four heroes' baked defs, keyed by their `kit.json` id. */
   heroes: Record<GardenHeroId, SceneGardenHero>;
+}
+
+/** The tree-spread's per-status colourways, keyed by status (ADR-0227). The `autumn-tree` hero baked
+ *  once per status with only its crown recoloured — so a non-garden island's central tree carries its
+ *  story's status hue rather than one fixed autumn brown. `Partial` because the surface may supply a
+ *  subset; a missing status falls back to `unknown` (which the surface always supplies). */
+export type SceneVegHeroTrees = Partial<Record<SceneStatus, SceneGardenHero>>;
+
+/** The unified vegetation-vocabulary input (grounded-art, ADR-0226). PRESENT ⇒ every non-garden island
+ *  renders the unified vocabulary (grass = a capability's tests, small flowers = the story's UAT, dead
+ *  grass = an unhealthy capability, the human-witness signpost retired). ABSENT ⇒ byte-for-byte, exactly
+ *  like `garden`. Its presence alone flips the vocabulary; the optional `heroTrees` carries the tree-spread. */
+export interface SceneVegetationInput {
+  /** The tree-spread (ADR-0226 decision 1, amends ADR-0221; per-status colourways added by ADR-0227):
+   *  the baked `autumn-tree` hero, folded by the SURFACE from `kit.json`'s `heroTreeVariants` (one bake
+   *  per status, only the crown recoloured). When PRESENT, a non-garden island's procedural central tree
+   *  (`buildTree`) is replaced by a `<use>` of the colourway for the ISLAND'S STATUS — restoring the
+   *  per-status crown hue (green=healthy, red=unhealthy, amber=proposed, brown=mapped) the procedural
+   *  tree carried through CSS, now on the authored hero silhouette (define-once / reference-many). ABSENT
+   *  ⇒ the procedural tree stays (the vocabulary's grass/flowers still apply). */
+  heroTrees?: SceneVegHeroTrees;
 }
 
 // ---------------------------------------------------------------------------
@@ -717,7 +768,7 @@ function text(
  *  form, with the crown blobs deterministically jittered by the story id. Includes
  *  the recently-landed crown bloom and the human-witness signpost as children
  *  (matching the studio's `story-tree` group). */
-export function buildTree(t: SceneTerritoryInput): SceneG {
+export function buildTree(t: SceneTerritoryInput, unifiedVeg = false): SceneG {
   const st = t.status;
   const caps = t.caps;
   const withered = st === 'unhealthy';
@@ -786,7 +837,10 @@ export function buildTree(t: SceneTerritoryInput): SceneG {
   }
 
   if (t.bloom) children.push(buildBloom(t.id, t.bloom, 0, cy, R * 1.18, 'crown'));
-  if (t.signpost) children.push(buildSignpost(t.signpost, R));
+  // The human-witness signpost is RETIRED under the unified vegetation vocabulary (ADR-0226 decision 5)
+  // — redundant with the (now small) UAT flowers + the crown bloom. Flag OFF ⇒ it renders as today
+  // (byte-for-byte; the public website never sends `vegetation`).
+  if (t.signpost && !unifiedVeg) children.push(buildSignpost(t.signpost, R));
 
   return g(children, {
     kind: 'tree',
@@ -837,31 +891,36 @@ function buildSignpost(s: { outcome: 'pass' | 'fail' | null }, R: number): Scene
  *  state; the body child kinds map to CSS classes, colour stays CSS-side (ADR-0093 §4). Sibling in
  *  spirit of buildBloom/buildPlant — flat pastel fills, NO isometric shading — matching the island's
  *  existing flat look and the cosy-island concept (`docs/research/grounded-art-concept`). */
-function tallFlowerMarks(state: MarkerState, k: number): SceneNode[] {
+function tallFlowerMarks(state: MarkerState, k: number, small = false): SceneNode[] {
   const jx = (n: number): number => rand01(k + n) - 0.5; // per-marker jitter in [-0.5, 0.5)
   const j01 = (n: number): number => rand01(k + n); // per-marker roll in [0, 1)
 
-  const height = 36 + j01(0) * 8; // 36–44u tall — a slender flower, a narrower footprint than the stone
-  const lean = jx(1) * 7; // the whole stalk leans a touch off true vertical (base planted)
+  // `small` = the unified vegetation vocabulary (ADR-0226 decision 4): a low meadow flower folded into
+  // the grass — ~12–16u local × the 0.6 wrapper ≈ 8u on the map, so it stands just proud of the grass
+  // tufts rather than towering like the historical 36–44u stalk. Every proportion scales down together.
+  // The rand-draw SEQUENCE is identical either way (only the CONSTANTS differ), so determinism holds;
+  // the tall (`!small`) branch preserves the pre-ADR-0226 values verbatim, so flag-off is byte-for-byte.
+  const height = small ? 12 + j01(0) * 4 : 36 + j01(0) * 8;
+  const lean = jx(1) * (small ? 3 : 7); // the whole stalk leans a touch off true vertical (base planted)
 
   // the upright head anchor; failing nods it over + sinks it (a wilted, bowed head).
   const upX = lean;
   const upY = -height;
   const nodSide = jx(2) < 0 ? -1 : 1;
   const failing = state === 'failing';
-  const headX = failing ? upX + nodSide * 6.5 : upX;
-  const headY = failing ? upY + 7 : upY;
+  const headX = failing ? upX + nodSide * (small ? 2.6 : 6.5) : upX;
+  const headY = failing ? upY + (small ? 2.8 : 7) : upY;
 
   // the stalk: a gentle cubic from the planted base up to the head. Failing arcs OVER — the second
   // control point pulls above the sunken head so the tip bows down, reading as a wilted stem.
   const stemD = failing
-    ? `M 0 0 C ${f(lean * 0.5)} ${f(-height * 0.5)}, ${f(upX)} ${f(upY - 5)}, ${f(headX)} ${f(headY)}`
-    : `M 0 0 C ${f(lean * 0.5 + jx(3) * 2)} ${f(-height * 0.4)}, ${f(upX * 0.85)} ${f(-height * 0.78)}, ${f(headX)} ${f(headY)}`;
+    ? `M 0 0 C ${f(lean * 0.5)} ${f(-height * 0.5)}, ${f(upX)} ${f(upY - (small ? 2 : 5))}, ${f(headX)} ${f(headY)}`
+    : `M 0 0 C ${f(lean * 0.5 + jx(3) * (small ? 0.8 : 2))} ${f(-height * 0.4)}, ${f(upX * 0.85)} ${f(-height * 0.78)}, ${f(headX)} ${f(headY)}`;
 
   const marks: SceneNode[] = [
     // a soft flat ground shadow (reuses the shared `shadow` kind the flora already map to `.flora-shadow`).
-    ellipse(0.4, 0.6, 5.2, 1.7, { kind: 'shadow' }),
-    path(stemD, { kind: 'tall-flower-stem', strokeWidth: 2.2 }),
+    small ? ellipse(0.2, 0.3, 2.3, 0.8, { kind: 'shadow' }) : ellipse(0.4, 0.6, 5.2, 1.7, { kind: 'shadow' }),
+    path(stemD, { kind: 'tall-flower-stem', strokeWidth: small ? 1.1 : 2.2 }),
   ];
 
   // two small leaves along the stalk, alternating sides, angled up-and-out — seeded so they vary.
@@ -873,7 +932,7 @@ function tallFlowerMarks(state: MarkerState, k: number): SceneNode[] {
     const ly = -height * t;
     const lx = lean * t;
     marks.push(
-      ellipse(lx + side * 3.4, ly, 4.0 + jx(10 + i) * 0.9, 1.8, {
+      ellipse(lx + side * (small ? 1.4 : 3.4), ly, (small ? 1.7 : 4.0) + jx(10 + i) * (small ? 0.4 : 0.9), small ? 0.8 : 1.8, {
         kind: 'tall-flower-leaf',
         transform: `rotate(${f(side * (34 + jx(12 + i) * 12))} ${f(lx)} ${f(ly)})`,
       }),
@@ -884,48 +943,51 @@ function tallFlowerMarks(state: MarkerState, k: number): SceneNode[] {
     // a soft warm glow behind the bloom — proven ONLY, low opacity, calm (no sparks: the owner's noise
     // complaint). Drawn first so the petals sit crisp on top.
     marks.push(
-      circle(headX, headY, 10.5, { kind: 'tall-flower-glow', opacity: 0.1 }),
-      circle(headX, headY, 6.8, { kind: 'tall-flower-glow', opacity: 0.16 }),
+      circle(headX, headY, small ? 4.2 : 10.5, { kind: 'tall-flower-glow', opacity: 0.1 }),
+      circle(headX, headY, small ? 2.7 : 6.8, { kind: 'tall-flower-glow', opacity: 0.16 }),
     );
-    // 7–8 soft petals radiating around the centre disc — a full daisy (the concept's flower). Each petal
-    // is a slender elongated ellipse rooted at the head centre and rotated into place; count + angle +
-    // length are seeded so no two flowers are identical.
-    const petals = 7 + (j01(5) > 0.5 ? 1 : 0);
+    // soft petals radiating around the centre disc — a daisy (the concept's flower). Each petal is a
+    // slender elongated ellipse rooted at the head centre and rotated into place; count + angle + length
+    // are seeded so no two flowers are identical.
+    const petals = (small ? 6 : 7) + (j01(5) > 0.5 ? 1 : 0);
     for (let i = 0; i < petals; i++) {
       const ang = (i / petals) * 360 + jx(20 + i) * 10;
-      const plen = 6.8 + jx(30 + i) * 1.1;
+      const plen = (small ? 2.6 : 6.8) + jx(30 + i) * (small ? 0.5 : 1.1);
       marks.push(
-        ellipse(headX, headY - plen, 2.15, plen, {
+        ellipse(headX, headY - plen, small ? 0.85 : 2.15, plen, {
           kind: 'tall-flower-petal',
           transform: `rotate(${f(ang)} ${f(headX)} ${f(headY)})`,
         }),
       );
     }
-    marks.push(circle(headX, headY, 3.4, { kind: 'tall-flower-center' }));
+    marks.push(circle(headX, headY, small ? 1.35 : 3.4, { kind: 'tall-flower-center' }));
   } else if (failing) {
     // a wilted, nodding head: petals all droop into the lower arc, sitting low + to one side on the
     // bowed stem — the muted colour resolves CSS-side. No glow (dormant/failing is not a bloom).
-    const petals = 6;
+    const petals = small ? 5 : 6;
     for (let i = 0; i < petals; i++) {
       const ang = 112 + (i / (petals - 1)) * 136 + jx(20 + i) * 12; // 112–248°: hangs down + out
-      const plen = 5.8 + jx(30 + i) * 1.0;
+      const plen = (small ? 2.3 : 5.8) + jx(30 + i) * (small ? 0.45 : 1.0);
       marks.push(
-        ellipse(headX, headY - plen, 1.95, plen, {
+        ellipse(headX, headY - plen, small ? 0.78 : 1.95, plen, {
           kind: 'tall-flower-petal',
           transform: `rotate(${f(ang)} ${f(headX)} ${f(headY)})`,
         }),
       );
     }
-    marks.push(circle(headX, headY, 2.9, { kind: 'tall-flower-center' }));
+    marks.push(circle(headX, headY, small ? 1.15 : 2.9, { kind: 'tall-flower-center' }));
   } else {
-    // pending: a closed teardrop bud — calm, unopened; dormant reads as the ABSENCE of bloom (the
-    // stone's dark-rune precedent).
+    // pending: a closed teardrop bud — calm, unopened; awaiting UAT reads as the ABSENCE of bloom (the
+    // honesty wall, ADR-0045: a bud is never a bloom — only a signed pass opens).
     const bx = headX;
     const by = headY;
-    const budD =
-      `M ${f(bx)} ${f(by - 10.5)} ` +
-      `C ${f(bx - 3.7)} ${f(by - 7.5)}, ${f(bx - 3.5)} ${f(by - 1.5)}, ${f(bx)} ${f(by)} ` +
-      `C ${f(bx + 3.5)} ${f(by - 1.5)}, ${f(bx + 3.7)} ${f(by - 7.5)}, ${f(bx)} ${f(by - 10.5)} Z`;
+    const budD = small
+      ? `M ${f(bx)} ${f(by - 4.1)} ` +
+        `C ${f(bx - 1.45)} ${f(by - 2.9)}, ${f(bx - 1.4)} ${f(by - 0.6)}, ${f(bx)} ${f(by)} ` +
+        `C ${f(bx + 1.4)} ${f(by - 0.6)}, ${f(bx + 1.45)} ${f(by - 2.9)}, ${f(bx)} ${f(by - 4.1)} Z`
+      : `M ${f(bx)} ${f(by - 10.5)} ` +
+        `C ${f(bx - 3.7)} ${f(by - 7.5)}, ${f(bx - 3.5)} ${f(by - 1.5)}, ${f(bx)} ${f(by)} ` +
+        `C ${f(bx + 3.5)} ${f(by - 1.5)}, ${f(bx + 3.7)} ${f(by - 7.5)}, ${f(bx)} ${f(by - 10.5)} Z`;
     marks.push(path(budD, { kind: 'tall-flower-bud' }));
   }
 
@@ -937,6 +999,13 @@ function tallFlowerMarks(state: MarkerState, k: number): SceneNode[] {
  *  at the WRAPPER (translate + scale — CSS only ever animates the glow-circle CHILDREN, so the wrapper
  *  transform is never clobbered). */
 const MARKER_SCALE = 0.6;
+
+/** The unified vegetation vocabulary's SMALL-flower wrapper scale (ADR-0226 promotion). The small flower
+ *  read a touch too small at the 0.6 footprint (owner look verdict 2026-07-22), so the vocabulary scatter
+ *  wears a larger wrapper — a low meadow flower that reads clearly against the grass without towering
+ *  like the tall (`!small`) markers. Placement + keep-outs are unchanged (they key on the wrapper POINT,
+ *  not its size); only the tall flag-off path keeps the historical 0.6. */
+const MARKER_SCALE_SMALL = 1.0;
 
 /** Ray-cast point-in-polygon over a substrate cell ring. */
 function pointInPoly(x: number, y: number, poly: Pt[]): boolean {
@@ -964,6 +1033,7 @@ function pointInPoly(x: number, y: number, poly: Pt[]): boolean {
 function buildUatMarkers(
   t: SceneTerritoryInput,
   ownerCells: RelaxedCell[] | null,
+  small = false,
 ): Array<{ y: number; node: SceneG }> {
   const criteria = t.uatCriteria ?? [];
   if (!criteria.length) return [];
@@ -1010,10 +1080,10 @@ function buildUatMarkers(
           : 'tall-flower-pending';
     out.push({
       y,
-      node: g(tallFlowerMarks(c.state, k), {
+      node: g(tallFlowerMarks(c.state, k, small), {
         kind,
         id: c.id,
-        transform: `translate(${f(x)} ${f(y)}) scale(${MARKER_SCALE})`,
+        transform: `translate(${f(x)} ${f(y)}) scale(${f(small ? MARKER_SCALE_SMALL : MARKER_SCALE)})`,
       }),
     });
   });
@@ -1451,6 +1521,12 @@ export type SurfaceFn = (
   status: SceneStatus,
   testCount: number,
   rand: () => number,
+  /** The unified vegetation vocabulary (ADR-0226 decision 2): when true, the theme's DECORATIVE bloom
+   *  tier is retired (the meadow wildflower, the woodland anemone, the heath heather-bells) so a
+   *  flower on an island means one thing — a UAT criterion. The grass / fern / shrub / mound BULK and
+   *  the status accents (sprouts / wilt / building-sparks) stay. Absent/false ⇒ today's surface
+   *  byte-for-byte. */
+  unifiedVeg?: boolean,
 ) => { ground: SceneNode[]; flora: ParcelFloraMark[] };
 
 /** A seeded mulberry32 STREAM `() => number` (a `SurfaceFn` draws many values). Mirrors the spike's
@@ -1542,6 +1618,7 @@ function meadowSurface(
   status: SceneStatus,
   tests: number,
   rand: () => number,
+  unifiedVeg = false,
 ): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
@@ -1551,7 +1628,9 @@ function meadowSurface(
     parcelFloraItem('meadow', status, y, marks);
 
   // density budget (verbatim): grass is the ramp bulk; shrubs a "grown" mark only where standing bulk
-  // grows (healthy/building/unhealthy); flowers a healthy (mapped-rare) accent.
+  // grows (healthy/building/unhealthy); flowers a healthy (mapped-rare) accent — but the decorative
+  // wildflower tier is RETIRED under the unified vegetation vocabulary (ADR-0226 decision 2: the meadow
+  // reads as PURE GRASS, so a "flower" means a UAT criterion and nothing else).
   const shrubEligible = status === 'healthy' || status === 'building' || status === 'unhealthy';
   let grassCount: number;
   let shrubCount: number;
@@ -1563,8 +1642,9 @@ function meadowSurface(
   } else {
     grassCount = Math.round(2 + tests * 1.9);
     shrubCount = shrubEligible ? Math.round(tests / 2.6) : 0;
-    flowerCount =
-      status === 'healthy'
+    flowerCount = unifiedVeg
+      ? 0
+      : status === 'healthy'
         ? Math.round(Math.max(0, tests - 1) * 0.7)
         : status === 'mapped'
           ? tests >= 8
@@ -1731,6 +1811,7 @@ function woodlandSurface(
   status: SceneStatus,
   tests: number,
   rand: () => number,
+  unifiedVeg = false,
 ): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
@@ -1860,10 +1941,12 @@ function woodlandSurface(
     return { y, marks };
   };
 
-  // density: three tiers always present past 0, saplings a bonus top layer.
+  // density: three tiers always present past 0, saplings a bonus top layer. The anemone bloom tier is
+  // RETIRED under the unified vegetation vocabulary (ADR-0226 decision 2: a flower means UAT, not
+  // decoration); ferns + shrubs stay as the understory bulk.
   const nFerns = tests <= 0 ? 1 : Math.min(cells.length, 2 + Math.round(tests * 0.85));
   const nShrubs = tests <= 0 ? 0 : Math.max(1, Math.round(tests * 0.45));
-  const nFlowers = tests < 2 ? 0 : Math.max(1, Math.round(tests * 0.32));
+  const nFlowers = unifiedVeg ? 0 : tests < 2 ? 0 : Math.max(1, Math.round(tests * 0.32));
   const nSaplings = Math.floor(tests / 4);
 
   for (let i = 0; i < nFerns; i++) {
@@ -1930,11 +2013,18 @@ function heathSurface(
   status: SceneStatus,
   tests: number,
   rand: () => number,
+  unifiedVeg = false,
 ): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
   const conf = heathConf(status);
   if (!cells.length) return { ground, flora };
+
+  // The heather-BELLS (on the mounds + as racemes) are RETIRED under the unified vegetation vocabulary
+  // (ADR-0226 decision 2: a flower means UAT, not decoration); the heather MOUNDS stay as the density
+  // bulk. `bloomChance` gates the bells-on-mound tier, `flowerClusters` (below) the raceme tier — both
+  // fall to zero under the flag. Absent/false ⇒ today's heath byte-for-byte.
+  const bloomChance = unifiedVeg ? 0 : conf.bloomChance;
 
   const item = (y: number, marks: SceneNode[]): ParcelFloraMark =>
     parcelFloraItem('heath', status, y, marks, conf.opacity < 1 ? conf.opacity : undefined);
@@ -2022,7 +2112,7 @@ function heathSurface(
     }
     marks.push(...mound(x, y, s, bodyV, hiV));
 
-    if (conf.bloomChance && rand() < conf.bloomChance) {
+    if (bloomChance && rand() < bloomChance) {
       marks.push(...bloomOnMound(x, y, s));
     }
     if (conf.spark) {
@@ -2068,7 +2158,7 @@ function heathSurface(
   const t = Math.max(0, tests | 0);
   const grassCount = cells.length ? Math.min(cells.length, t === 0 ? 4 : 4 + Math.round(t * 1.3)) : 0;
   const shrubCount = Math.round(t * 0.75);
-  const flowerClusters = t < 2 ? 0 : Math.round((t - 1) * 0.3 * conf.flowerBoost);
+  const flowerClusters = unifiedVeg ? 0 : t < 2 ? 0 : Math.round((t - 1) * 0.3 * conf.flowerBoost);
 
   for (let i = 0; i < grassCount; i++) {
     const p = next();
@@ -2134,7 +2224,11 @@ export interface ParcelSurface {
   ground: SceneNode[];
   flora: ParcelFloraMark[];
 }
-function buildTerritorySurface(t: SceneTerritoryInput, ownerCells: RelaxedCell[]): ParcelSurface | null {
+function buildTerritorySurface(
+  t: SceneTerritoryInput,
+  ownerCells: RelaxedCell[],
+  unifiedVeg = false,
+): ParcelSurface | null {
   const parcels = t.parcels;
   if (!parcels || !parcels.length || !ownerCells.length) return null;
   const seeds = parcels.map((p) => p.seed);
@@ -2150,7 +2244,7 @@ function buildTerritorySurface(t: SceneTerritoryInput, ownerCells: RelaxedCell[]
     const cells = groups[i]!;
     if (!cells.length) return;
     const rand = streamRand(`parcel:${t.id}:${parcel.capId}`);
-    const out = SURFACES[parcel.theme](cells, parcel.status, parcel.testCount, rand);
+    const out = SURFACES[parcel.theme](cells, parcel.status, parcel.testCount, rand, unifiedVeg);
     ground.push(
       g(out.ground, { kind: 'parcel', id: parcel.capId, status: parcel.status, title: parcel.capId }),
     );
@@ -2481,43 +2575,13 @@ function grassMarks(k: number): SceneNode[] {
   return marks;
 }
 
-/** The UAT verdict as a MASSED daisy BED (grounded-art inc 11 unit 3 — the owner's few-hero-objects
- *  read). Instead of ONE tall-flower scattered per criterion across the whole island (the inc-7 render
- *  the owner flagged as busy), the criteria cluster into one bed near the garden — each flower KEEPING
- *  its per-criterion `state` (bloom=proven / bud=pending / wilted=failing — the FORM is the verdict) and
- *  `id` (the click-to-detail hook, unchanged). The human-witness signpost seal is retained separately.
- *  A phyllotactic (golden-angle) cluster reads as one dense bed. Empty criteria ⇒ no bed. */
-function buildGardenUatBed(
-  t: SceneTerritoryInput,
-  land: RelaxedCell[] | null,
-  anchor: Pt,
-): Array<{ y: number; node: SceneNode }> {
-  const criteria = t.uatCriteria ?? [];
-  if (!criteria.length) return [];
-  const out: Array<{ y: number; node: SceneNode }> = [];
-  criteria.forEach((c, i) => {
-    const k = hash(`${t.id}:bed:${c.id}`);
-    const ang = i * 2.399963; // golden angle → an even, natural cluster
-    const rr = 3 + Math.sqrt(i) * 8 + (rand01(k) - 0.5) * 3;
-    const p = towardLand({ x: anchor.x + Math.cos(ang) * rr, y: anchor.y + Math.sin(ang) * rr * 0.7 }, anchor, land);
-    const kind: SceneKind =
-      c.state === 'proven' ? 'tall-flower-proven' : c.state === 'failing' ? 'tall-flower-failing' : 'tall-flower-pending';
-    out.push({
-      y: p.y,
-      node: g(tallFlowerMarks(c.state, k), {
-        kind,
-        id: c.id,
-        transform: `translate(${f(p.x)} ${f(p.y)}) scale(${f(MARKER_SCALE * 0.8)})`,
-      }),
-    });
-  });
-  return out;
-}
 
 /** The garden island's art drawables (grounded-art inc 11) — the `autumn-tree` hero at the tree spot
- *  (ADR-0221, replacing the procedural tree), the human-witness signpost RETAINED beside it, and the
- *  cottage + gazebo placed around the island. Each is a y-sorted `baked-use` so it interleaves in
- *  painter order with anything else on the island. The caller SUPPRESSES the decorative flora. */
+ *  (ADR-0221, replacing the procedural tree) and the cottage + gazebo placed around the island. Each is
+ *  a y-sorted `baked-use` so it interleaves in painter order with anything else on the island. The caller
+ *  SUPPRESSES the decorative flora. The unified vegetation vocabulary applies here too (ADR-0226
+ *  promotion): the UAT criteria render as the same small-flower scatter every island speaks, and the
+ *  human-witness signpost is retired (redundant with the UAT flowers + crown bloom). */
 function buildGardenArt(
   t: SceneTerritoryInput,
   garden: SceneGardenInput,
@@ -2537,15 +2601,8 @@ function buildGardenArt(
     y: t.treeSpot.y,
     node: gardenHeroUse('autumn-tree', t.treeSpot.x, t.treeSpot.y, treeScale),
   });
-  // the human-witness signpost is RETAINED beside the hero tree (the seal never leaves).
-  if (t.signpost) {
-    out.push({
-      y: t.treeSpot.y,
-      node: g([buildSignpost(t.signpost, crownR)], {
-        transform: `translate(${f(t.treeSpot.x)} ${f(t.treeSpot.y)})`,
-      }),
-    });
-  }
+  // the human-witness signpost is RETIRED here too (ADR-0226 decision 5 — the unified vocabulary; the
+  // UAT flowers + crown bloom carry the story-level UAT state).
   // the free-standing garden heroes — cottage + gazebo: each FITTED to the island, then placed so the
   // whole fitted footprint sits on owned land (unit 2 — the owner's "fully land within the island" fix).
   const freeIds: GardenHeroId[] = ['cottage', 'gazebo'];
@@ -2581,20 +2638,19 @@ function buildGardenArt(
     out.push(...buildStonePath(t, stone, [cottage, detour, gazebo], { spacingMul: 1.5, wobbleMul: 0.8, skipNear: crown, tag: 'step' }));
   }
 
-  // flat decorative accents + the UAT verdict (unit 3): a lavender clump beside the cottage, the UAT
-  // verdict as a MASSED daisy bed beside the gazebo, and a couple of grass tufts in the open — all flat,
-  // seeded, clamped to owned land. This is the cosy garden read the concept has, and it folds the
-  // per-criterion verdict into ONE bed instead of the busy 1:1 island-wide scatter.
+  // flat decorative accents + the UAT verdict: a lavender clump beside the cottage, and a couple of grass
+  // tufts in the open — flat, seeded, clamped to owned land. This is the cosy garden read the concept has.
+  // The UAT criteria render as the SAME unified small-flower scatter every other island uses (ADR-0226
+  // promotion, owner look verdict 2026-07-22 — the garden node showed no visible UAT flowers because its
+  // massed bud-bed read as a subtle clump; the 1:1 small-flower scatter is the one vocabulary the whole
+  // map now speaks). The scatter keeps out of the hero tree well + spaces itself + lands on owned cells.
   const cen = t.centroid;
   const accentScale = crownR / 26;
   if (cottage) {
     const a = towardLand({ x: cottage.x - crownR * 0.85, y: cottage.y + crownR * 0.4 }, cen, land);
     out.push({ y: a.y, node: g(lavenderMarks(hash(`${t.id}:lavender`)), { transform: `translate(${f(a.x)} ${f(a.y)}) scale(${f(accentScale)})` }) });
   }
-  const bedAnchor = gazebo
-    ? towardLand({ x: gazebo.x + crownR * 0.9, y: gazebo.y + crownR * 0.3 }, cen, land)
-    : towardLand({ x: cen.x + crownR, y: cen.y + crownR * 0.5 }, cen, land);
-  out.push(...buildGardenUatBed(t, land, bedAnchor));
+  out.push(...buildUatMarkers(t, land, true));
   for (let i = 0; i < 3; i++) {
     const k = hash(`${t.id}:grass:${i}`);
     const ang = rand01(k) * Math.PI * 2;
@@ -2617,6 +2673,59 @@ function buildGardenDefs(garden: SceneGardenInput): SceneG {
   return g(defs, { kind: 'baked-defs' });
 }
 
+/** The scene-graph def-id for a tree-spread `autumn-tree` colourway (ADR-0227, amends ADR-0226/0221) —
+ *  one per status (`veg-hero-autumn-tree-healthy`, `…-unhealthy`, …). Distinct from the garden's
+ *  `garden-hero-autumn-tree` so the two features stay independent — the tree-spread applies to EVERY
+ *  non-garden island, the garden to its one exemplar. */
+function vegHeroTreeDefId(status: SceneStatus): string {
+  return `veg-hero-autumn-tree-${status}`;
+}
+
+/** The status whose colourway a given island actually uses: its own status when a variant is supplied,
+ *  else the `unknown` fallback (which the surface always supplies). Keeps every `<use>` pointing at a def
+ *  the defs layer emitted. */
+function resolvedTreeStatus(heroTrees: SceneVegHeroTrees, status: SceneStatus): SceneStatus {
+  return heroTrees[status] ? status : 'unknown';
+}
+
+/** Place the tree-spread's `autumn-tree` colourway as the central tree of a non-garden island (ADR-0227)
+ *  — a paint-free `baked-use` at the island's tree spot, referencing the def for the ISLAND'S STATUS so
+ *  the crown carries the status hue the procedural tree carried (green=healthy, brown=mapped, …), restored
+ *  on the authored silhouette. FITTED to the island exactly like a garden hero (`fittedHeroScale`); every
+ *  colourway shares one box, so the fit is status-independent. Define-once / reference-many: one def per
+ *  status, N cheap `<use>`s. Kind `baked-art` is the existing ADR-0218 placement kind — the studio/website
+ *  mappers already render it and R3F already skips it, so there is zero new mapper/R3F code. */
+function vegHeroTreeUse(heroTrees: SceneVegHeroTrees, t: SceneTerritoryInput): SceneBakedUse {
+  const status = resolvedTreeStatus(heroTrees, t.status);
+  const hero = heroTrees[status];
+  const s = hero ? fittedHeroScale('autumn-tree', hero, t) : 1;
+  return {
+    el: 'baked-use',
+    defId: vegHeroTreeDefId(status),
+    kind: 'baked-art',
+    id: `veg-tree-${t.id}`,
+    transform: `translate(${f(t.treeSpot.x)} ${f(t.treeSpot.y)}) scale(${f(s)})`,
+  };
+}
+
+/** The tree-spread's baked-art DEFINITIONS layer (ADR-0227): one `autumn-tree` colourway def per STATUS
+ *  actually used by the islands on this map (define-once / reference-many, ADR-0069 — never more defs than
+ *  distinct statuses present, so the node floor stays proportional). Referenced by each island's
+ *  `vegHeroTreeUse`. Emitted only when the surface supplies `vegetation.heroTrees`; absent ⇒ the procedural
+ *  tree stays and no defs layer is emitted. */
+function buildVegetationDefs(heroTrees: SceneVegHeroTrees, statuses: Iterable<SceneStatus>): SceneG {
+  const seen = new Set<SceneStatus>();
+  const defs: SceneNode[] = [];
+  for (const st of statuses) {
+    const status = resolvedTreeStatus(heroTrees, st);
+    if (seen.has(status)) continue;
+    seen.add(status);
+    const hero = heroTrees[status];
+    if (hero) defs.push({ el: 'baked-def', defId: vegHeroTreeDefId(status), nodes: hero.nodes });
+  }
+  return g(defs, { kind: 'baked-defs' });
+}
+
 // ---------------------------------------------------------------------------
 // a whole island's flora layer (TerritoryFlora)
 // ---------------------------------------------------------------------------
@@ -2634,8 +2743,13 @@ export function buildTerritoryFlora(
   parcelFlora?: ParcelFloraMark[] | null,
   ownerCells?: RelaxedCell[] | null,
   garden?: SceneGardenInput | null,
+  vegetation?: SceneVegetationInput | null,
 ): SceneG {
   const drawables: { y: number; node: SceneNode }[] = [];
+  // The unified vegetation vocabulary (ADR-0226) governs the NON-garden path only — the garden
+  // composition (below) is its own attested look. Present ⇒ small UAT flowers + the retired signpost
+  // (and, once UNIT 2 lands, the hero central tree); absent ⇒ byte-for-byte.
+  const unifiedVeg = !!vegetation;
 
   if (garden) {
     // the cosy-island GARDEN (grounded-art inc 11, ADR-0221): the four heroes ARE this island's art.
@@ -2660,11 +2774,24 @@ export function buildTerritoryFlora(
       }
       for (const plant of t.plants) drawables.push({ y: plant.y, node: buildPlant(plant) });
     }
-    drawables.push({ y: t.treeSpot.y, node: buildTree(t) });
-    // the UAT markers (forest-parcels inc 2; tall flowers, grounded-art inc 7) — each scattered flower
-    // is its OWN y-sorted drawable so it interleaves with the tree + flora by depth. The island's
-    // substrate cells (when known) are the scatter's keep-in. Absent/empty uatCriteria ⇒ nothing (the lock).
-    drawables.push(...buildUatMarkers(t, ownerCells ?? null));
+    // The central tree. Under the tree-spread (ADR-0226 decision 1, amends ADR-0221; per-status
+    // colourways, ADR-0227), a supplied `vegetation.heroTrees` replaces the procedural `buildTree` with a
+    // `<use>` of the `autumn-tree` colourway for THIS island's status — define-once / reference-many, so
+    // the whole map reads as one authored world AND each tree still carries its status hue (the loss the
+    // owner flagged in the uniform-brown promotion). The island keeps its grass / flora / UAT markers;
+    // ONLY the tree becomes the hero. Absent `heroTrees` ⇒ the procedural tree (grass/flowers still
+    // apply, and flag-off is byte-for-byte).
+    if (vegetation?.heroTrees) {
+      drawables.push({ y: t.treeSpot.y, node: vegHeroTreeUse(vegetation.heroTrees, t) });
+    } else {
+      drawables.push({ y: t.treeSpot.y, node: buildTree(t, unifiedVeg) });
+    }
+    // the UAT markers (forest-parcels inc 2; tall flowers, grounded-art inc 7; small flowers folded into
+    // the grass, ADR-0226) — each scattered flower is its OWN y-sorted drawable so it interleaves with the
+    // tree + flora by depth. Under the vocabulary flag they render SMALL (a low meadow flower, not a tall
+    // scatter). The island's substrate cells (when known) are the scatter's keep-in. Absent/empty
+    // uatCriteria ⇒ nothing (the lock).
+    drawables.push(...buildUatMarkers(t, ownerCells ?? null, unifiedVeg));
   }
   drawables.sort((a, b) => a.y - b.y);
 
@@ -2696,7 +2823,12 @@ function buildEmpties(input: SceneInput): SceneG {
   return g(
     input.empties.map((h) => {
       const c = hexCenter(h);
-      return path(hexPath(c.x, c.y, HEX_R - 0.6), { kind: 'empty' });
+      // ADR-0286: a coast hex carries the id of the island it grew out of, when the caller
+      // attributed it — that id is the only handle a per-story hide has on this layer. An
+      // unattributed hex (or an owner index no territory answers to) stays id-less, exactly as
+      // every coast hex was before attribution existed.
+      const id = h.owner === undefined ? undefined : input.territories[h.owner]?.id;
+      return path(hexPath(c.x, c.y, HEX_R - 0.6), id === undefined ? { kind: 'empty' } : { kind: 'empty', id });
     }),
     { kind: 'empties-layer' },
   );
@@ -2906,9 +3038,14 @@ export function buildScene(input: SceneInput): SceneG {
   const ownerCells: (RelaxedCell[] | null)[] = input.territories.map((_, owner) =>
     cells ? cells.filter((c) => c.owner === owner) : null,
   );
+  // The unified vegetation vocabulary (ADR-0226) — present ⇒ the surfaces retire their decorative bloom
+  // tier and the flora path renders the small-flower / retired-signpost vocabulary. ABSENT ⇒ every
+  // island renders byte-for-byte (the absence lock; the public website never sends it).
+  const vegetation = input.vegetation ?? null;
+  const unifiedVeg = !!vegetation;
   const surfaces: (ParcelSurface | null)[] = input.territories.map((t, i) => {
     const own = ownerCells[i];
-    return own ? buildTerritorySurface(t, own) : null;
+    return own ? buildTerritorySurface(t, own, unifiedVeg) : null;
   });
   // ADR-0218's fenced baked-art seam is RE-LIT here (grounded-art inc 11, ADR-0221): when `input.garden`
   // is present, its heroes' `baked-def`s are emitted once into a `baked-defs` layer that every hero
@@ -2918,6 +3055,11 @@ export function buildScene(input: SceneInput): SceneG {
   const garden = input.garden ?? null;
   const layers: SceneNode[] = [
     ...(garden ? [buildGardenDefs(garden)] : []),
+    // ADR-0226 decision 1 (the tree-spread) + ADR-0227 (per-status colourways): one `autumn-tree` def per
+    // STATUS present on the map, emitted when the surface supplies `vegetation.heroTrees`, referenced by
+    // every non-garden island's central-tree `<use>`. Absent ⇒ no defs layer, and every island's tree
+    // renders as the procedural `buildTree` byte-for-byte.
+    ...(vegetation?.heroTrees ? [buildVegetationDefs(vegetation.heroTrees, input.territories.map((t) => t.status))] : []),
     buildEmpties(input),
     buildCoast(input),
     buildGround(input, surfaces),
@@ -2930,6 +3072,7 @@ export function buildScene(input: SceneInput): SceneG {
             surfaces[i]?.flora ?? null,
             ownerCells[i] ?? null,
             garden && garden.islandId === t.id ? garden : null,
+            vegetation,
           ),
         ),
         ...buildCaves(input),
