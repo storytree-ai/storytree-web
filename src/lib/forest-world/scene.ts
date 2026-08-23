@@ -1424,6 +1424,22 @@ function buildWisps(t: SceneTerritoryInput): SceneG | null {
   const orbitR = t.screenRadius * 0.72 + 10;
   const wisps = t.wisps.map((w) => {
     const phase = rand01(hash(w.runId)) * 360;
+    // `phase` is the orbit ROTATION (geometry); `phaseBand` is the red→green build state
+    // (ADR-0048 §3 v2); `colourState` is the optional live subagent-role tint the work-event
+    // stamped (ADR-0138 §5) — three independent fields (location ⟂ form).
+    //
+    // ANNOTATED local, then one guarded assignment for the optional — the shape
+    // `anti-slop/no-conditional-empty-object-spread` requires. The annotation is LOAD-BEARING: an
+    // un-annotated literal infers a type WITHOUT `colourState`, the later write stops compiling, and
+    // (had it compiled) the literal would no longer be fresh at the `g()` call, so excess-property
+    // checking would disappear with nothing going red.
+    const wispAttrs: SceneNodeBase = {
+      kind: 'wisp',
+      title: w.title,
+      phase,
+      phaseBand: wispBand(w.phase),
+    };
+    if (w.colourState) wispAttrs.colourState = w.colourState;
     return g(
       [
         g(
@@ -1435,16 +1451,7 @@ function buildWisps(t: SceneTerritoryInput): SceneG | null {
           { transform: `translate(${f(orbitR)} 0)` },
         ),
       ],
-      // `phase` is the orbit ROTATION (geometry); `phaseBand` is the red→green build state
-      // (ADR-0048 §3 v2); `colourState` is the optional live subagent-role tint the work-event
-      // stamped (ADR-0138 §5) — three independent fields (location ⟂ form).
-      {
-        kind: 'wisp',
-        title: w.title,
-        phase,
-        phaseBand: wispBand(w.phase),
-        ...(w.colourState ? { colourState: w.colourState } : {}),
-      },
+      wispAttrs,
     );
   });
   return g(wisps, { kind: 'wisps', transform: `translate(${f(t.centroid.x)} ${f(t.centroid.y)})` });
@@ -1539,6 +1546,19 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
     }
     // WORK — today's orbiting claim wisp, unchanged (the ADR-0200 D2 regression lock).
     const phase = rand01(hash(c.key)) * 360;
+    // `phase` is the orbit ROTATION (geometry); `colourState` is the subagent role (form) — two
+    // independent fields (location ⟂ form). NEVER carries an `outcome`/`bloom` (the §5 wall).
+    // `phaseBand` (ADR-0212) is the live build state folded onto this ONE body, replacing the
+    // separate orbiting build wisp: colour stays INTENT (`colourState`, never green), the band is
+    // the build phase. Absent when no build runs on this story — back-compat byte-for-byte, which
+    // the guarded assignment preserves exactly as the conditional spread did.
+    const claimAttrs: SceneNodeBase = {
+      kind: 'claim-wisp',
+      title: c.title,
+      phase,
+      colourState: c.colourState,
+    };
+    if (c.phase) claimAttrs.phaseBand = wispBand(c.phase);
     return g(
       [
         g(
@@ -1550,18 +1570,7 @@ function buildClaimWisps(t: SceneTerritoryInput): SceneG | null {
           { transform: `translate(${f(orbitR)} 0)` },
         ),
       ],
-      // `phase` is the orbit ROTATION (geometry); `colourState` is the subagent role (form) — two
-      // independent fields (location ⟂ form). NEVER carries an `outcome`/`bloom` (the §5 wall).
-      // `phaseBand` (ADR-0212) is the live build state folded onto this ONE body, replacing the
-      // separate orbiting build wisp: colour stays INTENT (`colourState`, never green), the band is
-      // the build phase. Absent when no build runs on this story — back-compat byte-for-byte.
-      {
-        kind: 'claim-wisp',
-        title: c.title,
-        phase,
-        colourState: c.colourState,
-        ...(c.phase ? { phaseBand: wispBand(c.phase) } : {}),
-      },
+      claimAttrs,
     );
   });
   return g(wisps, {
@@ -1658,6 +1667,22 @@ export interface ParcelFloraMark {
   node: SceneNode;
 }
 
+/** The nodes ONE flora sub-painter draws, plus the painter-anchor they y-sort at — what each
+ *  surface's internal `fern` / `shrub` / `sapling` / `grassTuft` / `bellCluster` / `flower` helper
+ *  hands back before {@link ParcelFloraMark} wraps it into a single node.
+ *
+ *  Named rather than written inline at each of the seven helpers because
+ *  `anti-slop/no-known-value-widening` reads a repeated anonymous return annotation as discarded
+ *  type evidence, and inc-08's refactor panel settled the fork 3-0 the other way from deleting it:
+ *  with no build step and raw TypeScript exported, the declaration site is the only API-surface
+ *  document there is. `marks` is plural and `node` singular on purpose — a helper may draw several
+ *  nodes for one anchor. */
+interface FloraMarkGroup {
+  y: number;
+  marks: SceneNode[];
+}
+
+
 /** THE SPLICE SEAM (ADR-0208): a per-theme surface painter. Frozen contract
  *  `(cells, status, testCount, rand) => { ground, flora }` — turns a capability parcel's cells into
  *  its tinted ground cell nodes + its placed flora marks. `rand` is a seeded STATEFUL stream (the
@@ -1674,7 +1699,7 @@ export type SurfaceFn = (
    *  the status accents (sprouts / wilt / building-sparks) stay. Absent/false ⇒ today's surface
    *  byte-for-byte. */
   unifiedVeg?: boolean,
-) => { ground: SceneNode[]; flora: ParcelFloraMark[] };
+) => ParcelSurface;
 
 /** A seeded mulberry32 STREAM `() => number` (a `SurfaceFn` draws many values). Mirrors the spike's
  *  `mulberry32(hash(seed))`; `rand01` in rng.ts is a single-STEP variant, so the stream lives here.
@@ -1720,15 +1745,12 @@ function parcelFloraItem(
   marks: SceneNode[],
   opacity?: number,
 ): ParcelFloraMark {
-  return {
-    y,
-    node: g(marks, {
-      kind: 'parcel-flora',
-      theme,
-      status,
-      ...(opacity != null ? { opacity } : {}),
-    }),
-  };
+  // ANNOTATED local, then one guarded assignment — the shape
+  // `anti-slop/no-conditional-empty-object-spread` requires. The annotation is load-bearing: without
+  // it the inferred type has no `opacity` and the write below stops compiling.
+  const attrs: SceneNodeBase = { kind: 'parcel-flora', theme, status };
+  if (opacity != null) attrs.opacity = opacity;
+  return { y, node: g(marks, attrs) };
 }
 
 /** DRIFTS & CLEARINGS (the owner-directed vegetation refinement, 2026-07-18): every theme spends
@@ -1766,7 +1788,7 @@ function meadowSurface(
   tests: number,
   rand: () => number,
   unifiedVeg = false,
-): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
+): ParcelSurface {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
   if (!cells.length) return { ground, flora };
@@ -1959,7 +1981,7 @@ function woodlandSurface(
   tests: number,
   rand: () => number,
   unifiedVeg = false,
-): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
+): ParcelSurface {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
   if (!cells.length) return { ground, flora };
@@ -1985,7 +2007,7 @@ function woodlandSurface(
   const spot = driftSpot(cells, tests, rand);
 
   // mark: fern tuft — each blade a dark back-half (v1) under a narrower light front-half (v0).
-  const fern = (x: number, y: number): { y: number; marks: SceneNode[] } => {
+  const fern = (x: number, y: number): FloraMarkGroup => {
     const s = 1.05 + rand() * 0.4;
     if (distressed) {
       const marks: SceneNode[] = [];
@@ -2020,7 +2042,7 @@ function woodlandSurface(
   };
 
   // mark: undershrub — side lump + main dome (dark v1) + upper-left highlight lobe (light v0).
-  const shrub = (x: number, y: number): { y: number; marks: SceneNode[] } => {
+  const shrub = (x: number, y: number): FloraMarkGroup => {
     const s = 0.85 + rand() * 0.35;
     if (distressed) {
       const marks: SceneNode[] = [];
@@ -2042,7 +2064,7 @@ function woodlandSurface(
   };
 
   // mark: anemone bloom — stem (parcel-stem v1) + shadow petals (v1) + lit petals (v0) + core (v2).
-  const flower = (x: number, y: number): { y: number; marks: SceneNode[] } | null => {
+  const flower = (x: number, y: number): FloraMarkGroup | null => {
     if (distressed) return null;
     const stemH = 3.4 + rand() * 1.4;
     const top = y - stemH;
@@ -2065,7 +2087,7 @@ function woodlandSurface(
   };
 
   // mark: sapling — trunk (parcel-stem v2) + crown facet pair on its OWN variants (dark v3 / light v2).
-  const sapling = (x: number, y: number): { y: number; marks: SceneNode[] } => {
+  const sapling = (x: number, y: number): FloraMarkGroup => {
     const s = 0.8 + rand() * 0.3;
     if (distressed) {
       const marks: SceneNode[] = [];
@@ -2161,7 +2183,7 @@ function heathSurface(
   tests: number,
   rand: () => number,
   unifiedVeg = false,
-): { ground: SceneNode[]; flora: ParcelFloraMark[] } {
+): ParcelSurface {
   const ground = parcelGround(cells, status, rand);
   const flora: ParcelFloraMark[] = [];
   const conf = heathConf(status);
@@ -2201,7 +2223,7 @@ function heathSurface(
   };
 
   // tier 1: long wiry moor-grass tufts (stroked blades, grassA dark v1 / grassB light v0 alternating).
-  const grassTuft = (x: number, y: number): { y: number; marks: SceneNode[] } => {
+  const grassTuft = (x: number, y: number): FloraMarkGroup => {
     const s = conf.scale * (0.85 + rand() * 0.35);
     const n = 3 + Math.floor(rand() * 3);
     const marks: SceneNode[] = [];
@@ -2222,7 +2244,7 @@ function heathSurface(
 
   // tier 2: heather/gorse scrub mounds (density driver). A hero is a clump (companion + main mound);
   // distressed goes to bare wiry twigs + dead flecks.
-  const shrub = (x: number, y: number, hero: boolean): { y: number; marks: SceneNode[] } => {
+  const shrub = (x: number, y: number, hero: boolean): FloraMarkGroup => {
     const s = conf.scale * (hero ? 1.05 + rand() * 0.25 : 0.75 + rand() * 0.28);
     const useAlt = conf.altShrubChance > 0 && rand() < conf.altShrubChance;
     const bodyV = useAlt ? 3 : 1;
@@ -2273,7 +2295,7 @@ function heathSurface(
 
   // tier 3: heather-bell raceme — a stem (parcel-stem v0) up which bells (dark back v1/v5, light face
   // v0/v4, tiny core v2) climb.
-  const bellCluster = (x: number, y: number): { y: number; marks: SceneNode[] } => {
+  const bellCluster = (x: number, y: number): FloraMarkGroup => {
     if (!conf.bellLight) return { y, marks: [] };
     const s = conf.scale * (1.0 + rand() * 0.3);
     const n = 3 + Math.floor(rand() * 3);
@@ -2328,11 +2350,11 @@ function heathSurface(
 /** THE SURFACE REGISTRY (ADR-0208) — the splice point: theme → its `SurfaceFn`. These are the
  *  designer-authored surfaces (meadow / woodland / heath), spliced over the initial in-repo ports
  *  behind the frozen seam (the `SurfaceFn` shape + the kinds vocabulary are frozen; the craft is not). */
-export const SURFACES: Record<SurfaceTheme, SurfaceFn> = {
+export const SURFACES = {
   meadow: meadowSurface,
   woodland: woodlandSurface,
   heath: heathSurface,
-};
+} as const satisfies Record<SurfaceTheme, SurfaceFn>;
 
 // --- Voronoi assignment + the once-computed per-territory surface ---
 
@@ -2362,15 +2384,23 @@ function nearestParcel(centroid: Pt, seeds: readonly Pt[]): number {
   return best;
 }
 
+/** Tinted ground cells plus placed flora — the shape BOTH surface layers speak in.
+ *
+ *  {@link SurfaceFn} returns it for ONE parcel; {@link buildTerritorySurface} returns it for a whole
+ *  island, having merged its parcels' contributions. One interface for both because the shape was
+ *  always identical and was written out twice: the seam's own type spelled it inline, and each of
+ *  the three theme surfaces repeated the annotation. `anti-slop/no-known-value-widening` reads a
+ *  repeated anonymous return annotation as discarded type evidence; naming it changes nothing about
+ *  the frozen ADR-0208 contract, whose SHAPE is what is frozen. */
+export interface ParcelSurface {
+  ground: SceneNode[];
+  flora: ParcelFloraMark[];
+}
 /** One parcels-present island's full surface, computed ONCE (buildScene threads the `ground` to
  *  `buildGround` and the `flora` to `buildTerritoryFlora`). Each parcel's ground cells are wrapped in
  *  a transparent `parcel` group carrying the capId (the hover/delegation hook). Returns null when the
  *  island has no parcels or no substrate cells (the feature needs the relaxed mesh), so every caller
  *  falls back to today's render. */
-export interface ParcelSurface {
-  ground: SceneNode[];
-  flora: ParcelFloraMark[];
-}
 function buildTerritorySurface(
   t: SceneTerritoryInput,
   ownerCells: RelaxedCell[],
@@ -2419,12 +2449,12 @@ const GARDEN_DEFINED_HEROES: GardenHeroId[] = ['autumn-tree', 'cottage', 'gazebo
 
 /** A hero's on-island target HEIGHT in map units, as a multiple of the island's crown radius so it
  *  scales with the story like the procedural tree it stands beside. Tuned against the concept render. */
-const GARDEN_HERO_TARGET: Record<GardenHeroId, number> = {
+const GARDEN_HERO_TARGET = {
   'autumn-tree': 2.6, // the central tree — matches the ~2.65·R procedural tree it replaces (ADR-0221)
   cottage: 1.7,
   gazebo: 1.5,
   'stepping-stone': 0.28, // small flat path stones — enough of them read as a path, not a few slabs
-};
+} as const satisfies Record<GardenHeroId, number>;
 
 /** The island-size FIT bound (grounded-art inc 11 unit 2 — the owner's "buildings dont fully land within
  *  the island" fix). `crownRadius` saturates at 32 regardless of tile quota, so on a SMALL island the
@@ -3203,15 +3233,18 @@ function trailSegPath(
   edgesOf: (id: string) => string,
   markSpur = false,
 ): ScenePath {
-  return path(s.d, {
+  // ANNOTATED local, then one guarded assignment — the shape
+  // `anti-slop/no-conditional-empty-object-spread` requires.
+  const attrs: SceneNodeBase = {
     kind,
     id: s.id,
     usage: s.usage,
     edges: edgesOf(s.id),
     strokeWidth: trailFillWidth(s.usage) + widen,
-    // a spur (one edge) is a dashed footpath; a trunk (≥2) a solid road (ADR-0169 §2)
-    ...(markSpur && s.usage === 1 ? { spur: true } : {}),
-  });
+  };
+  // a spur (one edge) is a dashed footpath; a trunk (≥2) a solid road (ADR-0169 §2)
+  if (markSpur && s.usage === 1) attrs.spur = true;
+  return path(s.d, attrs);
 }
 
 /** The trail network as FULL cased passes (ADR-0169 §2): every visible segment drawn
@@ -3242,15 +3275,18 @@ export function buildTrails(input: SceneInput): SceneG {
       g(visible.map((s) => trailSegPath(s, 'trail-fill', 0, edgesOf, true)), { kind: 'trail-fill-pass' }),
       g(hidden.map((s) => trailSegPath(s, 'trail-ghost', 0, edgesOf)), { kind: 'trail-ghost-pass' }),
       g(
-        net.edges.map((e) =>
-          g([], {
+        net.edges.map((e) => {
+          // ANNOTATED local, then one guarded assignment — the shape
+          // `anti-slop/no-conditional-empty-object-spread` requires.
+          const attrs: SceneNodeBase = {
             kind: 'trail-edge',
             from: e.from,
             to: e.to,
-            ...(e.title !== undefined ? { title: e.title } : {}),
             segments: e.segments.map((r) => `${r.id}:${r.reversed ? 'R' : 'F'}`).join(','),
-          }),
-        ),
+          };
+          if (e.title !== undefined) attrs.title = e.title;
+          return g([], attrs);
+        }),
         { kind: 'trail-edges' },
       ),
     ],
