@@ -8,6 +8,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "test": "bun test src/",
     "publish:here": "node scripts/publish-herenow.mjs"
   },
   "dependencies": {
