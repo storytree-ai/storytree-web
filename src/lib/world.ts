@@ -225,6 +225,23 @@ function layoutCapDag(story: Story): CapDag {
 
 // ---------- build ----------
 
+/**
+ * DEAD, AND DELIBERATELY LEFT THAT WAY - verified 2026-08-27 against this checkout.
+ *
+ * `buildWorld` has ZERO non-comment references anywhere in `web/src` (checked across .ts / .tsx /
+ * .svelte / .astro / .js); the only mentions are three prose comments in `src/lib/forest-world/`.
+ * The live home map is `worldSvg.ts` over the synced engine core, and the walkthrough builds its
+ * own discs in `src/scripts/act2-walkthrough.ts`.
+ *
+ * It carries THREE instances of the ADR-0367 screen-space-distance class - an island radius, a
+ * hero-tile argmin and a decor keep-out, all measured on PROJECTED coordinates, plus a hand-picked
+ * `* 0.7` cap-ring squash where the declared camera says sin(20 deg) = 0.342. They are MARKED
+ * rather than fixed: `website-decor-proximity-moves-to-ground-space` established that this file is
+ * superseded by the website refresh, which removes it, and fixing code with no caller would be
+ * work spent on something about to be deleted. The markers exist so `check:ground-space` in the
+ * parent repo can see them declared rather than reporting them as undeclared every run - and so
+ * that whoever deletes the file knows what went with it.
+ */
 export function buildWorld(data: Dataset): World {
   const stories = data.stories;
   const sessions = data.sessions ?? [];
@@ -347,9 +364,15 @@ export function buildWorld(data: Dataset): World {
     const cs = tiles[i].map(hexCenter);
     const cx = cs.reduce((s, p) => s + p.x, 0) / cs.length;
     const cy = cs.reduce((s, p) => s + p.y, 0) / cs.length;
+    // screen-space-defect: website-decor-proximity-moves-to-ground-space — a max-distance over
+    // PROJECTED tile centres, so this island's radius shrinks with the camera (ADR-0367 D1).
     const radius = Math.max(0, ...cs.map((p) => Math.hypot(p.x - cx, p.y - cy))) + HEX_R;
+    // The hero tile is chosen by an argmin taken in SCREEN space, which under-weights the
+    // foreshortened axis and so can pick a different tile than the ground would. Its live twin in
+    // the studio disagrees with the ground-space choice on 26.8% of grown islands (measured).
     const centerTile = [...tiles[i]].sort((a, b) => {
       const ca = hexCenter(a), cb = hexCenter(b);
+      // screen-space-defect: website-decor-proximity-moves-to-ground-space (see above)
       return Math.hypot(ca.x - cx, ca.y - cy) - Math.hypot(cb.x - cx, cb.y - cy);
     })[0];
     const tp = hexCenter(centerTile);
@@ -382,6 +405,8 @@ export function buildWorld(data: Dataset): World {
       if (axialKey(tile) === axialKey(centerTile)) continue;
       const roll = rand01(hash(`${story.id}:dec:${axialKey(tile)}`));
       const c = hexCenter(tile);
+      // screen-space-defect: website-decor-proximity-moves-to-ground-space — the same keep-out
+      // `act2-walkthrough.ts` just moved to ground space, still measured on the screen here.
       const near = Math.hypot(c.x - tp.x, c.y - tp.y) < crownR + 18;
       if (roll < 0.3 && !near) decor.push({ x: c.x, y: c.y, seed: hash(`${axialKey(tile)}:f`) });
       else if (roll >= 0.3 && roll < 0.55) wheat.add(axialKey(tile));

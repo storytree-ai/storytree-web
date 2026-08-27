@@ -67,6 +67,7 @@
 import {
   AXIAL_DIRS,
   HEX_R,
+  LAND_CAMERA_ELEVATION_DEG,
   axialKey,
   buildRelaxedCells,
   buildScene,
@@ -77,6 +78,7 @@ import {
   rand01,
   routeTrails,
   smoothCoast,
+  unprojectGround,
   type Axial,
   type BoundarySeg,
   type Pt,
@@ -253,7 +255,7 @@ export interface FoldedWorld {
 }
 
 /** All axial tiles within `radius` rings of the origin (a disc). */
-function discTiles(radius: number): Axial[] {
+export function discTiles(radius: number): Axial[] {
   const tiles: Axial[] = [];
   for (let q = -radius; q <= radius; q++) {
     for (let r = Math.max(-radius, -q - radius); r <= Math.min(radius, -q + radius); r++) {
@@ -281,9 +283,70 @@ export interface DiscGeometry {
 /** Exported for the Phase-Z studio layer (act2-studio.ts): its hand-authored
  *  multi-island scene builds every disc through THIS generator, so the studio
  *  forest and the walked island share one geometry source. */
+/** What {@link discGround} decides: which tiles carry a decor conifer, and which are wheat. */
+export interface DiscGround {
+  readonly decor: Axial[];
+  readonly wheat: Set<string>;
+}
+
+/**
+ * THE DISC'S FIXED GROUND — decor conifers + wheat patches, seeded by TILE KEY only (never the
+ * story status), so the ground never changes between beats.
+ *
+ * ⚠ SPLIT OUT OF `buildDisc` SO THE CAMERA CAN BE VARIED (`ground-space-truth-arc`). The
+ * `nearTree` keep-out below was the LAST unfixed instance of the ADR-0367 screen-space-distance
+ * class, and the only one outside the synced engine core — PR #1356 fixed every site inside
+ * `packages/forest-world/src`, which reaches this repo through a wholesale sync, and could not
+ * touch this file. Its own increment is `website-decor-proximity-moves-to-ground-space`.
+ *
+ * WHAT WAS WRONG. `Math.hypot(c.x - cx, c.y - (cy - 6)) < 42` measured the tile's separation from
+ * the tree on the SCREEN. ADR-0367 D1's camera foreshortens the ground by `sin 20° ≈ 0.342`, so a
+ * screen threshold OVER-enforces on the vertical axis: `groundGap >= hypot` always holds, and the
+ * failure mode is starvation, never wrongful admission. Measured over the ten discs this site
+ * actually builds, the shipping predicate yields 16 conifers in plan view and 15 at the declared
+ * camera; the ground-space form below yields 16 at every elevation. Small, and entirely one-way —
+ * the camera can only ever take conifers away.
+ *
+ * THE `- 6` IS LEFT EXACTLY WHERE IT WAS, deliberately. It is the tree sprite's own anchor nudge
+ * (`treeSpot`, below), and whether it means six screen pixels or six ground units is a question
+ * this fix does not answer and must not silently decide: unprojecting the delta as a whole is the
+ * faithful "same test, correct space" translation, and nothing else about the predicate moves.
+ *
+ * `inGarden` STAYS IN SCREEN SPACE and that is not an oversight — it is the southern band the
+ * tree's limbs and the name plate occupy, both of which are screen art drawn at a fixed pixel size,
+ * exactly like the nameplate band `packages/forest-world/src/scene.ts` keeps in screen space for
+ * the same reason.
+ */
+export function discGround(
+  tiles: readonly Axial[],
+  cx: number,
+  cy: number,
+  seedId: string,
+  elevationDeg: number = LAND_CAMERA_ELEVATION_DEG,
+): DiscGround {
+  const decor: Axial[] = [];
+  const wheat = new Set<string>();
+  for (const tile of tiles) {
+    const key = axialKey(tile);
+    const c = hexCenter(tile, { elevationDeg });
+    const roll = rand01(hash(`${seedId}:dec:${key}`));
+    // ground-space: how far this tile stands from the tree ACROSS THE GROUND — unproject the
+    // separation before measuring it, or the camera silently culls conifers (ADR-0367 D1).
+    const toTree = unprojectGround({ x: c.x - cx, y: c.y - (cy - 6) }, elevationDeg);
+    const nearTree = Math.hypot(toTree.x, toTree.y) < 42;
+    const inGarden = c.y > cy + 8; // SCREEN: the band the limbs + name plate own (see above)
+    if (roll < 0.42 && !nearTree && !inGarden) decor.push(tile);
+    else if (roll >= 0.42 && roll < 0.62 && !nearTree) wheat.add(key);
+  }
+  return { decor, wheat };
+}
+
 export function buildDisc(centre: Pt, rings: number, seedId: string): DiscGeometry {
   const tiles = discTiles(rings);
-  const centres = tiles.map(hexCenter);
+  // Never `tiles.map(hexCenter)`: `Array.prototype.map` calls its callback `(element, index,
+  // array)`, so the bare form feeds each tile's ARRAY INDEX into `hexCenter`'s options slot
+  // (ADR-0367 D1's `['1','2'].map(parseInt)` trap, which the synced `hex.ts` documents at length).
+  const centres = tiles.map((h) => hexCenter(h));
   const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
   const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
   // translate everything so the disc's own centroid lands on `centre`.
@@ -293,23 +356,13 @@ export function buildDisc(centre: Pt, rings: number, seedId: string): DiscGeomet
 
   const treeSpot: Pt = tr({ x: cx, y: cy - 6 });
 
-  // fixed ground: decor conifers + wheat patches seeded by TILE KEY only (never
-  // the story status), so the ground never changes between beats.
-  const decor: { x: number; y: number; seed: number }[] = [];
-  const wheat = new Set<string>();
-  for (const tile of tiles) {
-    const key = axialKey(tile);
-    const c = hexCenter(tile);
-    const roll = rand01(hash(`${seedId}:dec:${key}`));
-    const nearTree = Math.hypot(c.x - cx, c.y - (cy - 6)) < 42;
-    const inGarden = c.y > cy + 8; // the southern band the limbs + plate own
-    if (roll < 0.42 && !nearTree && !inGarden) {
-      const t = tr(c);
-      decor.push({ x: t.x, y: t.y, seed: hash(`${seedId}:${key}:f`) });
-    } else if (roll >= 0.42 && roll < 0.62 && !nearTree) {
-      wheat.add(key);
-    }
-  }
+  // fixed ground: decor conifers + wheat patches — the decision itself lives in `discGround`,
+  // which measures the tree keep-out on the GROUND rather than on the screen (see its doc).
+  const { decor: decorTiles, wheat } = discGround(tiles, cx, cy, seedId);
+  const decor = decorTiles.map((tile) => {
+    const t = tr(hexCenter(tile));
+    return { x: t.x, y: t.y, seed: hash(`${seedId}:${axialKey(tile)}:f`) };
+  });
 
   // the mesh ground over the disc — the same shared-core call the home map makes
   // (`buildRelaxedCells(..., 'mesh')`), owner 0, then translated to centre.
