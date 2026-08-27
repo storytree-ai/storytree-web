@@ -89,17 +89,11 @@ export interface CellGroundGeometry {
   triangles: number;
 }
 
-/** An empty buffer. Returned rather than throwing when there is nothing to draw: a scene with
- *  no relaxed cells is the CLASSIC substrate, which is an ordinary island and not an error. */
-function emptyGeometry(): CellGroundGeometry {
-  return {
-    positions: new Float32Array(0),
-    normals: new Float32Array(0),
-    colors: new Float32Array(0),
-    cells: 0,
-    triangles: 0,
-  };
-}
+// ⚠ THERE IS NO EARLY RETURN FOR AN EMPTY INPUT, and adding one back would be dead code. A scene
+// with no relaxed cells is the CLASSIC substrate — an ordinary island, not an error — and the
+// general path already answers it exactly: zero triangles, three zero-length buffers. An
+// `if (rings.length === 0) return …` guard sat here until a mutation sweep showed it could be
+// deleted without any test noticing, which is what an unreachable branch looks like from outside.
 
 /** A 3D point in the merged buffer's own terms. */
 interface P3 {
@@ -108,8 +102,10 @@ interface P3 {
   z: number;
 }
 
-/** A ring vertex flattened to the ground plane. */
-interface P2 {
+/** A ring vertex flattened to the ground plane. Exported because the module's primitives below
+ *  are exported: they are the substance of this file, not its plumbing, and the whole
+ *  orientation convention everything else rests on is only checkable if they can be called. */
+export interface P2 {
   x: number;
   z: number;
 }
@@ -117,12 +113,12 @@ interface P2 {
 /** Twice the SIGNED shoelace area of a triangle in the (x, z) plane. Its SIGN is the winding,
  *  and under the mapper's x→east / y→depth convention a NEGATIVE value is the one whose face
  *  normal points +Y (up). Everything about orientation in this module reduces to that sentence. */
-function area2(a: P2, b: P2, c: P2): number {
+export function signedTriangleArea2(a: P2, b: P2, c: P2): number {
   return a.x * b.z - b.x * a.z + (b.x * c.z - c.x * b.z) + (c.x * a.z - a.x * c.z);
 }
 
 /** Twice the signed shoelace area of a whole ring — the same sign convention as {@link area2}. */
-function ringArea2(pts: readonly P2[]): number {
+export function signedRingArea2(pts: readonly P2[]): number {
   let s = 0;
   for (let i = 0; i < pts.length; i += 1) {
     const p = pts[i]!;
@@ -135,13 +131,13 @@ function ringArea2(pts: readonly P2[]): number {
 /** The ring in the module's ONE orientation: negative shoelace, i.e. the winding whose top face
  *  points +Y. Every downstream claim — the triangulation's facing, and the wall's `(-dz, 0, dx)`
  *  outward normal — is stated against this convention and holds only because of it. */
-function normalisedRing(pts: readonly P2[]): readonly P2[] {
-  return ringArea2(pts) > 0 ? pts.slice().reverse() : pts;
+export function normalisedRing(pts: readonly P2[]): readonly P2[] {
+  return signedRingArea2(pts) > 0 ? pts.slice().reverse() : pts;
 }
 
 /** Is `p` inside triangle `abc` (edges inclusive), for a triangle known to be wound negative? */
-function inTriangle(p: P2, a: P2, b: P2, c: P2): boolean {
-  return area2(a, b, p) <= 0 && area2(b, c, p) <= 0 && area2(c, a, p) <= 0;
+export function pointInTriangle(p: P2, a: P2, b: P2, c: P2): boolean {
+  return signedTriangleArea2(a, b, p) <= 0 && signedTriangleArea2(b, c, p) <= 0 && signedTriangleArea2(c, a, p) <= 0;
 }
 
 /**
@@ -156,48 +152,99 @@ function inTriangle(p: P2, a: P2, b: P2, c: P2): boolean {
  * not reasoned about; it was caught by the `non-convex L` fixture in this module's tests, which
  * is kept precisely so nobody simplifies this back to a fan.
  *
- * Ear clipping makes no convexity assumption at all. `pts` arrives already normalised to the
- * negative (upward) winding by {@link normalisedRing}, so every emitted triangle inherits it and
- * the caller never has to ask which way round the scene handed the parcel in.
+ * Ear clipping makes no convexity assumption at all. The ring is normalised to the negative
+ * (upward) winding first, so every emitted triangle inherits it and the caller never has to ask
+ * which way round the scene handed the parcel in.
  */
-function earClip(pts: readonly P2[]): [P2, P2, P2][] {
-  const idx = pts.map((_, i) => i);
+export function triangulateRing(ring: readonly P2[]): [P2, P2, P2][] {
+  const pts = normalisedRing(ring);
   const out: [P2, P2, P2][] = [];
-  // Each pass must clip at least one ear; the guard bounds a ring that is degenerate (repeated
-  // or collinear vertices) rather than looping forever on it.
-  let guard = idx.length * idx.length + 4;
-  while (idx.length > 3 && guard > 0) {
-    guard -= 1;
-    let clipped = false;
-    for (let i = 0; i < idx.length; i += 1) {
-      const a = pts[idx[(i + idx.length - 1) % idx.length]!]!;
-      const b = pts[idx[i]!]!;
-      const c = pts[idx[(i + 1) % idx.length]!]!;
-      // A reflex or collinear corner is not an ear.
-      if (area2(a, b, c) >= 0) continue;
-      // Nor is a corner whose triangle swallows another vertex of the ring.
-      let contains = false;
-      for (let j = 0; j < idx.length; j += 1) {
-        if (j === i || j === (i + idx.length - 1) % idx.length || j === (i + 1) % idx.length) continue;
-        if (inTriangle(pts[idx[j]!]!, a, b, c)) {
-          contains = true;
-          break;
-        }
-      }
-      if (contains) continue;
-      out.push([a, b, c]);
-      idx.splice(i, 1);
-      clipped = true;
-      break;
-    }
-    // No ear found — the ring is degenerate. Stop rather than spin; the remainder is emitted as
-    // a fan below, which for a degenerate ring is zero-area and therefore harmless.
-    if (!clipped) break;
+  // ⚠ NOT a copy. `rest` is only ever REASSIGNED, never mutated in place, so aliasing `pts` here
+  // cannot reach the caller's ring — and a defensive `.slice()` would be an allocation no test
+  // could ever justify.
+  let rest: readonly P2[] = pts;
+
+  // ⚠⚠ THE PASS COUNT IS KNOWN BEFORE THE LOOP STARTS, AND THAT IS THE POINT OF THIS SHAPE.
+  // Written the obvious way — `while (rest.length > 3)` with a `clipped` flag and a `break` —
+  // termination is DISCOVERED by the body rather than guaranteed by the loop, and six separate
+  // mutations of that body (dropping the splice, pinning the flag, emptying the block) turn it
+  // into an infinite loop. A mutation sweep reported all six as TIMEOUTS: real detections, but
+  // detections the rung cannot attribute to any test, because no test failed — the suite simply
+  // hung. Counting the passes up front converts every one of them into an ordinary wrong answer
+  // that area conservation catches, which is a far better thing to be held by than a stopwatch.
+  //
+  // The bound is `pts` itself, iterated for its LENGTH alone — its values are never read. n is a
+  // safe ceiling rather than an exact count: clipping stops on its own once fewer than three
+  // vertices remain (no corner of a two-vertex ring is an ear), so the last few passes are no-ops
+  // and the fan below emits whatever the clipping did not.
+  for (const _unused of pts) {
+    const ear = earIndex(rest);
+    // No ear: the ring is degenerate (collinear or repeated vertices), or it is down to its last
+    // two vertices. Stop and let the fan below emit what is left — for a degenerate ring that is
+    // zero-area and therefore harmless.
+    // ⚠ `null`, not `-1`. A numeric sentinel invites `return -1` → `return +1`, which reads as a
+    // VALID index, silently turns "no ear here" into "clip vertex 1", and produces a plausible
+    // wrong triangulation of a degenerate ring rather than an obvious failure.
+    if (ear === null) break;
+    const a = rest[(ear + rest.length - 1) % rest.length]!;
+    const b = rest[ear]!;
+    const c = rest[(ear + 1) % rest.length]!;
+    out.push([a, b, c]);
+    rest = [...rest.slice(0, ear), ...rest.slice(ear + 1)];
   }
-  for (let i = 1; i + 1 < idx.length; i += 1) {
-    out.push([pts[idx[0]!]!, pts[idx[i]!]!, pts[idx[i + 1]!]!]);
+
+  // Whatever survived the clipping, as a fan from its first vertex. On a well-formed ring the
+  // clipping has already consumed everything and this emits nothing.
+  // ⚠ Driven by the array rather than by a counter: `for (let i = …; i += 1)` invites `i -= 1`,
+  // which does not produce a wrong answer — it produces an INFINITE LOOP, and a suite that hangs
+  // is a detection no rung can attribute to a test.
+  // ⚠ THE TWO `!== undefined` GUARDS BELOW CAN NEVER BE FALSE, and they are here only because
+  // `noUncheckedIndexedAccess` types an index access as possibly-undefined. `tail` is empty
+  // unless `rest.length >= 3`, so `rest[0]` exists whenever the callback runs at all; and `i`
+  // ranges over `tail` (length `rest.length - 2`), so `i + 2` tops out at `rest.length - 1`.
+  // Both are marked EQUIVALENT rather than tested for, because the branch a test would have to
+  // reach does not exist — asserting on it would mean weakening the types to manufacture it.
+  const tail = rest.slice(1, -1);
+  const first = rest[0];
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — `tail` is non-empty only when
+  // `rest.length >= 3`, so `rest[0]` is always defined by the time this runs.
+  if (first !== undefined) {
+    tail.forEach((v, i) => {
+      const next = rest[i + 2];
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT — `i` indexes `tail`, whose
+      // length is `rest.length - 2`, so `i + 2` never exceeds `rest.length - 1`.
+      if (next !== undefined) out.push([first, v, next]);
+    });
   }
   return out;
+}
+
+/** The index of a vertex of `rest` that is an ear, or -1 if the ring has none.
+ *
+ *  An ear is a corner that is CONVEX (for the module's negative winding, a strictly negative
+ *  turn — which is why a collinear corner is not one) and whose triangle SWALLOWS no other vertex
+ *  of the ring. The second condition is what makes ear clipping safe on a shape a fan is not:
+ *  without it a corner across a notch looks locally convex and its triangle covers ground the
+ *  polygon does not.
+ *
+ *  Returns `null` when the ring has no ear at all. */
+function earIndex(rest: readonly P2[]): number | null {
+  for (let i = 0; i < rest.length; i += 1) {
+    const a = rest[(i + rest.length - 1) % rest.length]!;
+    const b = rest[i]!;
+    const c = rest[(i + 1) % rest.length]!;
+    if (signedTriangleArea2(a, b, c) >= 0) continue;
+    let contains = false;
+    for (let j = 0; j < rest.length; j += 1) {
+      if (j === i || j === (i + rest.length - 1) % rest.length || j === (i + 1) % rest.length) continue;
+      if (pointInTriangle(rest[j]!, a, b, c)) {
+        contains = true;
+        break;
+      }
+    }
+    if (!contains) return i;
+  }
+  return null;
 }
 
 /**
@@ -209,11 +256,12 @@ function earClip(pts: readonly P2[]): [P2, P2, P2][] {
  */
 export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGeometry {
   const depth = input.depth ?? CELL_GROUND_DEPTH;
-  const rings = input.cells
-    .map((c) => c.points ?? [])
-    .map((pts, i) => ({ pts, material: input.cells[i]?.material }))
-    .filter((r) => r.pts.length >= 3);
-  if (rings.length === 0) return emptyGeometry();
+  // ⚠ Mapped from the descriptors THEMSELVES, never re-indexed alongside a parallel array: an
+  // index lookup here would be a second way to get the material wrong, and the parcel's colour is
+  // what the map reports a capability's state with.
+  const rings = input.cells.flatMap((c) =>
+    c.points !== undefined && c.points.length >= 3 ? [{ pts: c.points, material: c.material }] : [],
+  );
 
   let triangles = 0;
   for (const r of rings) triangles += cellGroundTriangles(r.pts.length);
@@ -223,14 +271,21 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
   const colors = new Float32Array(triangles * 9);
   let w = 0;
 
-  let colour: LinearRgb = { r: 1, g: 1, b: 1 };
-
-  /** Write one triangle, deriving its normal from the very vertices being written. */
-  const pushTriangle = (a: P3, b: P3, c: P3): void => {
+  /** Write one triangle, deriving its normal from the very vertices being written.
+   *
+   *  ⚠ The colour is a PARAMETER rather than a mutable variable this closure reads. It was the
+   *  latter until a mutation sweep showed its initial value could be anything at all without a
+   *  test noticing — true, because every parcel overwrites it first, which is exactly the
+   *  argument for not having one. */
+  const pushTriangle = (a: P3, b: P3, c: P3, colour: LinearRgb): void => {
     const ux = b.x - a.x;
     const uy = b.y - a.y;
     const uz = b.z - a.z;
     const vx = c.x - a.x;
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT — every face here is either a top
+    // (a.y = c.y = 0, so both forms are 0) or a wall whose `a` and `c` share a height, so `-`
+    // gives 0 and `+` gives -2·depth. That scales the cross product by 3 along one axis and the
+    // result is NORMALISED two lines down, so the emitted unit normal is identical either way.
     const vy = c.y - a.y;
     const vz = c.z - a.z;
     let nx = uy * vz - uz * vy;
@@ -257,13 +312,13 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
   };
 
   for (const ring of rings) {
-    colour = input.resolve(ring.material);
+    const colour = input.resolve(ring.material);
     const pts = normalisedRing(ring.pts.map((p) => ({ x: p.x, z: p.z })));
     const n = pts.length;
 
     // The top face, at the ground plane.
-    for (const [a, b, c] of earClip(pts)) {
-      pushTriangle({ x: a.x, y: 0, z: a.z }, { x: b.x, y: 0, z: b.z }, { x: c.x, y: 0, z: c.z });
+    for (const [a, b, c] of triangulateRing(pts)) {
+      pushTriangle({ x: a.x, y: 0, z: a.z }, { x: b.x, y: 0, z: b.z }, { x: c.x, y: 0, z: c.z }, colour);
     }
 
     // The walls. ⚠ THE OUTWARD DIRECTION IS READ OFF THE RING'S OWN WINDING, not off the parcel's
@@ -278,8 +333,8 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       const topNext: P3 = { x: b.x, y: 0, z: b.z };
       const bot: P3 = { x: a.x, y: -depth, z: a.z };
       const botNext: P3 = { x: b.x, y: -depth, z: b.z };
-      pushTriangle(topNext, top, botNext);
-      pushTriangle(botNext, top, bot);
+      pushTriangle(topNext, top, botNext, colour);
+      pushTriangle(botNext, top, bot, colour);
     }
   }
 
