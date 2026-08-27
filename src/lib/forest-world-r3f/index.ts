@@ -25,7 +25,13 @@ export {
 export {
   cellGroundGeometry,
   cellGroundTriangles,
+  normalisedRing,
+  pointInTriangle,
+  signedRingArea2,
+  signedTriangleArea2,
+  triangulateRing,
   CELL_GROUND_DEPTH,
+  type P2,
   type CellGroundGeometry,
   type CellGroundGeometryInput,
   type LinearRgb,
