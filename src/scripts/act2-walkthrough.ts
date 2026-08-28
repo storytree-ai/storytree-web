@@ -549,7 +549,15 @@ export function foldWorldToScene(world: WorldState, _script: Beat[]): FoldedWorl
       status: storyStatus,
       caps: t.limbs.length,
       centroid: t.centre,
-      radius: t.radius,
+      // ⚠ `radius` SPLIT INTO TWO FIELDS in the synced engine (scene-territory-radius-states-its-space)
+      // and this caller was never updated — `radius` is not in `SceneTerritoryInput`, so under
+      // `astro build` (esbuild: transpile-only, no typecheck) it was silently DROPPED and every
+      // island reached the scene with `groundRadius`/`screenRadius` UNDEFINED. Restoring BOTH to the
+      // one declared value reproduces the pre-split behaviour exactly, which is all this fix claims:
+      // the seam used to carry one number for both spaces, and refining them apart is a look change
+      // nobody has attested.
+      groundRadius: t.radius,
+      screenRadius: t.radius,
       treeSpot: t.treeSpot,
       labelY: t.centre.y + t.plateY,
       coastPaths: disc.coastPaths,
@@ -581,7 +589,15 @@ export function foldWorldToScene(world: WorldState, _script: Beat[]): FoldedWorl
       status: 'proposed',
       caps: 0,
       centroid: { x: 0, y: 0 },
-      radius: ISLAND_R,
+      // ⚠ `radius` SPLIT INTO TWO FIELDS in the synced engine (scene-territory-radius-states-its-space)
+      // and this caller was never updated — `radius` is not in `SceneTerritoryInput`, so under
+      // `astro build` (esbuild: transpile-only, no typecheck) it was silently DROPPED and every
+      // island reached the scene with `groundRadius`/`screenRadius` UNDEFINED. Restoring BOTH to the
+      // one declared value reproduces the pre-split behaviour exactly, which is all this fix claims:
+      // the seam used to carry one number for both spaces, and refining them apart is a look change
+      // nobody has attested.
+      groundRadius: ISLAND_R,
+      screenRadius: ISLAND_R,
       treeSpot: disc.treeSpot,
       labelY: PLATE_Y,
       coastPaths: disc.coastPaths,

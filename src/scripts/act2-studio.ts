@@ -204,7 +204,15 @@ function studioSvg(): string {
       status: isl.status,
       caps: isl.caps,
       centroid: isl.centre,
-      radius: isl.radius,
+      // ⚠ `radius` SPLIT INTO TWO FIELDS in the synced engine (scene-territory-radius-states-its-space)
+      // and this caller was never updated — `radius` is not in `SceneTerritoryInput`, so under
+      // `astro build` (esbuild: transpile-only, no typecheck) it was silently DROPPED and every
+      // island reached the scene with `groundRadius`/`screenRadius` UNDEFINED. Restoring BOTH to the
+      // one declared value reproduces the pre-split behaviour exactly, which is all this fix claims:
+      // the seam used to carry one number for both spaces, and refining them apart is a look change
+      // nobody has attested.
+      groundRadius: isl.radius,
+      screenRadius: isl.radius,
       treeSpot: disc.treeSpot,
       labelY: isl.centre.y + isl.plateY,
       coastPaths: disc.coastPaths,

@@ -361,7 +361,8 @@ export function buildWorld(data: Dataset): World {
   // per-territory geometry + contents
   const wheatSets: Set<string>[] = stories.map(() => new Set<string>());
   const territories: Territory[] = stories.map((story, i) => {
-    const cs = tiles[i].map(hexCenter);
+    // never `tiles[i].map(hexCenter)` — `map` passes the INDEX into hexCenter's options slot.
+    const cs = tiles[i].map((h) => hexCenter(h));
     const cx = cs.reduce((s, p) => s + p.x, 0) / cs.length;
     const cy = cs.reduce((s, p) => s + p.y, 0) / cs.length;
     // screen-space-defect: website-decor-proximity-moves-to-ground-space — a max-distance over
