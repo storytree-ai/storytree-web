@@ -119,17 +119,20 @@ export interface RestingFrame {
   readonly bound: RestingBound;
 }
 
-/** The median of a list, or `undefined` when nothing usable is in it. Finite positives only: a
- *  zero-radius or NaN island is not a small island, it is missing data, and averaging it in would
- *  drag the composition toward a value no island actually has. */
+/** The median island size, or `undefined` when nothing usable is in the list.
+ *
+ *  Finite positives only: a zero-radius or NaN island is not a small island, it is missing data,
+ *  and folding it in would drag the composition toward a value no island actually has.
+ *
+ *  It is the LOWER median on an even count — a size some island really is, rather than the average
+ *  of two it interpolates between. That is a deliberate choice and not merely the cheaper one: the
+ *  composition is stated as "the frame spans nine median islands", and that sentence is only
+ *  literally true if the median is an island. It also removes the even/odd branch entirely, which
+ *  is worth having on a function whose whole job is to be boring. The empty case falls out of the
+ *  same expression — `Math.floor(-1 / 2)` is -1, and nothing is at -1. */
 function medianPositive(values: readonly number[]): number | undefined {
   const usable = values.filter((v) => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
-  const mid = Math.floor(usable.length / 2);
-  const hi = usable[mid];
-  if (hi === undefined) return undefined;
-  if (usable.length % 2 === 1) return hi;
-  const lo = usable[mid - 1];
-  return lo === undefined ? hi : (lo + hi) / 2;
+  return usable[Math.floor((usable.length - 1) / 2)];
 }
 
 /** The scale at which the whole world is contained by the frame — the fitted view, kept here only
@@ -155,12 +158,19 @@ export function restingFrame(input: RestingFrameInput): RestingFrame {
   const island = medianPositive(input.islandDiameters);
 
   const report = (scale: number, bound: RestingBound): RestingFrame => {
-    const shownW = contentWidth > 0 ? Math.min(1, frameWidth / (contentWidth * scale)) : 1;
-    const shownH = contentHeight > 0 ? Math.min(1, frameHeight / (contentHeight * scale)) : 1;
+    // A degenerate axis is reported as FULLY shown rather than as a hole. `0 / 0` is the only shape
+    // that reaches the fallback — a zero-sized frame over a zero-sized world — and there is no
+    // honest fraction for it; every other degenerate combination already divides to Infinity and is
+    // clamped by the `min` to 1, so testing finiteness is the whole guard rather than a nest of
+    // dimension checks that would each be true whenever it mattered.
+    const shownAxis = (framePx: number, contentUnits: number): number => {
+      const shown = framePx / (contentUnits * scale);
+      return Number.isFinite(shown) ? Math.min(1, shown) : 1;
+    };
     return {
       scale,
       islandPx: (island ?? 0) * scale,
-      extentShown: shownW * shownH,
+      extentShown: shownAxis(frameWidth, contentWidth) * shownAxis(frameHeight, contentHeight),
       bound,
     };
   };
