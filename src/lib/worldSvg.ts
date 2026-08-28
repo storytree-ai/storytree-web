@@ -64,7 +64,15 @@ function territoryToSceneInput(t: Territory): SceneInput['territories'][number] 
     status: t.vis as SceneStatus,
     caps: t.capCount,
     centroid: { x: t.cx, y: t.cy },
-    radius: t.radius,
+    // ⚠ `radius` SPLIT INTO TWO FIELDS in the synced engine (scene-territory-radius-states-its-space)
+    // and this caller was never updated — `radius` is not in `SceneTerritoryInput`, so under
+    // `astro build` (esbuild: transpile-only, no typecheck) it was silently DROPPED and every
+    // island reached the scene with `groundRadius`/`screenRadius` UNDEFINED. Restoring BOTH to the
+    // one declared value reproduces the pre-split behaviour exactly, which is all this fix claims:
+    // the seam used to carry one number for both spaces, and refining them apart is a look change
+    // nobody has attested.
+    groundRadius: t.radius,
+    screenRadius: t.radius,
     treeSpot: { x: t.treeX, y: t.treeY },
     labelY: t.labelY,
     coastPaths: t.coastPaths,

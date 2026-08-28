@@ -3,13 +3,14 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "The public front door for storytree — an experiment in building software with AI agents.",
+  "description": "The public front door for storytree \u2014 an experiment in building software with AI agents.",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
     "test": "bun test src/",
-    "publish:here": "node scripts/publish-herenow.mjs"
+    "publish:here": "node scripts/publish-herenow.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -19,5 +20,9 @@
     "react-dom": "^19.2.7",
     "three": "^0.185.1",
     "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3"
   }
 }

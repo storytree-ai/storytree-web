@@ -1,0 +1,98 @@
+---
+// The real forest — storytree's own system, as of a stated moment.
+//
+// A standalone surface, deliberately. The snapshot pipeline it renders is the thing this
+// page exists to prove end to end: a job in the private repo reads the studio's own map,
+// publishes `src/data/forest-snapshot.json` here, and this page draws it. Folding that map
+// into chapter 2's arrival — where the visitor lands out of the storm onto it — is the next
+// increment's work, and it consumes this module rather than replacing it.
+//
+// ⚠ ZERO WebGL and zero client JS. The map is an SVG string computed at build time, exactly
+// like every other map on this site, so nothing here can enter the Act 1 static import
+// closure the parent's `check:web-experience-closure` guards.
+import Base from '../layouts/Base.astro';
+import '../styles/tree-world-map.css';
+import snapshotJson from '../data/forest-snapshot.json';
+import { assertSnapshot, forestSvg, renderStamp } from '../scripts/forest-snapshot-map';
+
+// Build-time, so a snapshot this site cannot honestly draw REDS THE BUILD rather than
+// reaching the live site as a blank map under an honest-looking stamp.
+const snapshot = assertSnapshot(snapshotJson);
+const svg = forestSvg(snapshot);
+const stamp = renderStamp(snapshot);
+---
+
+<Base
+  title="storytree — the real forest"
+  description="A map of storytree's own system, drawn from its own records: every island a story, green only where a signed test proved it."
+>
+  <section class="forest-page">
+    <header class="forest-head">
+      <h1>This is the system that built this site.</h1>
+      <p
+        class="forest-lede"
+        data-grounds="ADR-0040,ADR-0453"
+      >
+        Every island is one story. It only goes green when a test signed off on it — nobody
+        can mark their own work done here. The trails are what depends on what.
+      </p>
+    </header>
+
+    <div class="forest-map" set:html={svg} />
+
+    <p class="forest-stamp">{stamp}</p>
+  </section>
+</Base>
+
+<style>
+  .forest-page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 3rem 1.25rem 4.5rem;
+  }
+  .forest-head {
+    max-width: 46rem;
+    margin: 0 auto 2rem;
+    text-align: center;
+  }
+  .forest-head h1 {
+    font-size: clamp(1.75rem, 4vw, 2.75rem);
+    line-height: 1.12;
+    margin: 0 0 0.75rem;
+  }
+  .forest-lede {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    opacity: 0.82;
+  }
+  /* The dependency trails are hidden by default in the shared stylesheet (each host opts
+     in). Here they are quiet connective tissue — what depends on what, readable but never
+     competing with the islands. */
+  .forest-map :global(.tw-trails) {
+    display: inline;
+  }
+  .forest-map :global(.tw-trail-shadow),
+  .forest-map :global(.tw-trail-casing) {
+    display: none;
+  }
+  .forest-map :global(.tw-trail-fill) {
+    stroke: rgba(122, 98, 62, 0.42);
+    stroke-width: 3;
+  }
+  .forest-map {
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(40, 30, 20, 0.08), 0 12px 34px rgba(40, 30, 20, 0.1);
+  }
+  /* The stamp is load-bearing copy, not a caption: it is what stops a snapshot reading as a
+     live view. Sized and spaced to be read, never tucked away. */
+  .forest-stamp {
+    max-width: 52rem;
+    margin: 1.25rem auto 0;
+    text-align: center;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    opacity: 0.72;
+  }
+</style>
