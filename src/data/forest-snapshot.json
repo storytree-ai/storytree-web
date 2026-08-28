@@ -1,0 +1,2033 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-28T07:44:22.433Z",
+  "source": "studio /api/tree + presentStories (ADR-0453 D7)",
+  "storyCount": 35,
+  "provenStoryCount": 21,
+  "capabilityCount": 215,
+  "stories": [
+    {
+      "id": "agent",
+      "title": "The agent runtime — the swappable leaf behind the PhaseAuthor seam",
+      "status": "healthy",
+      "dependsOn": [],
+      "capabilities": [
+        {
+          "id": "leaf-tool-surface",
+          "title": "Tool calls dispatch through one executor to workspace-confined real file tools",
+          "status": "healthy",
+          "dependsOn": [
+            "model-runtime-seam"
+          ]
+        },
+        {
+          "id": "model-runtime-seam",
+          "title": "One swappable Model seam + one typed model-event vocabulary, with the model SDK import isolated",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "owned-turn-loop",
+          "title": "A model-tool turn runs to a natural stop and a step fails closed, never forging success",
+          "status": "healthy",
+          "dependsOn": [
+            "leaf-tool-surface",
+            "model-runtime-seam"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "app-guide",
+      "title": "The app-guide concierge wires a newcomer's Claude Code into the observability layer",
+      "status": "proposed",
+      "dependsOn": [
+        "agent",
+        "drive-machinery",
+        "studio"
+      ],
+      "capabilities": [
+        {
+          "id": "auto-grow-input",
+          "title": "The chat input auto-grows to its content up to a cap, then scrolls internally — Enter sends, Shift+Enter inserts a newline",
+          "status": "proposed",
+          "dependsOn": [
+            "multi-turn-transcript"
+          ]
+        },
+        {
+          "id": "backend-chat-reset-route",
+          "title": "OPTIONAL / STRETCH — a POST /api/chat/reset route clears the backend single-session guard so a wedged session recovers without a restart",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "multi-turn-transcript",
+          "title": "The chat panel keeps a persistent multi-turn transcript — each send appends the prompt echo then its reply, flowing top-to-bottom in one scrollable surface",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "transcript-reset",
+          "title": "A reset control clears the transcript to idle and aborts the in-flight SSE stream",
+          "status": "proposed",
+          "dependsOn": [
+            "auto-grow-input",
+            "multi-turn-transcript"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "app-surface",
+      "title": "The shared app surface — planted SVG land with registered organic growth",
+      "status": "proposed",
+      "dependsOn": [
+        "forest-world"
+      ],
+      "capabilities": [
+        {
+          "id": "app-surface-world-view",
+          "title": "A deterministic typed world model delegates to the real shared SceneView",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "organic-growth-app-witness",
+          "title": "The real app consumer stages the corrected organic-growth witness",
+          "status": "proposed",
+          "dependsOn": [
+            "pixellab-organic-growth-tracks",
+            "semantic-growth-studio-demo"
+          ]
+        },
+        {
+          "id": "pixellab-organic-growth-tracks",
+          "title": "Registered PixelLab organic tracks grow from stable app-owned sockets",
+          "status": "proposed",
+          "dependsOn": [
+            "svg-island-growth-track"
+          ]
+        },
+        {
+          "id": "semantic-growth-replay-view",
+          "title": "The shared world view plays and replays one honest semantic growth sequence",
+          "status": "healthy",
+          "dependsOn": [
+            "studio-app-surface-adapter"
+          ]
+        },
+        {
+          "id": "semantic-growth-studio-demo",
+          "title": "A query-gated Studio demo stages the semantic-growth witness",
+          "status": "healthy",
+          "dependsOn": [
+            "semantic-growth-replay-view"
+          ]
+        },
+        {
+          "id": "studio-app-surface-adapter",
+          "title": "TreeView adapts Studio world state into the shared scene view",
+          "status": "healthy",
+          "dependsOn": [
+            "app-surface-world-view"
+          ]
+        },
+        {
+          "id": "svg-island-growth-track",
+          "title": "The existing SVG island grows in place through the public product player",
+          "status": "proposed",
+          "dependsOn": [
+            "semantic-growth-replay-view"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arc",
+      "title": "The arc — the durable initiative record a long-running effort is read from",
+      "status": "proposed",
+      "dependsOn": [
+        "drive-machinery",
+        "library",
+        "storage-protocol"
+      ],
+      "capabilities": [
+        {
+          "id": "arc-derived-initiative-view",
+          "title": "The arc's derived initiative view — children stamp the arc, the arc stamps nothing",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "arc-explicit-id-fidelity",
+          "title": "Explicit arc ids are never silently shortened",
+          "status": "healthy",
+          "dependsOn": [
+            "arc-derived-initiative-view"
+          ]
+        },
+        {
+          "id": "increment-freshness-check",
+          "title": "The increment freshness check — staleness is measured against the repo, never assumed absent",
+          "status": "proposed",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "art-factory",
+      "title": "The art factory — per-object-type parametric factories that bake grounded art through one shared pipeline",
+      "status": "healthy",
+      "dependsOn": [],
+      "capabilities": [
+        {
+          "id": "art-pipeline",
+          "title": "The shared pipeline — a declared-relations model, invariant-checked and drawn in a deterministic order, baked to drawables and printed",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "blocking-substrate-adapter",
+          "title": "The blocking-substrate adapter — a vendor-swappable author-time generative-3D adapter that produces a thrown-away maquette an author re-authors into a checkable vector asset",
+          "status": "proposed",
+          "dependsOn": [
+            "art-pipeline"
+          ]
+        },
+        {
+          "id": "building-factory",
+          "title": "The building factory — parametric building modules that build sound models and bake to the kit roster",
+          "status": "healthy",
+          "dependsOn": [
+            "art-pipeline"
+          ]
+        },
+        {
+          "id": "landscape-factory",
+          "title": "The landscape factory — hero landscape modules that bake to real isometric solids and the garden hero-kit roster",
+          "status": "healthy",
+          "dependsOn": [
+            "art-pipeline"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binding-staleness",
+      "title": "Binding & staleness — make drift real on live units",
+      "status": "healthy",
+      "dependsOn": [
+        "cli",
+        "drive-machinery",
+        "proof-protocol",
+        "storage-protocol"
+      ],
+      "capabilities": [
+        {
+          "id": "boundhash-on-verdict",
+          "title": "A verdict records the content-hash of the code it proved",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "change-event-store",
+          "title": "A typed change-event contract on the store",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "drift-reads-store",
+          "title": "storytree drift reads a unit's stored anchor + change log",
+          "status": "healthy",
+          "dependsOn": [
+            "change-event-store"
+          ]
+        },
+        {
+          "id": "gate-emits-change",
+          "title": "The gate stamps the bound hash and emits a change event",
+          "status": "healthy",
+          "dependsOn": [
+            "boundhash-on-verdict",
+            "change-event-store"
+          ]
+        },
+        {
+          "id": "source-drift",
+          "title": "A pure source-drift classifier over the derives_from DAG",
+          "status": "healthy",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "ci-cd",
+      "title": "CI/CD — the one enforced pipeline every green unit crosses to reach trunk",
+      "status": "healthy",
+      "dependsOn": [
+        "notice-board",
+        "studio-cloud"
+      ],
+      "capabilities": [
+        {
+          "id": "adr-health-gate",
+          "title": "ADR-health gate — atomic number allocation plus the full adr-health decision-binding gate",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "auto-merge-on-green",
+          "title": "Auto-merge on green — a non-draft, non-hold PR lands the instant verify passes",
+          "status": "proposed",
+          "dependsOn": [
+            "green-gate"
+          ]
+        },
+        {
+          "id": "deploy-on-merge",
+          "title": "Deploy on merge — a studio-touching merge redeploys the live studio, keylessly",
+          "status": "proposed",
+          "dependsOn": [
+            "auto-merge-on-green"
+          ]
+        },
+        {
+          "id": "gate-ci-parity",
+          "title": "Gate↔CI parity — the local gate and CI verify stand in one declared two-way delta, checkable",
+          "status": "proposed",
+          "dependsOn": [
+            "green-gate"
+          ]
+        },
+        {
+          "id": "green-gate",
+          "title": "The green gate — verify proves a PR against the merge of branch and main",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "merge-presence-retire",
+          "title": "Merge-presence retire — the merge is the authoritative 'session done' fact",
+          "status": "proposed",
+          "dependsOn": [
+            "auto-merge-on-green"
+          ]
+        },
+        {
+          "id": "repo-surface-manifest",
+          "title": "The repo-surface manifest — no tracked root entry or loose doc merges undeclared",
+          "status": "proposed",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "title": "The CLI — one agent-facing command surface that wires every organism together",
+      "status": "healthy",
+      "dependsOn": [],
+      "capabilities": [
+        {
+          "id": "cli-resident-corpus-tools",
+          "title": "The CLI-resident authoring primitives the gates build on",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "guided-setup-repair",
+          "title": "The setup repair loop — a failing invariant is repaired and re-verified, or escalated",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "organism-boundary-tooling",
+          "title": "The organism-boundary analyser — the pure judge behind check:boundaries (the blocking gate + the non-blocking drift report)",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "unified-command-dispatch",
+          "title": "storytree <verb> dispatches to the owning organism and returns a typed envelope",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "verification-decay-instruments",
+          "title": "The chartered decay instruments — located, charged to their author, held to a per-instrument ceiling",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "work-hierarchy-camp-fence",
+          "title": "Every work-hierarchy reader declares which clock it must agree with, and a gate rung holds it to that",
+          "status": "proposed",
+          "dependsOn": []
+        }
+      ],
+      "building": true
+    },
+    {
+      "id": "context-traversal-capture",
+      "title": "The real terminal CLI captures its own context reads to a replayable durable trace",
+      "status": "healthy",
+      "dependsOn": [
+        "context-traversal-telemetry"
+      ],
+      "capabilities": [
+        {
+          "id": "agent-ref-descent",
+          "title": "An agent's essentials render descends its floor refs",
+          "status": "healthy",
+          "dependsOn": [
+            "terminal-boundary-observations",
+            "traversal-trace-sink"
+          ]
+        },
+        {
+          "id": "artifact-offer-candidate-sets",
+          "title": "An artifact render records what it offered, followed or not",
+          "status": "healthy",
+          "dependsOn": [
+            "terminal-boundary-observations",
+            "traversal-trace-sink"
+          ]
+        },
+        {
+          "id": "decision-point-playback",
+          "title": "The replay draws the branch taken and the branches not taken, and says so when it cannot",
+          "status": "healthy",
+          "dependsOn": [
+            "artifact-offer-candidate-sets",
+            "offer-follow-edges",
+            "traversal-trace-sink"
+          ]
+        },
+        {
+          "id": "offer-follow-edges",
+          "title": "A read that carries an offer id declares the edge it answered; a bare read declares none",
+          "status": "healthy",
+          "dependsOn": [
+            "artifact-offer-candidate-sets",
+            "terminal-boundary-observations",
+            "traversal-trace-sink"
+          ]
+        },
+        {
+          "id": "offer-observability-share",
+          "title": "A decision point states how much of its own offer set the telemetry could not see",
+          "status": "healthy",
+          "dependsOn": [
+            "artifact-offer-candidate-sets",
+            "decision-point-playback",
+            "offer-follow-edges",
+            "traversal-trace-sink"
+          ]
+        },
+        {
+          "id": "offer-set-render-agreement",
+          "title": "The recorded offer set is checked against the artifact's real rendered Sources block",
+          "status": "healthy",
+          "dependsOn": [
+            "artifact-offer-candidate-sets",
+            "traversal-trace-sink"
+          ]
+        },
+        {
+          "id": "revisit-link-metadata",
+          "title": "A repeat read names the earlier visit it repeats",
+          "status": "healthy",
+          "dependsOn": [
+            "terminal-boundary-observations",
+            "traversal-trace-sink"
+          ]
+        },
+        {
+          "id": "terminal-boundary-observations",
+          "title": "Terminal invocations become observations only through a read allowlist",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "terminal-capture-activation",
+          "title": "The real terminal CLI captures its own reads additively and replays them",
+          "status": "healthy",
+          "dependsOn": [
+            "terminal-boundary-observations",
+            "traversal-session-query",
+            "traversal-trace-sink"
+          ]
+        },
+        {
+          "id": "traversal-session-query",
+          "title": "A captured session renders as an honest chronological replay",
+          "status": "healthy",
+          "dependsOn": [
+            "traversal-trace-sink"
+          ]
+        },
+        {
+          "id": "traversal-trace-sink",
+          "title": "A traversal trace survives process exit and reads back honestly partial",
+          "status": "healthy",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "context-traversal-spawn",
+      "title": "A build's spawn boundary replays as linked parent and child context lanes",
+      "status": "healthy",
+      "dependsOn": [
+        "context-traversal-capture",
+        "context-traversal-telemetry"
+      ],
+      "capabilities": [
+        {
+          "id": "build-spawn-capture",
+          "title": "A build's parent and child lanes land as bytes in their own per-session traces",
+          "status": "healthy",
+          "dependsOn": [
+            "leaf-slice-spawn-observations"
+          ]
+        },
+        {
+          "id": "leaf-slice-spawn-observations",
+          "title": "One authoring slice's run accounting becomes a linked handoff, child window, and return",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "multi-adapter-replay",
+          "title": "A replay declares every installed adapter's coverage, so no event renders under a declaration that omits it",
+          "status": "healthy",
+          "dependsOn": [
+            "leaf-slice-spawn-observations"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "context-traversal-telemetry",
+      "title": "An orientation runner records one real-boundary metadata-only context traversal",
+      "status": "healthy",
+      "dependsOn": [
+        "drive-machinery"
+      ],
+      "capabilities": [
+        {
+          "id": "orientation-runner-telemetry",
+          "title": "An orientation-runner adapter records honest read and search telemetry",
+          "status": "healthy",
+          "dependsOn": [
+            "traversal-event-vocabulary"
+          ]
+        },
+        {
+          "id": "traversal-event-vocabulary",
+          "title": "Traversal observations record and replay strict metadata-only evidence",
+          "status": "healthy",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "context-traversal-transcript",
+      "title": "The orchestrator's own context window becomes an occupancy series in its session trace",
+      "status": "proposed",
+      "dependsOn": [
+        "context-traversal-capture",
+        "context-traversal-telemetry",
+        "library"
+      ],
+      "capabilities": [
+        {
+          "id": "transcript-decision-read-coverage",
+          "title": "The traversal record is read back, and it reports what it can and cannot see of a decision read",
+          "status": "mapped",
+          "dependsOn": [
+            "transcript-decision-read-extraction"
+          ]
+        },
+        {
+          "id": "transcript-decision-read-extraction",
+          "title": "A host transcript yields the decision-record reads it already recorded, by argv shape",
+          "status": "mapped",
+          "dependsOn": []
+        },
+        {
+          "id": "transcript-decision-read-ingest",
+          "title": "Recovered decision reads become validated events in each session's own trace, idempotently",
+          "status": "mapped",
+          "dependsOn": [
+            "transcript-decision-read-extraction",
+            "transcript-occupancy-ingest",
+            "transcript-session-correlation"
+          ]
+        },
+        {
+          "id": "transcript-occupancy-extraction",
+          "title": "One host transcript yields one occupancy observation per model request",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "transcript-occupancy-ingest",
+          "title": "A session's correlated windows become occupancy events on disk, idempotently",
+          "status": "healthy",
+          "dependsOn": [
+            "transcript-occupancy-extraction",
+            "transcript-session-correlation"
+          ]
+        },
+        {
+          "id": "transcript-session-correlation",
+          "title": "A storytree session resolves to the host windows written inside its worktree",
+          "status": "healthy",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "desktop",
+      "title": "Desktop client — a trusted member runs the whole storytree loop on their own machine, credential in the OS keychain",
+      "status": "proposed",
+      "dependsOn": [
+        "app-guide",
+        "arc",
+        "drive-machinery",
+        "library",
+        "notice-board",
+        "proof-protocol",
+        "studio",
+        "studio-cloud"
+      ],
+      "capabilities": [
+        {
+          "id": "advisory-overlay-reads",
+          "title": "The sidecar's overlay reads fail to a bounded, logged null — a down store under-claims the forest instead of hanging it",
+          "status": "proposed",
+          "dependsOn": [
+            "local-backend-boot"
+          ]
+        },
+        {
+          "id": "boot-read-routes",
+          "title": "The local backend serves the studio's BOOT read route table — me/docs/comments — re-composed from the organism drivers",
+          "status": "healthy",
+          "dependsOn": [
+            "local-backend-boot"
+          ]
+        },
+        {
+          "id": "brokered-local-uat-signing",
+          "title": "A local human signs a declared UAT leg at a clean HEAD and persists the real operator-attested verdict through the forest broker",
+          "status": "healthy",
+          "dependsOn": [
+            "boot-read-routes",
+            "shared-forest-connection"
+          ]
+        },
+        {
+          "id": "chat-sse-mount",
+          "title": "The local backend mounts the chat surface — a POST /api/chat intake that streams startChatStream's events as SSE",
+          "status": "healthy",
+          "dependsOn": [
+            "local-backend-boot"
+          ]
+        },
+        {
+          "id": "credential-broker",
+          "title": "The credential broker and desktop-only Credentials panel let the member store, check, and remove each runtime credential without renderer recovery",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "desktop-launch-preconditions",
+          "title": "The Electron sidecar proves a reachable DB and a git checkout before wiring any backend, refusing with a clear reason if either is unmet",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "desktop-live-hierarchy-read",
+          "title": "The desktop map reads the work hierarchy from the live store",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "electron-shell",
+          "title": "The Electron shell loads the compiled studio and wires the real OS-keychain adapter to the broker",
+          "status": "proposed",
+          "dependsOn": [
+            "credential-broker"
+          ]
+        },
+        {
+          "id": "local-backend-boot",
+          "title": "The Electron main composes a local studio backend from the organism drivers and serves it on 127.0.0.1 /api/*",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "mirrored-route-conformance",
+          "title": "Mirrored route conformance — every `/api/*` payload the desktop re-composes is proven equal to the studio's, or the divergence is named",
+          "status": "proposed",
+          "dependsOn": [
+            "boot-read-routes",
+            "local-backend-boot"
+          ]
+        },
+        {
+          "id": "pinned-runtime-apply",
+          "title": "Apply a landed fix — the desktop reports the code it is running and advances onto merged `main` fast-forward-only, or refuses",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "shared-forest-connection",
+          "title": "The local backend BROKERS its forest writes to the hosted studio, with a readiness probe that fails closed when the broker is unreachable or the caller is not an authorized builder",
+          "status": "healthy",
+          "dependsOn": [
+            "local-backend-boot"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "drive-machinery",
+      "title": "The drive machinery",
+      "status": "healthy",
+      "dependsOn": [
+        "agent",
+        "library",
+        "notice-board",
+        "proof-protocol",
+        "storage-protocol"
+      ],
+      "capabilities": [
+        {
+          "id": "adoption-pocket-classifier",
+          "title": "The adoption-proposal pocket classifier (observe / R1 / R2)",
+          "status": "healthy",
+          "dependsOn": [
+            "build-drive-cli"
+          ]
+        },
+        {
+          "id": "build-drive-cli",
+          "title": "The build drive CLI (node build / story build)",
+          "status": "healthy",
+          "dependsOn": [
+            "oq-hygiene-gate",
+            "prove-it-gate",
+            "prove-spec-resolution",
+            "real-build-worktree",
+            "story-topo-build",
+            "work-verdict-event-log"
+          ]
+        },
+        {
+          "id": "build-usage-accounting",
+          "title": "Per-slice token accounting on the build's own event stream — accounting, never proof",
+          "status": "proposed",
+          "dependsOn": [
+            "work-verdict-event-log"
+          ]
+        },
+        {
+          "id": "gate-as-proof-authoring",
+          "title": "Gate-as-proof for authoring work",
+          "status": "healthy",
+          "dependsOn": [
+            "multi-file-existing-source",
+            "spec-borne-proof-config"
+          ]
+        },
+        {
+          "id": "halt-aware-sequence",
+          "title": "The fail-closed step sequence (runSequence / runLoop)",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "leaf-slices-observer-activation",
+          "title": "A real build actually calls its leaf-slices observer with that node's own run accounting",
+          "status": "healthy",
+          "dependsOn": [
+            "live-author-accounting-override",
+            "story-real-chain"
+          ]
+        },
+        {
+          "id": "live-author-accounting-override",
+          "title": "The resolver accepts a canned live author on the accounting side only",
+          "status": "healthy",
+          "dependsOn": [
+            "prove-spec-resolution"
+          ]
+        },
+        {
+          "id": "live-build-db-preflight",
+          "title": "The live-build database preflight — probe it, start it, or refuse with the reason",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "multi-file-existing-source",
+          "title": "Multi-file & existing-source builds",
+          "status": "healthy",
+          "dependsOn": [
+            "proof-command-vocabulary",
+            "spec-borne-proof-config"
+          ]
+        },
+        {
+          "id": "oq-hygiene-gate",
+          "title": "The open-question hygiene gate on live story builds (ADR-0037 §5)",
+          "status": "healthy",
+          "dependsOn": [
+            "prove-spec-resolution"
+          ]
+        },
+        {
+          "id": "owned-loop-phase-author",
+          "title": "The owned loop behind the executor seam (OwnedLoopAuthor)",
+          "status": "healthy",
+          "dependsOn": [
+            "phase-scoped-write-wall",
+            "red-green-phase-machine"
+          ]
+        },
+        {
+          "id": "phase-activity-write",
+          "title": "The drive-side phase write — the board learns the phase without the gate touching the board",
+          "status": "proposed",
+          "dependsOn": [
+            "work-verdict-event-log"
+          ]
+        },
+        {
+          "id": "phase-scoped-write-wall",
+          "title": "The per-phase write wall on the tool surface",
+          "status": "healthy",
+          "dependsOn": [
+            "red-green-phase-machine"
+          ]
+        },
+        {
+          "id": "post-build-curation-pass",
+          "title": "The post-build curation pass — a scoped curator judges, the spine holds the kind fence",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "proof-command-vocabulary",
+          "title": "Node-declared proof command (proof-mode vocabulary beyond node:test)",
+          "status": "healthy",
+          "dependsOn": [
+            "spec-borne-proof-config"
+          ]
+        },
+        {
+          "id": "prove-it-gate",
+          "title": "The prove-it-gate driver (proveUnit)",
+          "status": "healthy",
+          "dependsOn": [
+            "red-green-phase-machine"
+          ]
+        },
+        {
+          "id": "prove-spec-resolution",
+          "title": "Node specs, the build registry, and ProveSpec resolution",
+          "status": "healthy",
+          "dependsOn": [
+            "owned-loop-phase-author",
+            "prove-it-gate",
+            "real-build-worktree",
+            "red-green-phase-machine",
+            "shell-test-observer"
+          ]
+        },
+        {
+          "id": "real-build-worktree",
+          "title": "REAL build worktrees and promotion (ADR-0031)",
+          "status": "healthy",
+          "dependsOn": [
+            "shell-test-observer"
+          ]
+        },
+        {
+          "id": "red-green-phase-machine",
+          "title": "The ADR-0020 red-green phase machine",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "shell-test-observer",
+          "title": "The spine's shell test observer (exit-code red/green)",
+          "status": "healthy",
+          "dependsOn": [
+            "red-green-phase-machine"
+          ]
+        },
+        {
+          "id": "spec-borne-proof-config",
+          "title": "Node-borne proof config (self-registering nodes)",
+          "status": "healthy",
+          "dependsOn": [
+            "prove-spec-resolution"
+          ]
+        },
+        {
+          "id": "story-real-chain",
+          "title": "Whole-story REAL chain (story build --real)",
+          "status": "healthy",
+          "dependsOn": [
+            "real-build-worktree",
+            "spec-borne-proof-config",
+            "story-topo-build"
+          ]
+        },
+        {
+          "id": "story-topo-build",
+          "title": "Topo-ordered story chaining (runStoryBuild)",
+          "status": "healthy",
+          "dependsOn": [
+            "halt-aware-sequence",
+            "prove-it-gate",
+            "prove-spec-resolution"
+          ]
+        },
+        {
+          "id": "uat-bound-command-adoption",
+          "title": "Adopt consumes resolved UAT commands",
+          "status": "healthy",
+          "dependsOn": [
+            "build-drive-cli",
+            "uat-machine-gate-resolution"
+          ]
+        },
+        {
+          "id": "uat-machine-gate-resolution",
+          "title": "Exact fail-closed UAT gate resolution",
+          "status": "healthy",
+          "dependsOn": [
+            "uat-machine-proof-binding"
+          ]
+        },
+        {
+          "id": "uat-machine-proof-binding",
+          "title": "Per-UAT-leg proof-gate parsing",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "work-verdict-event-log",
+          "title": "The work/verdict event log and the status rollup",
+          "status": "healthy",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "embedded-terminal",
+      "title": "The desktop app embeds a real local terminal — run Claude Code in-app, watched by the existing seams",
+      "status": "healthy",
+      "dependsOn": [
+        "desktop",
+        "studio"
+      ],
+      "capabilities": [
+        {
+          "id": "pty-session-manager",
+          "title": "The Electron-main pty lifecycle manager — spawn / write / resize / dispose / route-data over an injected pty factory",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "terminal-dock-panel",
+          "title": "The renderer xterm.js terminal dock — mounts in the collapse/resize dock, wires to the desktopTerminal bridge, degrades honestly",
+          "status": "healthy",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "feedback-graduation",
+      "title": "Feedback graduation — linked feedback is routed by the graduation synthesist",
+      "status": "healthy",
+      "dependsOn": [
+        "library",
+        "studio"
+      ],
+      "capabilities": [
+        {
+          "id": "archive-with-reason",
+          "title": "Wrong posts are archived with a reason, never deleted",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "cite-event",
+          "title": "Cites are attributable typed links; counts are derived, never stored",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "signal-synthesis",
+          "title": "A synthesis agent graduates accumulated signal into open-questions / proposals (deferred)",
+          "status": "proposed",
+          "dependsOn": [
+            "archive-with-reason",
+            "cite-event"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "forest-world",
+      "title": "The forest-world render core — the shared deterministic geometry both surfaces draw from",
+      "status": "healthy",
+      "dependsOn": [],
+      "capabilities": [
+        {
+          "id": "render-core",
+          "title": "The render core — the deterministic geometry kernel and framework-agnostic scene-graph both surfaces draw from",
+          "status": "healthy",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "library",
+      "title": "The library tier",
+      "status": "healthy",
+      "dependsOn": [
+        "proof-protocol",
+        "storage-protocol"
+      ],
+      "capabilities": [
+        {
+          "id": "eager-batch-migrate",
+          "title": "Eagerly drain the version tail and render stored docs for reading",
+          "status": "healthy",
+          "dependsOn": [
+            "event-sourced-store-seam",
+            "migrate-on-write-upcaster"
+          ]
+        },
+        {
+          "id": "event-sourced-store-seam",
+          "title": "The narrow event-sourced Store seam over the keyless events schema (in-memory + Postgres)",
+          "status": "healthy",
+          "dependsOn": [
+            "library-schema-and-write-validation",
+            "migrate-on-write-upcaster"
+          ]
+        },
+        {
+          "id": "graduation-park-lease",
+          "title": "One pure, browser-safe park-lease compute in @storytree/library (root barrel, no node: imports) turns ADR-0202's parked-memory verdict into a lease: a content-hash + review-date + lease-length record, a `new | changed | expired | parked` classifier, and a worklist projection that counts only LIVE candidates. MACHINE-ONLY, no look leg.",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "hydrated-store-dialing-root",
+          "title": "createPool hydrates the database credential before raw store construction",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "library-cli",
+          "title": "The choose-your-own-adventure library CLI",
+          "status": "healthy",
+          "dependsOn": [
+            "eager-batch-migrate",
+            "event-sourced-store-seam",
+            "library-health-gate",
+            "library-schema-and-write-validation",
+            "migrate-on-write-upcaster",
+            "seed-corpus-scripts"
+          ]
+        },
+        {
+          "id": "library-dag-acyclic-core",
+          "title": "A pure cycle detector for authored Library standsOn edges",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "library-health-gate",
+          "title": "Classify library health and separate gate failures from warnings",
+          "status": "healthy",
+          "dependsOn": [
+            "library-schema-and-write-validation",
+            "migrate-on-write-upcaster"
+          ]
+        },
+        {
+          "id": "library-schema-and-write-validation",
+          "title": "Schema-defined library docs, validated at the write boundary",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "migrate-on-write-upcaster",
+          "title": "Forward-migrate and version-stamp library docs on write",
+          "status": "healthy",
+          "dependsOn": [
+            "library-schema-and-write-validation"
+          ]
+        },
+        {
+          "id": "seed-corpus-scripts",
+          "title": "Seed the library store from the studio knowledge files",
+          "status": "healthy",
+          "dependsOn": [
+            "event-sourced-store-seam",
+            "migrate-on-write-upcaster"
+          ]
+        },
+        {
+          "id": "work-hierarchy-drift-gate",
+          "title": "A fail-closed gate rung refuses a stale or disagreeing work-hierarchy mirror",
+          "status": "proposed",
+          "dependsOn": [
+            "work-hierarchy-store-projection"
+          ]
+        },
+        {
+          "id": "work-hierarchy-store-projection",
+          "title": "The work hierarchy mirrored into the live store as a one-directional projection",
+          "status": "proposed",
+          "dependsOn": [
+            "event-sourced-store-seam"
+          ]
+        }
+      ],
+      "building": true
+    },
+    {
+      "id": "library-review",
+      "title": "Review mode — a word-processor collaboration layer for library documents",
+      "status": "proposed",
+      "dependsOn": [
+        "library",
+        "studio",
+        "studio-members"
+      ],
+      "capabilities": [
+        {
+          "id": "accept-reject-suggestion-api",
+          "title": "An owner/admin accepts or rejects a suggestion through the API; transitions are enforced",
+          "status": "healthy",
+          "dependsOn": [
+            "suggestion-edit-store"
+          ]
+        },
+        {
+          "id": "block-position-comment-anchor",
+          "title": "A comment is anchored to a block position, not a text span",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "collapsed-suggestion-view",
+          "title": "A suggestion renders the proposed result by default, original behind a show-change toggle",
+          "status": "healthy",
+          "dependsOn": [
+            "accept-reject-suggestion-api",
+            "review-mode-toggle",
+            "suggestion-edit-store"
+          ]
+        },
+        {
+          "id": "inline-comment-thread",
+          "title": "A block-anchored comment thread rendered in the document flow, not a side panel",
+          "status": "healthy",
+          "dependsOn": [
+            "block-position-comment-anchor",
+            "review-mode-toggle",
+            "review-refresh-feed"
+          ]
+        },
+        {
+          "id": "member-suggest-write-policy",
+          "title": "A member may comment and suggest; only owner/admin accept/reject and hard-edit",
+          "status": "healthy",
+          "dependsOn": [
+            "suggestion-edit-store"
+          ]
+        },
+        {
+          "id": "remove-text-selection-anchoring",
+          "title": "remove-text-selection-anchoring",
+          "status": null,
+          "dependsOn": []
+        },
+        {
+          "id": "review-mode-toggle",
+          "title": "A View ↔ Review mode switch that turns commenting and suggesting on",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "review-refresh-feed",
+          "title": "A feed endpoint returns a topic's comments and suggestions for live refresh",
+          "status": "healthy",
+          "dependsOn": [
+            "block-position-comment-anchor",
+            "suggestion-edit-store"
+          ]
+        },
+        {
+          "id": "suggestion-edit-store",
+          "title": "A proposed edit persists as a suggestion record with an open/accepted/rejected status",
+          "status": "healthy",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "library-tech-tree-overlay",
+      "title": "The Library as a tech-tree drawer over the forest map",
+      "status": "healthy",
+      "dependsOn": [
+        "library",
+        "studio"
+      ],
+      "capabilities": [
+        {
+          "id": "library-category-shelf",
+          "title": "The finder's idle state is a category shelf (one row per corpus category + a Decisions/ADRs row, each with its count, all derived from the loaded corpus) and each category is a removable search scope: picking one lists all its artifacts, subsequent typing filters within the scope, clearing returns to the shelf — the signed lf-* query path stays byte-green",
+          "status": "healthy",
+          "dependsOn": [
+            "library-finder"
+          ]
+        },
+        {
+          "id": "library-dag-canvas",
+          "title": "The focus canvas is a true layered dependency DAG: dagre rankdir-LR ranks over the authored standsOn edge BOTH ways to ONE level upstream + ONE level downstream (the full transitive walk retired, ADR-0193 dec 3; the references[] citation substrate retired, ADR-0223), DRAWN SVG edges between rank-adjacent nodes, per-branch ⊕ expanders taming breadth (the global depth stepper retired), NO ← Back / breadcrumb and NO pan/zoom controls — search-first plus click-through re-centre is the whole navigation — and a machine-asserted fit-to-view viewBox containing every laid-out node — the brownfield rework of library-focus-subgraph (source files keep their names)",
+          "status": "healthy",
+          "dependsOn": [
+            "library-finder"
+          ]
+        },
+        {
+          "id": "library-dive-body",
+          "title": "The dive body panel — an artifact's full body + Sources over the map, reusing AssetView / DocView",
+          "status": "healthy",
+          "dependsOn": [
+            "library-finder"
+          ]
+        },
+        {
+          "id": "library-drawer-shell",
+          "title": "The `?overlay=library` invocation gate — a pure `readLibraryOverlay` flag reader that gates the Library overlay's presence (its closed→peek→dive state machine RETIRED into the permanent lens by ADR-0187 dec 1)",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "library-finder",
+          "title": "A client-side search finder over the loaded corpus with a kind sub-line and lifted selection",
+          "status": "healthy",
+          "dependsOn": [
+            "library-drawer-shell"
+          ]
+        },
+        {
+          "id": "library-lifecycle-shelf",
+          "title": "The Library panel carries ONE three-state lifecycle selector (open | active | archived, DEFAULT open) and the selected state governs the whole panel: the shelf renders only categories with ≥1 item in the state (plain per-state count, 'N of M' retired), scoped browse filters to the state uniformly for every kind, and a typed search's results filter to the state (assets + Decisions); the per-kind state chips retire; empty states are one quiet line — the surviving lf-*/lcs- blocks stay byte-green, the re-tensed ones are trimmed before the build (ADR-0197 D5)",
+          "status": "healthy",
+          "dependsOn": [
+            "library-category-shelf",
+            "library-lifecycle-wire"
+          ]
+        },
+        {
+          "id": "library-lifecycle-wire",
+          "title": "One pure, browser-safe lifecycle projection `lifecycleOf(kind, doc) → open | active | archived` in @storytree/library (root barrel, no node: imports) maps every stored per-kind vocabulary onto ADR-0196's universal triad; AND `renderStoredDoc` serializes a plan doc's `status` onto the GuidanceAsset wire (mirroring arcRef) so the studio can project plan lifecycle. MACHINE-ONLY, no look leg.",
+          "status": "healthy",
+          "dependsOn": [
+            "library-finder"
+          ]
+        },
+        {
+          "id": "library-open-overlay",
+          "title": "The Open document overlay — a separate full-detail artifact view over the map, reusing the byte-locked LibraryDiveBody router, dismissable back to the lens",
+          "status": "healthy",
+          "dependsOn": [
+            "library-dive-body"
+          ]
+        },
+        {
+          "id": "library-open-trigger",
+          "title": "Double-clicking a node on either node surface (the overview constellation or the focus subgraph) fires onOpen with the node's finder-parity SearchResult — additive to the signed single-click onSelect, which stays byte-green",
+          "status": "healthy",
+          "dependsOn": [
+            "library-dag-canvas",
+            "library-overview"
+          ]
+        },
+        {
+          "id": "library-overview",
+          "title": "The empty-state whole-corpus dot field under the ADR-0185 dec-4 LOD ladder — importance = degree, owning its own search input, geometry machine-witnessed / appearance operator-attested",
+          "status": "healthy",
+          "dependsOn": [
+            "library-finder"
+          ]
+        },
+        {
+          "id": "library-permanent-lens",
+          "title": "The Library overlay is a permanent lens — the closed→peek→dive state machine and the × close button are retired; the flag gates presence, the map stays live beneath, a body slot renders content, and a bottom selection-preview section fires Open",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "library-process-flow",
+          "title": "A process node's authored branchEdges become DOWNSTREAM flow edges in the focus DAG: each target joins the one-level downstream frontier as a node, each edge carries its authored label, branch edges are kind-tagged apart from reference edges, and a process carrying no branchEdges contributes none",
+          "status": "healthy",
+          "dependsOn": [
+            "library-dag-canvas"
+          ]
+        },
+        {
+          "id": "library-retire-standalone-page",
+          "title": "The standalone `#/library` studio page retires into the lens: `libraryHref()` re-points to the `?overlay=library#/tree` lens href (dropping its `category` parameter), `parseRoute('#/library')` (and `/library/<category>`) resolves to the tree route so a legacy bookmark lands on the forest map where the lens lives, the `{ name: 'library' }` variant is removed from the `Route` union, and every other route (`#/asset/<id>`, `#/asset/<id>/edit`, `#/asset/new`, `#/doc/<id>`, `#/tree`, `#/tree/<focus>`, `#/members`, `#/`) still resolves unchanged",
+          "status": "healthy",
+          "dependsOn": [
+            "library-permanent-lens",
+            "library-top-drawer"
+          ]
+        },
+        {
+          "id": "library-selection-card",
+          "title": "A pinned selection card in the side panel renders what is selected — an asset's title/kind/description (description looked up from the loaded corpus, since SearchResult carries none) or an ADR's title/status/load-bearing badge — with an Open button; null renders nothing and a stale selection renders tolerantly off the SearchResult alone",
+          "status": "healthy",
+          "dependsOn": [
+            "library-finder"
+          ]
+        },
+        {
+          "id": "library-top-drawer",
+          "title": "The permanent lens defaults to a SLIM, TITLE-LESS collapsed top drawer handle; lens state is URL-derived (?overlay=library present = expanded, absent = the collapsed handle); the terminal-dock ARROW chevron is the single open/close affordance (the Expand/Collapse WORD buttons retire) firing an onToggle seam the parent glue owns; the \"Library\" wordmark renders EXPANDED-ONLY; the expanded drawer gains a drag-resize separator (the terminal dock idiom); the ADR-0188 dec-6 component-local Minimise/Restore machine and the #715 corner toggle retire; the map stays live beneath with no scrim in either state; the pure readLibraryOverlay reader survives",
+          "status": "healthy",
+          "dependsOn": [
+            "library-permanent-lens"
+          ]
+        },
+        {
+          "id": "library-typed-edges",
+          "title": "The three ALREADY-STORED structured typed-edge fields (agent `stepRefs`, process `branchEdges`, plan `arcRef`) surface onto the rendered GuidanceAsset wire shape via renderStoredDoc's STRUCTURED branch; MACHINE-ONLY, no look leg",
+          "status": "healthy",
+          "dependsOn": [
+            "library-finder"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "notice-board",
+      "title": "The notice board is the claim ledger — one deterministic record coordinates parallel sessions and powers every observability surface",
+      "status": "healthy",
+      "dependsOn": [
+        "library"
+      ],
+      "capabilities": [
+        {
+          "id": "ambient-integration",
+          "title": "The board declares itself — a statusline glance over the ledger; a build never writes presence",
+          "status": "healthy",
+          "dependsOn": [
+            "noticeboard-cli",
+            "tree-view"
+          ]
+        },
+        {
+          "id": "noticeboard-cli",
+          "title": "The noticeboard command family — the ledger board, declare/claim, done",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "tree-view",
+          "title": "The tree is the orientation surface — offline hierarchy, the live ledger woven in when reachable",
+          "status": "healthy",
+          "dependsOn": [
+            "noticeboard-cli"
+          ]
+        },
+        {
+          "id": "verdict-glyphs",
+          "title": "The tree shows signed proof — one verdict glyph per node, silently absent offline",
+          "status": "healthy",
+          "dependsOn": [
+            "tree-view"
+          ]
+        }
+      ],
+      "building": true
+    },
+    {
+      "id": "proof-binding-integrity",
+      "title": "Proof-binding integrity — every machine UAT leg is evidence or a visible refusal",
+      "status": "proposed",
+      "dependsOn": [
+        "drive-machinery"
+      ],
+      "capabilities": [
+        {
+          "id": "machine-leg-binding-audit",
+          "title": "Audit every machine UAT leg into a proof-binding outcome",
+          "status": "proposed",
+          "dependsOn": [
+            "proof-binding-outcome-contract"
+          ]
+        },
+        {
+          "id": "proof-binding-outcome-contract",
+          "title": "Machine-leg proof binding resolves to an exhaustive evidence-or-refusal outcome",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "runtime-proof-binding-projection",
+          "title": "Project machine-leg proof-binding outcomes in the runtime",
+          "status": "proposed",
+          "dependsOn": [
+            "proof-binding-outcome-contract"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "proof-protocol",
+      "title": "The proof-protocol port — the shared verdict vocabulary at the root of the graph",
+      "status": "healthy",
+      "dependsOn": [],
+      "capabilities": []
+    },
+    {
+      "id": "storage-protocol",
+      "title": "The storage-protocol port — the universal document-event storage seam every organism persists through",
+      "status": "healthy",
+      "dependsOn": [
+        "proof-protocol"
+      ],
+      "capabilities": []
+    },
+    {
+      "id": "studio",
+      "title": "The studio",
+      "status": "proposed",
+      "dependsOn": [
+        "app-surface",
+        "arc",
+        "art-factory",
+        "context-traversal-capture",
+        "context-traversal-spawn",
+        "context-traversal-transcript",
+        "drive-machinery",
+        "forest-world",
+        "library",
+        "notice-board",
+        "proof-protocol",
+        "storage-protocol",
+        "studio-members",
+        "uat-criterion-detail"
+      ],
+      "capabilities": [
+        {
+          "id": "act2-intro-cursor",
+          "title": "The Act 2 regrow's app-owned cursor — one clock, movable, surviving a re-fetch",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "act2-regrow-camera-frame-delivery",
+          "title": "The approved Act 2 camera reaches the display without an extra refresh interval",
+          "status": "proposed",
+          "dependsOn": [
+            "act2-regrow-camera-zoom-out",
+            "camera-rasterisation-probe"
+          ]
+        },
+        {
+          "id": "act2-regrow-camera-zoom-out",
+          "title": "The Act 2 regrow opens at the forest bottom and pulls back to the whole forest",
+          "status": "healthy",
+          "dependsOn": [
+            "camera-rasterisation-probe"
+          ]
+        },
+        {
+          "id": "arc-orientation-lens",
+          "title": "The arc lens — an owner arriving cold is oriented from the map's top drawer alone",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "author-library-artifact",
+          "title": "Author, edit, and delete Library artifacts",
+          "status": "proposed",
+          "dependsOn": [
+            "browse-library",
+            "dev-server-persistence-backbone"
+          ]
+        },
+        {
+          "id": "browse-library",
+          "title": "Browse and view the guidance Library",
+          "status": "proposed",
+          "dependsOn": [
+            "dev-server-persistence-backbone",
+            "read-corpus",
+            "seed-library-corpus"
+          ]
+        },
+        {
+          "id": "camera-rasterisation-probe",
+          "title": "Measure camera-transform rasterisation during the real forest regrow",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "chat-panel",
+          "title": "The renderer chat panel — a thin client that POSTs /api/chat and renders the streamed done/error/refused frames",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "coalesced-camera-pan",
+          "title": "A forest drag commits the camera once per display frame",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "compositor-pan-transform",
+          "title": "A forest drag moves the already-rasterised map on the compositor",
+          "status": "healthy",
+          "dependsOn": [
+            "coalesced-camera-pan"
+          ]
+        },
+        {
+          "id": "dev-server-persistence-backbone",
+          "title": "Dev-server persistence backbone",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "hud-chrome",
+          "title": "The floating HUD chrome — the forest map is the landing surface, the top banner and Overview page retire, and the only global chrome is a single verified-identity avatar (top-right): no brand chip, and the avatar menu is a pure account surface (no Library/Documents navigation)",
+          "status": "healthy",
+          "dependsOn": [
+            "dev-server-persistence-backbone"
+          ]
+        },
+        {
+          "id": "map-boot-independence",
+          "title": "The forest map's own fetch starts as soon as membership resolves",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "map-live-hierarchy-read",
+          "title": "The map reads the work hierarchy from the live store",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "map-payload-cache",
+          "title": "A reloaded studio paints the forest from its persisted payloads",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "map-route-retention",
+          "title": "A live forest map survives SPA route changes",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "map-server-memo",
+          "title": "A repeated studio load is answered without re-reading an unchanged corpus",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "read-corpus",
+          "title": "Read the doc/ADR corpus",
+          "status": "proposed",
+          "dependsOn": [
+            "dev-server-persistence-backbone"
+          ]
+        },
+        {
+          "id": "resolve-comment",
+          "title": "Resolve and reopen a comment",
+          "status": "proposed",
+          "dependsOn": [
+            "dev-server-persistence-backbone"
+          ]
+        },
+        {
+          "id": "seed-library-corpus",
+          "title": "Seed the Library corpus from the ADRs and glossary",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "store-connection-signal",
+          "title": "The map says whether the database is connected",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "verified-attribution",
+          "title": "Verified comment attribution — the comment composer presents and posts the verified `/api/me` identity, and the localStorage operator store retires",
+          "status": "healthy",
+          "dependsOn": [
+            "dev-server-persistence-backbone"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "studio-cloud",
+      "title": "Studio cloud — the trusted circle interacts with a served studio",
+      "status": "proposed",
+      "dependsOn": [
+        "cli",
+        "library",
+        "notice-board",
+        "proof-protocol",
+        "studio",
+        "studio-members"
+      ],
+      "capabilities": [
+        {
+          "id": "circle-onboarding",
+          "title": "Adding a trusted dev is one grant; removing them is one revoke",
+          "status": "proposed",
+          "dependsOn": [
+            "cloud-run-iap"
+          ]
+        },
+        {
+          "id": "cloud-run-iap",
+          "title": "Cloud Run behind IAP with a least-privilege runtime service account",
+          "status": "proposed",
+          "dependsOn": [
+            "container-image",
+            "guest-scope"
+          ]
+        },
+        {
+          "id": "container-image",
+          "title": "The studio builds into a runnable container image",
+          "status": "proposed",
+          "dependsOn": [
+            "serve-mode"
+          ]
+        },
+        {
+          "id": "deploy-health-signal",
+          "title": "A pure classifier turns the deploy-studio CD run list into an ok / red / unknown health signal, so a red post-merge deploy is loud at the gate tail",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "guest-scope",
+          "title": "Guests read everything, comment as themselves, and touch nothing else",
+          "status": "proposed",
+          "dependsOn": [
+            "serve-mode"
+          ]
+        },
+        {
+          "id": "hosted-db-wake",
+          "title": "The hosted studio wakes its own idle-stopped DB",
+          "status": "proposed",
+          "dependsOn": [
+            "guest-scope",
+            "serve-mode"
+          ]
+        },
+        {
+          "id": "serve-mode",
+          "title": "The studio serves without Vite — static dist plus the one shared API route table",
+          "status": "proposed",
+          "dependsOn": []
+        },
+        {
+          "id": "write-broker",
+          "title": "A members-gated write-broker persists a builder's locally-signed verdict / presence — validating shape and attribution, never re-signing",
+          "status": "healthy",
+          "dependsOn": [
+            "guest-scope"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "studio-members",
+      "title": "Studio members — real accounts, roles, and invitations from the UI",
+      "status": "proposed",
+      "dependsOn": [
+        "library"
+      ],
+      "capabilities": [
+        {
+          "id": "app-authorization",
+          "title": "The app authorizes by user row and role; non-members are served nothing",
+          "status": "proposed",
+          "dependsOn": [
+            "user-directory"
+          ]
+        },
+        {
+          "id": "builder-role",
+          "title": "A third role — builder — a member who may POST builds through the broker, resolved by the same access compute",
+          "status": "healthy",
+          "dependsOn": [
+            "user-directory"
+          ]
+        },
+        {
+          "id": "invite-notify",
+          "title": "invite-notify",
+          "status": null,
+          "dependsOn": []
+        },
+        {
+          "id": "invite-ui",
+          "title": "invite-ui",
+          "status": null,
+          "dependsOn": []
+        },
+        {
+          "id": "user-directory",
+          "title": "Users persist as events plus a role/status projection, last-admin protected",
+          "status": "proposed",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "terminal-repo-picker",
+      "title": "The embedded terminal opens in a repo the user picks — thread the selected working directory through the Electron main",
+      "status": "proposed",
+      "dependsOn": [
+        "desktop",
+        "embedded-terminal",
+        "studio"
+      ],
+      "capabilities": [
+        {
+          "id": "repo-picker-panel",
+          "title": "The renderer repo picker — reflects the current selection, opens the native picker on click, degrades honestly where the bridge is absent",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "repo-selection",
+          "title": "The Electron-main repo selection module — validate / persist / read / resolve-cwd over injected DirProbe + SelectionStore ports",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "terminal-repo-gate",
+          "title": "The terminal repo gate — renders the embedded terminal ONLY when a valid repo is selected, reopens it (fresh pty) on a repo change, forwards the seed, degrades honestly where the bridge is absent",
+          "status": "healthy",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "terminal-tabs",
+      "title": "The embedded terminal is multi-session with a VS Code-style session panel — a seed opens a FRESH tab, never the user's active Claude Code session",
+      "status": "healthy",
+      "dependsOn": [
+        "embedded-terminal",
+        "map-terminal-build",
+        "studio"
+      ],
+      "capabilities": [
+        {
+          "id": "multi-session-tabs",
+          "title": "TerminalDock becomes multi-session with a VS Code-style session panel — N sessions, each its own xterm pane, created/switched/closed via panel rows, the single-session behaviours held per session, explicit per-row close the only renderer kill",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "seed-opens-new-tab",
+          "title": "A seed OPENS A FRESH TAB — spawn a new session, switch to it, pre-fill there (no trailing newline) — and NEVER writes into the active session",
+          "status": "healthy",
+          "dependsOn": [
+            "multi-session-tabs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uat-attestation",
+      "title": "UAT attestation — each UAT test earns green by its witness; a vouch never forges a green",
+      "status": "proposed",
+      "dependsOn": [
+        "library",
+        "studio"
+      ],
+      "capabilities": [
+        {
+          "id": "attestation-signals",
+          "title": "A per-test attestation is an append-only signed signal, never a gate verdict",
+          "status": "proposed",
+          "dependsOn": [
+            "uat-test-units"
+          ]
+        },
+        {
+          "id": "attestation-surface",
+          "title": "The story detail shows each UAT test's proven verdict distinct from its lower-rigor vouch",
+          "status": "proposed",
+          "dependsOn": [
+            "attestation-signals"
+          ]
+        },
+        {
+          "id": "uat-test-units",
+          "title": "A story's UAT becomes stable, addressable test units with a witness kind",
+          "status": "proposed",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "uat-criterion-detail",
+      "title": "A UAT criterion's detail is a live-canonical Library artifact — pointed-to, hash-anchored, and authorable with the hierarchy",
+      "status": "healthy",
+      "dependsOn": [
+        "model-uat-witness"
+      ],
+      "capabilities": [
+        {
+          "id": "criterion-detail-hash-anchor",
+          "title": "A detail content-hash anchors green and invalidates on substantive change",
+          "status": "healthy",
+          "dependsOn": [
+            "criterion-detail-pointer"
+          ]
+        },
+        {
+          "id": "criterion-detail-pointer",
+          "title": "A story criterion points to its detail artifact without ceding the one-liner",
+          "status": "healthy",
+          "dependsOn": [
+            "uat-detail-kind"
+          ]
+        },
+        {
+          "id": "story-author-detail-authority",
+          "title": "story-author's write fence admits the hierarchy half of the pair",
+          "status": "healthy",
+          "dependsOn": [
+            "uat-detail-kind"
+          ]
+        },
+        {
+          "id": "uat-detail-kind",
+          "title": "A detailed UAT criterion is a structured Library artifact kind",
+          "status": "healthy",
+          "dependsOn": []
+        }
+      ]
+    },
+    {
+      "id": "uat-detail-studio",
+      "title": "Studio UAT criterion rows stay one-line and open the Library detail",
+      "status": "healthy",
+      "dependsOn": [
+        "studio",
+        "uat-criterion-detail"
+      ],
+      "capabilities": [
+        {
+          "id": "uat-row-one-liner",
+          "title": "Each UAT table row renders the story-owned one-line title",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "uat-row-opens-detail",
+          "title": "Opening a UAT row follows its Library detail pointer",
+          "status": "healthy",
+          "dependsOn": [
+            "uat-row-one-liner"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "website",
+      "title": "The public website — the consuming surface that draws the forest-world look from the synced render core",
+      "status": "proposed",
+      "dependsOn": [
+        "forest-world"
+      ],
+      "capabilities": []
+    },
+    {
+      "id": "website-experience",
+      "title": "The two-act vibe-coding experience — the public site's front door enacts chaos → calm",
+      "status": "proposed",
+      "dependsOn": [
+        "cli",
+        "forest-world",
+        "website"
+      ],
+      "capabilities": [
+        {
+          "id": "act1-terminal-storm",
+          "title": "Act 1 — one prompt breeds the diegetic terminal storm",
+          "status": "proposed",
+          "dependsOn": [
+            "experience-rollout-guardrails"
+          ]
+        },
+        {
+          "id": "act2-beat-director",
+          "title": "The Act 2 beat director — the ONE continuous teaching script (website walk → UPSTREAM forest) as pure, provable choreography",
+          "status": "healthy",
+          "dependsOn": [
+            "r3f-world-spike"
+          ]
+        },
+        {
+          "id": "act2-guided-forest",
+          "title": "act2-guided-forest",
+          "status": null,
+          "dependsOn": []
+        },
+        {
+          "id": "act2-guided-walkthrough",
+          "title": "Act 2 (increment G) — the website-first walk: the reused prompt, the orchestrator's mock-website proposal, and the 2.5D walk that grows one website story to the 'what's next' hand-off",
+          "status": "proposed",
+          "dependsOn": [
+            "act2-beat-director",
+            "storm-to-forest-inflection",
+            "web-experience-sync"
+          ]
+        },
+        {
+          "id": "experience-rollout-guardrails",
+          "title": "Skip and fallback are first-class from the first increment — machine-guarded",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "info-pages-triage",
+          "title": "The info-page triage — every legacy page folded, discarded, or kept, and the CMS question answered",
+          "status": "proposed",
+          "dependsOn": [
+            "act2-guided-forest",
+            "act2-guided-walkthrough"
+          ]
+        },
+        {
+          "id": "r3f-world-spike",
+          "title": "The R3F spike — the real forest world rendered in 3D under map controls",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "storm-to-forest-inflection",
+          "title": "The inflection — one calm tap transforms the storm into soil and wakes the 3D land",
+          "status": "proposed",
+          "dependsOn": [
+            "act1-terminal-storm",
+            "web-experience-sync"
+          ]
+        },
+        {
+          "id": "web-experience-sync",
+          "title": "The R3F mapper rides the sync — one artifact mechanism, two parent packages",
+          "status": "healthy",
+          "dependsOn": [
+            "r3f-world-spike"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wisp-as-story-claim",
+      "title": "The forest wisp IS the claim — graded (hover / orbit / queue), coloured by subagent, cleared on merge",
+      "status": "healthy",
+      "dependsOn": [
+        "agent",
+        "drive-machinery",
+        "notice-board",
+        "studio"
+      ],
+      "capabilities": [
+        {
+          "id": "appearance-uat",
+          "title": "Appearance UAT — on the forest map, does the graded claim-wisp LOOK right?",
+          "status": "proposed",
+          "dependsOn": [
+            "ci-clear-on-merge",
+            "colour-by-subagent",
+            "render-claim-as-wisp",
+            "take-claim-at-spawn"
+          ]
+        },
+        {
+          "id": "ci-clear-on-merge",
+          "title": "CI clears the claim on merge — the merge job releases the merged branch's node_claim rows",
+          "status": "proposed",
+          "dependsOn": [
+            "claim-store-work-time"
+          ]
+        },
+        {
+          "id": "claim-at-declare",
+          "title": "Claim-at-declare — anchoring a node on the notice board takes the work-time story claim",
+          "status": "proposed",
+          "dependsOn": [
+            "claim-store-work-time"
+          ]
+        },
+        {
+          "id": "claim-store-work-time",
+          "title": "Claim-store work-time extensions — release-by-branch, trace heartbeat bump, work-time intent",
+          "status": "healthy",
+          "dependsOn": []
+        },
+        {
+          "id": "colour-by-subagent",
+          "title": "Colour the wisp by the active subagent / intent — authoring, proving, supplementing",
+          "status": "healthy",
+          "dependsOn": [
+            "claim-store-work-time"
+          ]
+        },
+        {
+          "id": "render-claim-as-wisp",
+          "title": "Render the graded claim as a wisp — hover / orbit / queue, visibly distinct from proven-green",
+          "status": "healthy",
+          "dependsOn": [
+            "claim-store-work-time"
+          ]
+        },
+        {
+          "id": "take-claim-at-spawn",
+          "title": "Take the claim at spawn — the acquisition seam the orchestrator calls before spawning a subagent",
+          "status": "healthy",
+          "dependsOn": [
+            "claim-store-work-time"
+          ]
+        }
+      ]
+    }
+  ]
+}
