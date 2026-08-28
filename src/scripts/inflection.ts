@@ -1,68 +1,76 @@
 // ---------------------------------------------------------------------------
-// inflection — the transform-to-2.5D-tutorial handoff (ADR-0134 §2, ADR-0145,
-// ADR-0148 §5, reshaped by ADR-0165). This is the destination the first act's
-// "show me the better way" transform lands the visitor in — one path, all in on
-// the tutorial, ZERO WebGL.
+// inflection — the transform-to-chapter-2 handoff (ADR-0134 §2, ADR-0145, ADR-0148 §5, reshaped by
+// ADR-0165). This is the destination the first act's "show me the better way" transform lands the
+// visitor in — one path, ZERO WebGL.
 //
-// Reached EXCLUSIVELY via dynamic import() from the storm engine at the
-// transform click (act1-storm's `import('./inflection')`). Since ADR-0148 this
-// module — and everything it reaches — is pure SVG/DOM: no React, no three.js,
-// no @react-three, no WebGL context. (The synced forest-world-r3f package still
-// ships in web/src/lib for check:web-engine, but this module never imports its
-// WebGL surfaces — only act2-director's pure zod state machine, via the
-// walkthrough.) The parent's check:web-experience walks the STATIC closure from
-// index.astro and this seam is only ever a DYNAMIC import, so it stays outside
-// that closure regardless.
+// Reached EXCLUSIVELY via dynamic import() from the storm engine at the transform click
+// (act1-storm's `import('./inflection')`). Since ADR-0148 this module — and everything it reaches —
+// is pure SVG/DOM: no React, no three.js, no @react-three, no WebGL context. The parent's
+// `check:web-experience-closure` walks the STATIC closure from index.astro and this seam is only
+// ever a DYNAMIC import, so it stays outside that closure regardless.
 //
-// THE FLOW, as of `website-refresh-arc-arrival` (GROW, ADR-0453 D11): the transform's collapse
-// finishes on quiet ground, and the ground turns out to be storytree's OWN forest — already in the
-// DOM, serialised by `index.astro` at build time from the same stamped snapshot `/forest/` renders.
-// This module frames it at the designed resting view (ADR-0471) and hands the visitor pan and zoom.
-// That is the whole of the arrival, and it is deliberately the whole of chapter 2 for now.
+// ⚠ THAT DYNAMIC SEAM IS ALSO WHY TELL MOUNTS HERE RATHER THAN FROM A `<script>` ON THE PAGE. A new
+// `<script>` block in `index.astro` is a CLIENT SEED: the closure rung would walk the whole static
+// import graph under it, and the first thing a prose overlay wants to reach for is the map module
+// that reaches `act2-walkthrough` → `forest-world-r3f/act2-director`. Mounting from behind the
+// existing dynamic import keeps chapter 2 entirely outside the guarded closure, which is where the
+// rung's authors put the seam on purpose.
 //
-// ⚠ WHAT WENT, AND WHAT DID NOT. The scripted three-story walk (`act2-walkthrough`) and the
-// terminal-agent guide (`act2-orchestrator`) are no longer mounted. Two separate reasons, and only
-// one of them is "we are replacing this":
+// THE FLOW, as of `website-refresh-arc-pitch-overlays` (TELL), on top of `…-arrival` (GROW,
+// ADR-0453 D11): the transform's collapse finishes on quiet ground; the ground turns out to be
+// storytree's OWN forest, already in the DOM, serialised by `index.astro` at build time from the
+// same stamped snapshot `/forest/` renders. `forest-arrival` frames it at the designed resting view
+// (ADR-0471) and hands the visitor pan and zoom — and then `act2-tell` speaks over it, on a timing
+// this repo owns, and gets out of the way.
 //
-//   - THE FOREST WAS FICTIONAL. `act2-walkthrough` grows a demo dataset laid out at build time. A
-//     synthetic forest is a claim about a product; the real one is evidence of it, and the site's
-//     entire argument is that this system built it.
-//   - THE NARRATOR IS A NEXT BUTTON IN A COSTUME — the owner's call, 2026-08-22: it offers exactly
-//     one reply chip per step, paying the full cost of looking like a conversation for none of the
-//     freedom of one.
+// ⚠ THE NARRATOR IS GONE — DELETED, NOT UNMOUNTED. `act2-orchestrator` (the chat dock),
+// `act2-guide` (its scripted dialogue) and the chrome that only ever served it (`act2-diagram`,
+// `act2-minimap`, `act2-studio`) were removed by TELL. The owner rejected the VOICE, not the
+// machine — "a Next button in a costume", 2026-08-22 — so the machine's one load-bearing property
+// (a beat's state is a pure function of its index, and replay is byte-identical) is rebuilt inside
+// `act2-tell.ts` in a module with no chat DOM. Re-mounting the original would have resurrected the
+// costume to reach the property; see `act2-tell.ts`'s header for the full accounting.
 //
-// ⚠ BOTH MODULES ARE LEFT IN THE TREE ON PURPOSE, unmounted rather than deleted. `act2-orchestrator`
-// is a good declarative state machine and only its VOICE is rejected (`keep the machine, retire the
-// presenter`); retiring the narrator properly, and deciding what of the sequencer survives, is
-// TELL's job (`website-refresh-arc-pitch-overlays`), not this increment's. Deleting them here would
-// make that decision by accident.
+// ⚠ WHAT DELIBERATELY DID NOT GO: `act2-walkthrough`. It is the scripted three-story WALK, not the
+// narrator, and it was unmounted for its own separate reason (the forest it grew was fictional).
+// Its disc geometry is still LIVE — `forest-snapshot-map` imports `buildDisc`/`escXml` from it to
+// draw the real forest that ships today — so retiring it means first lifting that geometry into its
+// own module, which is the edit `index.astro`'s own comment describes and is its own piece of work.
+// Deleting it here to make one PR tidy would have taken the shipped map with it.
 //
 // The exported contract is UNCHANGED so the storm engine needs no edit:
-// mountForestLand(container) → { unmount }. The disarm path (skip / Escape /
-// the closing CTA) chains unmount(), so a mid-walk exit tears the whole
-// tutorial down — guide (chat + diagram + mini-map) and walk alike. Everything
-// here is a pure function of fixed data: the same land, the same script, on
-// every load.
+// mountForestLand(container) → { unmount }. The disarm path (skip / Escape) chains unmount(), so a
+// mid-sequence exit tears chapter 2 down — prose overlay and map framing alike.
 // ---------------------------------------------------------------------------
 
 import { mountForestArrival, type ArrivalHandle } from './forest-arrival';
+import { mountTell, type TellHandle } from './act2-tell';
 
 /** The exported handle the storm engine holds — name kept for the unchanged
  *  contract (act1-storm calls `mod.mountForestLand(landCanvasEl)`). */
 export interface InflectionHandle {
-  /** Tear the tutorial (guide + walk) down — the disarm path chains this into
-   *  its halt. */
+  /** Tear chapter 2 down — the disarm path chains this into its halt. */
   unmount(): void;
 }
 
+/** Does the visitor want less motion? Read here rather than passed in, because this module is the
+ *  boundary where chapter 2 begins and every mount below it needs the same answer. Defaults to
+ *  "motion is fine" when the query cannot be made, matching the storm's own arming rule. */
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Mount the 2.5D guided tutorial into `container` (the first act's
- * #storm-land-canvas mount): the walk on the real 2.5D map underneath, the
- * guide (chat + growing diagram + mini-map) over it. No WebGL, no R3F — the
- * collapse choreography has already played; this is where it lands.
+ * Mount chapter 2 into `container` (the first act's #storm-land-canvas mount): the real forest
+ * framed at its designed resting view, and TELL's prose over it. No WebGL, no R3F — the collapse
+ * choreography has already played; this is where it lands.
  *
- * `container` is the land canvas; everything mounts onto the #storm-land layer
- * (its closest ancestor) so it shares the land's fade-up and disarm path.
+ * `container` is the land canvas; the overlay mounts onto the #storm-land layer (its closest
+ * ancestor) so it shares the land's fade-up and disarm path.
  */
 export function mountForestLand(container: HTMLElement): InflectionHandle {
   // The real forest is ALREADY IN THE DOM — `index.astro` serialised it at build time into
@@ -70,8 +78,21 @@ export function mountForestLand(container: HTMLElement): InflectionHandle {
   // designed resting view (ADR-0471) and lets the visitor move around it.
   const arrival: ArrivalHandle = mountForestArrival(container);
 
+  // TELL speaks over that forest. Both of its inputs come from the map itself — the counts it
+  // quotes and the status of the island it points at — so if the map is missing or unreadable,
+  // `mountTell` returns an inert handle and the visitor simply gets the forest, silently and
+  // correctly. A prose overlay is an enhancement on top of an enhancement; neither is a prerequisite
+  // for the other.
+  const host = container.closest('#storm-land');
+  const map = container.querySelector('svg.forest-arrival-svg');
+  const tell: TellHandle | null =
+    host instanceof HTMLElement && map !== null
+      ? mountTell({ host, map, stage: arrival, reducedMotion: prefersReducedMotion() })
+      : null;
+
   return {
     unmount(): void {
+      tell?.unmount();
       arrival.unmount();
     },
   };

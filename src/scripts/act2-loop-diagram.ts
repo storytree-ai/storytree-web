@@ -170,11 +170,16 @@ function loopArc(from: { x: number; y: number }, to: { x: number; y: number }): 
  * revealable node groups (in clockwise scaffold order); each node group carries
  * `is-hidden` (unless reduced motion) so a caller can stagger-reveal them.
  *
- * NOTE (ADR-0165): nothing mounts this at present — the growing system diagram
- * (act2-diagram.ts) draws the same HONEST_LOOP content at the approved
- * wide-canvas geometry instead, and the overlay-era `.act2-loop-*` styling in
- * index.astro still covers this builder's classes. Kept exported as the loop's
- * reusable renderer (a how-it-works embed, Phase Z, a future surface).
+ * ⚠ THIS IS TELL'S ONE FIGURE, and the reason it earns the page is worth keeping written down: the
+ * map behind it can show which islands are green, but it CANNOT show the loop that makes green mean
+ * anything, because that happens between the agents rather than in the corpus. A diagram that only
+ * redrew what the forest already says would be decoration; this one carries the single thing the
+ * forest structurally cannot.
+ *
+ * It survived the narrator's retirement (`website-refresh-arc-pitch-overlays`) while
+ * `act2-diagram.ts` — which drew the same HONEST_LOOP content as one stage of a six-stage growing
+ * system diagram — did not. That is the same call in both directions: the owner rejected the
+ * presenter's VOICE and its six-stage lesson, not the one picture that answers "who checks?".
  */
 export function buildLoopDiagram(
   loop: LoopDiagram,

@@ -166,6 +166,106 @@ export function formatViewBox(box: ViewBox): string {
   return `${r(box.x)} ${r(box.y)} ${r(box.w)} ${r(box.h)}`;
 }
 
+/** A rectangle in the map's own world units — what `getBBox()` hands back for one island group. */
+export interface WorldRect {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** How much of the frame's SHORTER side one focused island should span. Small enough that the
+ *  island keeps its neighbours around it — the point of flying to an island is to show it IN the
+ *  forest, and an island filling the screen is just a picture of an island. */
+const FOCUS_FILL = 0.26;
+
+/**
+ * Where in the frame a focused island is placed, as fractions of the view.
+ *
+ * ⚠ NOT CENTRED, AND THAT IS THE WHOLE REASON THIS IS A PARAMETER. TELL's prose sits in a column
+ * down the left of the same frame, so an island placed at dead centre is read at the same moment it
+ * is half covered by the sentence pointing at it. Biasing right and slightly low puts it in the
+ * clear against the copy that is actually on screen when a focus happens.
+ */
+const FOCUS_ANCHOR = { fx: 0.64, fy: 0.56 } as const;
+
+/**
+ * The viewBox that puts one island on screen at a readable size, in the clear of the prose column.
+ *
+ * Pure, so the framing decision is testable without a browser: the DOM's only job is to hand over
+ * the island's rectangle and the frame's aspect. The result is still run through `clampZoom` and
+ * `clampViewBox` by the caller, so a focus can never take the reader somewhere their own gestures
+ * could not have reached.
+ */
+export function focusViewBox(island: WorldRect, frameAspect: number): ViewBox {
+  const span = Math.max(island.w, island.h, Number.EPSILON);
+  const short = span / FOCUS_FILL;
+  const w = frameAspect >= 1 ? short * frameAspect : short;
+  const h = frameAspect >= 1 ? short : short / Math.max(frameAspect, Number.EPSILON);
+  const cx = island.x + island.w / 2;
+  const cy = island.y + island.h / 2;
+  return { x: cx - FOCUS_ANCHOR.fx * w, y: cy - FOCUS_ANCHOR.fy * h, w, h };
+}
+
+/**
+ * One island's rectangle in the map's WORLD coordinates — the space the `viewBox` is expressed in.
+ *
+ * ⚠ `getBBox()` IS NOT ENOUGH AND THE ERROR IS SILENT. It reports the element's own user space, and
+ * `sceneToSvg` wraps the whole laid-out scene in a `<g transform="translate(…)">` to centre it, so
+ * an island's raw bbox comes back offset by the scene translation — measured here as
+ * `translate(1782.5 3876.8)`, which put `website-experience` at y −702 in a world that starts at 0.
+ * A focus computed from that lands OUTSIDE the world, gets pinned by `clampViewBox` to the
+ * overscroll corner, and produces a perfectly smooth camera move to the wrong place. Nothing
+ * throws, nothing logs, and the only symptom is a sentence pointing at empty sea.
+ *
+ * `getScreenCTM()` on the root `<svg>` maps its user units (i.e. `viewBox` space) to the screen, so
+ * composing the island's screen matrix with the root's inverse gives island-space → world-space
+ * whatever ancestors sit between them. Both corners are transformed and re-normalised because the
+ * matrix is not required to be a pure translation.
+ *
+ * Returns null when the browser cannot answer (a detached or `display:none` subtree has no CTM), so
+ * the caller declines the move rather than flying somewhere arbitrary.
+ */
+export function islandWorldRect(
+  root: SVGSVGElement,
+  isle: SVGGraphicsElement,
+): WorldRect | null {
+  const rootCtm = root.getScreenCTM();
+  const isleCtm = isle.getScreenCTM();
+  if (rootCtm === null || isleCtm === null) return null;
+  const toWorld = rootCtm.inverse().multiply(isleCtm);
+  const bb = isle.getBBox();
+  if (bb.width <= 0 || bb.height <= 0) return null;
+  const corner = (x: number, y: number): { x: number; y: number } => {
+    const p = root.createSVGPoint();
+    p.x = x;
+    p.y = y;
+    const q = p.matrixTransform(toWorld);
+    return { x: q.x, y: q.y };
+  };
+  const a = corner(bb.x, bb.y);
+  const b = corner(bb.x + bb.width, bb.y + bb.height);
+  return {
+    x: Math.min(a.x, b.x),
+    y: Math.min(a.y, b.y),
+    w: Math.abs(b.x - a.x),
+    h: Math.abs(b.y - a.y),
+  };
+}
+
+/** Ease-in-out, so a camera move starts and stops the way a hand would rather than snapping. */
+export function easeInOut(t: number): number {
+  const c = Math.max(0, Math.min(1, t));
+  return c < 0.5 ? 2 * c * c : 1 - (-2 * c + 2) ** 2 / 2;
+}
+
+/** Interpolate between two viewBoxes at eased progress `t`. */
+export function lerpViewBox(from: ViewBox, to: ViewBox, t: number): ViewBox {
+  const e = easeInOut(t);
+  const mix = (a: number, b: number): number => a + (b - a) * e;
+  return { x: mix(from.x, to.x), y: mix(from.y, to.y), w: mix(from.w, to.w), h: mix(from.h, to.h) };
+}
+
 /** Read the build-time payload off the rendered `<svg>`. Returns null rather than throwing so a
  *  malformed or absent payload leaves the map exactly as the build rendered it — a whole-world
  *  static picture, which is a worse composition but never a blank screen. */
@@ -186,8 +286,28 @@ export function readFramePayload(svg: Element): ForestFramePayload | null {
   }
 }
 
+/**
+ * What the arrival lets a later movement do to the view it settled.
+ *
+ * ⚠ THESE THREE EXIST FOR TELL AND ARE DELIBERATELY NOT A CAMERA API. There is no `panTo`, no
+ * `setZoom` and no way to reach an arbitrary framing, because the composition is a decision made in
+ * the shared render core (ADR-0471) and a surface that could put the map anywhere would quietly
+ * become the place that decision gets remade. What a caller may say is "show me this island" and
+ * "put it back" — and `onReaderTakeOver` is the third because any of it must yield the instant the
+ * reader touches the map.
+ */
 export interface ArrivalHandle {
   unmount(): void;
+  /**
+   * Fly to one island by its story id and hold there. Returns false — having changed nothing — when
+   * the island is not on this map, so a caller pointing at a story that has left the corpus can
+   * drop the beat instead of flying to an empty patch of sea.
+   */
+  focusIsland(id: string): boolean;
+  /** Fly back to the composition GROW settled on. A no-op once the reader has taken the view over. */
+  resetView(): void;
+  /** Register a callback for the first READER pan or zoom. A programmatic focus never fires it. */
+  onReaderTakeOver(cb: () => void): void;
 }
 
 /** How much of the frame's bottom the snapshot stamp occupies, in CSS px, measured off the element
@@ -217,10 +337,18 @@ function stampInset(container: HTMLElement): number {
  * flag and ignoring it would imply this surface had motion it was choosing not to reduce.
  */
 export function mountForestArrival(container: HTMLElement): ArrivalHandle {
+  const inert: ArrivalHandle = {
+    unmount(): void {},
+    focusIsland(): boolean {
+      return false;
+    },
+    resetView(): void {},
+    onReaderTakeOver(): void {},
+  };
   const svg = container.querySelector('svg.forest-arrival-svg');
-  if (!svg) return { unmount(): void {} };
+  if (!svg) return inert;
   const payload = readFramePayload(svg);
-  if (!payload) return { unmount(): void {} };
+  if (!payload) return inert;
 
   let box: ViewBox = { x: 0, y: 0, w: payload.width, h: payload.height };
   let restingW = payload.width;
@@ -316,16 +444,54 @@ export function mountForestArrival(container: HTMLElement): ArrivalHandle {
     resizeObserver = null;
   }
 
+  // ── the guided camera (TELL's `focusIsland` / `resetView`) ───────────────
+  //
+  // ⚠ A GUIDED MOVE IS NOT A READER MOVE, and keeping the two apart is the whole subtlety here. The
+  // tween writes `box` directly and never touches `readerHasMoved`, so flying to an island does not
+  // count as the reader taking the view over; but ANY reader gesture cancels an in-flight tween, so
+  // the two can never fight over the same viewBox. Push yields to pull, every time.
+  const TWEEN_MS = 1050;
+  let tween: number | null = null;
+  const takeOverListeners: Array<() => void> = [];
+
+  const cancelTween = (): void => {
+    if (tween !== null) {
+      cancelAnimationFrame(tween);
+      tween = null;
+    }
+  };
+
+  const flyTo = (target: ViewBox): void => {
+    cancelTween();
+    const from: ViewBox = { ...box };
+    const t0 = performance.now();
+    const frame = (): void => {
+      const t = Math.min(1, (performance.now() - t0) / TWEEN_MS);
+      box = lerpViewBox(from, target, t);
+      apply();
+      tween = t < 1 ? requestAnimationFrame(frame) : null;
+    };
+    tween = requestAnimationFrame(frame);
+  };
+
   const markMoved = (): void => {
+    // Order matters: cancel first, so a listener that reads the view sees the frame the reader
+    // grabbed rather than one the tween is still moving out from under them.
+    cancelTween();
+    if (readerHasMoved) return;
     readerHasMoved = true;
+    for (const cb of takeOverListeners.splice(0)) cb();
   };
   svg.addEventListener('pointerdown', markMoved);
   svg.addEventListener('wheel', markMoved, { passive: true });
 
   settle();
+  const restingBox: ViewBox = { ...box };
 
   return {
     unmount(): void {
+      cancelTween();
+      takeOverListeners.length = 0;
       svg.removeEventListener('pointerdown', onPointerDown);
       svg.removeEventListener('pointermove', onPointerMove);
       svg.removeEventListener('pointerup', endDrag);
@@ -334,6 +500,39 @@ export function mountForestArrival(container: HTMLElement): ArrivalHandle {
       svg.removeEventListener('pointerdown', markMoved);
       svg.removeEventListener('wheel', markMoved);
       resizeObserver?.disconnect();
+    },
+
+    focusIsland(id: string): boolean {
+      if (readerHasMoved) return false;
+      const isle = svg.querySelector(`.tw-isle[data-id="${CSS.escape(id)}"]`);
+      if (isle === null) return false;
+      const island = islandWorldRect(svg as SVGSVGElement, isle as SVGGraphicsElement);
+      if (island === null) return false;
+      const frame = svg.getBoundingClientRect();
+      if (frame.width <= 0 || frame.height <= 0) return false;
+      const target = focusViewBox(island, frame.width / frame.height);
+      // `clampZoom` may loosen the framing (a tiny island would otherwise blow past MAX_ZOOM);
+      // re-anchoring about the same point keeps the island where the prose expects it either way.
+      const w = clampZoom(target.w, restingW, wholeW);
+      flyTo(clampViewBox(zoomAbout(target, w, FOCUS_ANCHOR.fx, FOCUS_ANCHOR.fy), payload));
+      return true;
+    },
+
+    resetView(): void {
+      if (readerHasMoved) return;
+      // Already there (the common case — most beats change no lens): don't spend a tween on it.
+      if (Math.abs(box.x - restingBox.x) < 0.5 && Math.abs(box.w - restingBox.w) < 0.5) {
+        if (Math.abs(box.y - restingBox.y) < 0.5) return;
+      }
+      flyTo(restingBox);
+    },
+
+    onReaderTakeOver(cb: () => void): void {
+      if (readerHasMoved) {
+        cb();
+        return;
+      }
+      takeOverListeners.push(cb);
     },
   };
 }

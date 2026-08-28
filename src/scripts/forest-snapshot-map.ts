@@ -384,7 +384,14 @@ export function islandDiameters(snap: ForestSnapshot): number[] {
  *     resize is in flight;
  *  3. its `viewBox` is the WHOLE world, which is the honest thing to serve: if the client script
  *     never runs, the visitor gets the entire forest as a static picture instead of a blank div.
- *     The crop is an enhancement, never a prerequisite.
+ *     The crop is an enhancement, never a prerequisite;
+ *  4. it carries `data-forest-counts`, which is what TELL's copy says its numbers OUT OF.
+ *
+ * ⚠ (4) IS A CORRECTNESS FENCE, NOT A CONVENIENCE. TELL speaks over this map — "{proven} of them
+ * are green" — and this snapshot is republished by a job, so any count written into the copy by
+ * hand becomes false the first time the forest moves, on the one page whose whole pitch is that its
+ * signals are real. Emitting the numbers with the picture means the sentence and the map it is
+ * spoken over can never disagree: they came from the same `snap`.
  *
  * The poster's own `forestSvg` is deliberately left alone — its shape is pinned by tests and it has
  * no viewport to frame against.
@@ -401,10 +408,15 @@ export function forestArrivalSvg(snap: ForestSnapshot): string {
     height: input.height,
     islandDiameters: islandDiameters(snap),
   });
+  const counts = JSON.stringify({
+    stories: snap.storyCount,
+    proven: snap.provenStoryCount,
+    capabilities: snap.capabilityCount,
+  });
   return (
     `<svg class="tw-svg forest-arrival-svg" viewBox="0 0 ${input.width} ${input.height}" ` +
     `preserveAspectRatio="xMidYMid slice" role="img" aria-label="${escXml(label)}" ` +
-    `data-forest-frame="${escXml(frame)}">` +
+    `data-forest-frame="${escXml(frame)}" data-forest-counts="${escXml(counts)}">` +
     `<defs>` +
     `<radialGradient id="tw-board" cx="50%" cy="40%" r="80%">` +
     `<stop offset="0" stop-color="#fbf3ea"/><stop offset="1" stop-color="#edd9c9"/>` +
