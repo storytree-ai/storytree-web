@@ -22,25 +22,37 @@ import '../styles/tree-world-map.css';
 // person to touch this line needs to know about.
 //
 // Astro frontmatter runs at BUILD time: the map is serialised to markup here and the browser
-// downloads no part of this module graph. Measured on the built output — the whole client payload
-// for this page is ~24 KB across two chunks, with no `zod`, no `act2-director` and no `three` in
+// downloads no part of this module graph. Measured on the built output (2026-08-28, after TELL):
+// 34.8 KB of client JS across two chunks, with no `zod`, no `act2-director` and no `three` in
 // either. That is the property that actually matters and it holds.
 //
-// What does NOT hold cleanly is the gate's guard on it. `forest-snapshot-map` reaches
-// `act2-walkthrough` for its disc geometry, and `act2-walkthrough` imports
-// `../lib/forest-world-r3f/act2-director` — a specifier `check:web-experience-closure` (ADR-0336)
-// is written to forbid anywhere in this page's static closure, because it makes no distinction
-// between a frontmatter import and a browser one. The rung passes today ONLY because its
-// `STATIC_IMPORT_RE` excludes newlines and therefore cannot see MULTI-LINE `import { … } from '…'`
-// statements, which is how that import happens to be written. So: reflowing an import in
-// `act2-walkthrough.ts` onto one line would red the gate with no semantic change whatsoever, and
-// the red would name this page rather than the file that moved.
+// ⚠ READ THAT AS TWO NUMBERS, NOT ONE. Only 20.8 KB is on the ENTRY path — the single `<script
+// type="module">` in the built HTML. The other 14 KB is `inflection`, which chapter 2 fetches at
+// the transform click and which nothing references statically, so a visitor who never presses "show
+// me the better way" downloads none of it. TELL's prose, its state machine and its loop diagram all
+// live in that lazy chunk (grep the built output: "This is storytree" appears in `inflection.*.js`
+// and not in the entry chunk). Anything added to chapter 2 should land there too; the way to check
+// is that grep, not the total.
 //
-// The dependency is real and predates this change — `/forest/` has imported the same chain since
-// the snapshot landed. What is new is that it is now in the ENTRY PAGE's closure. Breaking it
-// properly means lifting `buildDisc`/`escXml` out of `act2-walkthrough` into their own module,
-// which is a sizeable edit to a file that `website-refresh-arc-pitch-overlays` is about to retire
-// anyway — so it is deliberately NOT done here, and is written down instead of discovered.
+// The one wrinkle: `forest-snapshot-map` reaches `act2-walkthrough` for its disc geometry, and
+// `act2-walkthrough` imports `../lib/forest-world-r3f/act2-director` — a specifier
+// `check:web-experience-closure` (ADR-0336) forbids in this page's CLIENT closure. It is reported as
+// a build-time NOTE rather than a finding, because this import is frontmatter: the rung classifies
+// build-time reach separately and only fails on a client seed.
+//
+// ⚠ TWO CLAIMS THAT USED TO STAND HERE ARE NOW FALSE, and both were reassuring in the wrong
+// direction. (1) This comment said the rung passed "ONLY because its `STATIC_IMPORT_RE` excludes
+// newlines" and could not see multi-line imports — that blindness was REPAIRED on 2026-08-28 (the
+// character class no longer excludes `\n`), so reflowing an import in `act2-walkthrough.ts` is no
+// longer a way to red the gate for free. (2) It said `website-refresh-arc-pitch-overlays` was
+// "about to retire" `act2-walkthrough`. TELL did NOT: the walkthrough is the scripted three-story
+// WALK, not the narrator, and the geometry above still draws the real forest that ships today.
+// What TELL retired is `act2-orchestrator` and its chrome.
+//
+// So the extraction is still owed and still worth doing — lift `buildDisc`/`escXml` out of
+// `act2-walkthrough` into their own module and this page stops reaching an R3F specifier at all —
+// but it is nobody's incidental cleanup, and it must not be written down again as something the
+// next increment will absorb.
 import { assertSnapshot, forestArrivalSvg, renderStamp } from '../scripts/forest-snapshot-map';
 const forestSnapshot = assertSnapshot(snapshotJson);
 const forestArrival = forestArrivalSvg(forestSnapshot);
@@ -700,154 +712,166 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   }
 
   /* ======================================================================
-     The session orchestrator GUIDE CHAT (ADR-0165 §3, over the landed ADR-0148
-     §2 / ADR-0153 §2/§4 dock) — a FAITHFUL re-creation of the REAL studio chat
-     dock (apps/studio ChatDock/ChatPanel; the site can't import studio React
-     across the repo boundary, so the look is replicated against the studio's
-     chat tokens). A warm-dark, terminal-style MONOSPACE dock anchored at the
-     BOTTOM of the map frame — now PERSISTENT from D0 through the end of the
-     walk: it is the single advance surface (the bounded reply chips live in
-     its input row; the quiet '← back' is pure replay). Global because
-     act2-orchestrator.ts creates the DOM at runtime; namespaced a2chat-.
-     NO skip affordance (ADR-0153 §3). Its max-height is the fixed bottom band
-     the walkthrough's camera + callout reserve (DOCK_RESERVE_* in
-     act2-walkthrough.ts) — keep the two in step.
+     TELL — the prose that phases in over the settled forest, and the one
+     diagram it is allowed. Global because act2-tell.ts creates all of it at
+     runtime; namespaced tell-. Mounted onto the #storm-land layer, so it
+     shares the land's fade-up and its disarm path.
+
+     ⚠ THE LAYER IS pointer-events: none EXCEPT ITS SKIP BUTTON, and that is
+     load-bearing rather than tidy: the map underneath stays draggable for the
+     whole sequence, and touching it ENDS the sequence. TELL is something the
+     visitor is shown, never something they are held inside — which is the
+     difference between this and the chat dock it replaced, whose only exit was
+     to keep agreeing with it.
+
+     What follows the overlay is the COMPACT loop-diagram skin for
+     buildLoopDiagram (act2-loop-diagram.ts) — the honest TDD LOOP (ADR-0157
+     §5): boxes + arrows that visibly loop. The WRITE nodes read as the agents;
+     the CHECK nodes read as the SYSTEM (the referee) — the load-bearing honest
+     distinction, and the one thing the forest structurally cannot show.
      ====================================================================== */
-  .a2chat-dock {
-    /* the studio chat palette (apps/studio/src/index.css, scoped to .chat-dock) */
-    --chat-bg: #1e1a15;
-    --chat-input-bg: #191510;
-    --chat-border-inner: #2c251a;
-    --chat-border-outer: #38301f;
-    --chat-sage: #8fb87a;
-    --chat-reply: #d8cfb8;
-    --chat-user: #e7debd;
-    --chat-muted: #6f6450;
-    --chat-caret: #d9a441;
-    --chat-mono: 'SF Mono', 'Cascadia Code', Consolas, 'Liberation Mono', Menlo, ui-monospace, monospace;
 
-    position: absolute; left: 0; right: 0; bottom: 0; z-index: 9;
-    display: flex; flex-direction: column;
-    max-height: min(46vh, 420px);
-    background: var(--chat-bg);
-    border-top: 1px solid var(--chat-border-outer);
-    border-top-left-radius: 10px; border-top-right-radius: 10px;
-    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.28);
-    font-family: var(--chat-mono);
-    translate: 0 12px; opacity: 0;
-    transition: translate 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.42s ease;
+  .tell-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.9rem;
+    padding: clamp(1.6rem, 5vh, 3.2rem) clamp(1.2rem, 4vw, 3rem);
+    transition: opacity 0.85s ease;
   }
-  .a2chat-dock.is-live { translate: 0 0; opacity: 1; }
-  .a2chat-dock.is-leaving { translate: 0 12px; opacity: 0; pointer-events: none; }
+  .tell-layer.is-over { opacity: 0; }
+
+  /* The prose column. Narrow on purpose — a measure this short is read in one
+     eye movement per line, which is what lets a sentence land while the reader
+     is still mostly looking at the map. */
+  .tell-column {
+    max-width: min(30rem, 62vw);
+    /* A soft scrim rather than a panel: the copy has to stay legible over both
+       the cream board and a dark island crown, and a hard card would read as a
+       dialog the visitor has to dismiss. */
+    text-shadow:
+      0 1px 0 rgba(251, 243, 234, 0.85),
+      0 0 18px rgba(251, 243, 234, 0.95),
+      0 0 34px rgba(251, 243, 234, 0.7);
+  }
+  .tell-block {
+    opacity: 0;
+    translate: 0 10px;
+    transition: opacity 0.7s ease, translate 0.7s ease;
+  }
+  .tell-block.is-on { opacity: 1; translate: 0 0; }
+  .tell-line {
+    margin: 0 0 0.55rem;
+    font-size: clamp(1.12rem, 2.5vw, 1.62rem);
+    line-height: 1.36;
+    font-weight: 500;
+    color: #2c2318;
+    letter-spacing: -0.005em;
+    opacity: 1;
+    translate: 0 0;
+    transition: opacity 0.55s ease, translate 0.55s ease;
+  }
+  .tell-line.is-hidden { opacity: 0; translate: 0 6px; }
+  /* The first beat is the name, alone. It gets the size that says so. */
+  .tell-layer[data-tell-beat='name'] .tell-line {
+    font-size: clamp(1.7rem, 4.4vw, 2.9rem);
+    font-weight: 600;
+  }
+
+  .tell-figure {
+    /* Sized off the diagram's own 308x250 viewBox: its four boxes are wide against its ring radius
+       (it was authored for a wider embed), so the left and right nodes sit close together and the
+       whole thing needs the extra scale to stay readable over a busy map. */
+    width: min(25rem, 58vw);
+    opacity: 0;
+    translate: 0 8px;
+    transition: opacity 0.7s ease, translate 0.7s ease;
+  }
+  .tell-figure.is-on { opacity: 1; translate: 0 0; }
+
+  .tell-skip {
+    margin-top: auto;
+    pointer-events: auto;
+    appearance: none;
+    border: 1px solid rgba(74, 58, 38, 0.28);
+    background: rgba(251, 243, 234, 0.72);
+    color: #4a3a26;
+    border-radius: 999px;
+    padding: 0.4rem 0.95rem;
+    font: inherit;
+    font-size: 0.86rem;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+  .tell-skip:hover { background: rgba(251, 243, 234, 0.95); border-color: rgba(74, 58, 38, 0.5); }
+  .tell-skip:focus-visible { outline: 2px solid #4a3a26; outline-offset: 2px; }
+
+  /* ---- the lenses: what a beat asks the REAL map to do while it speaks ----
+         Every one of these changes how the already-rendered forest is
+         displayed. None of them draws anything: `proven` reads the status
+         classes the snapshot stamped, `trails` reveals edges computed from the
+         corpus and hidden by default, `islands` lifts the island bodies. The
+         prose points at the map; it never illustrates itself. */
+  #storm-land .forest-arrival-svg .tw-isle,
+  #storm-land .forest-arrival-svg .tw-trails {
+    transition: opacity 0.75s ease, filter 0.75s ease;
+  }
+  /* ⚠ THE TRAILS LENS EMPHASISES; IT DOES NOT REVEAL. The shared stylesheet hides `.tw-trails` and
+     each host opts in — but GROW already opted this surface in (see `.storm-land-canvas .tw-trails`
+     above), so the edges are on screen from the moment the visitor lands. An earlier draft here
+     wrote `display: inline` under the lens and read like a reveal while doing nothing at all; worse,
+     it restyled the trail strokes UNCONDITIONALLY, which would have quietly changed the composition
+     the owner has a look pending on. Every rule below is scoped to the lens, so the resting frame
+     GROW settles on is byte-identical to what shipped. */
+  #storm-land.tell-lens-trails .forest-arrival-svg .tw-trail-fill {
+    stroke: rgba(88, 66, 36, 0.72);
+    stroke-width: 4;
+  }
+  #storm-land.tell-lens-trails .forest-arrival-svg .tw-isle { opacity: 0.62; }
+  #storm-land.tell-lens-islands .forest-arrival-svg .tw-isle {
+    filter: drop-shadow(0 6px 14px rgba(48, 34, 18, 0.28));
+  }
+  /* Hold the green, let the rest fall back — the islands are all still there,
+     which is the point: nothing is hidden, the proven ones are simply the ones
+     being talked about. */
+  #storm-land.tell-lens-proven .forest-arrival-svg .tw-isle:not(.st-healthy) {
+    opacity: 0.34;
+  }
+  #storm-land.tell-lens-proven .forest-arrival-svg .tw-isle.st-healthy {
+    filter: drop-shadow(0 6px 16px rgba(56, 92, 46, 0.4));
+  }
+  /* The camera has flown to one island; ring it so the sentence has a referent
+     even before the reader finds it. */
+  #storm-land.tell-lens-self .forest-arrival-svg .tw-isle:not([data-id='website-experience']) {
+    opacity: 0.4;
+  }
+  #storm-land.tell-lens-self .forest-arrival-svg .tw-isle[data-id='website-experience'] {
+    filter: drop-shadow(0 0 0 rgba(74, 58, 38, 0.9)) drop-shadow(0 8px 22px rgba(48, 34, 18, 0.42));
+  }
+
+  @media (max-width: 680px) {
+    .tell-column { max-width: 88vw; }
+    .tell-figure { width: min(18rem, 78vw); }
+    .tell-layer { padding: 1.2rem 1.1rem; gap: 0.7rem; }
+  }
+
+  /* ⚠ NO SEQUENCE UNDER REDUCED MOTION. act2-tell.ts renders every beat at once
+     as a static column and starts no timers; this only makes sure nothing left
+     over from the animated path moves. Auto-advancing text is itself a motion
+     the reader asked not to have. */
   @media (prefers-reduced-motion: reduce) {
-    .a2chat-dock, .a2chat-dock.is-leaving { transition: none; translate: 0 0; }
+    .tell-layer, .tell-block, .tell-line, .tell-figure { transition: none; }
+    .tell-block, .tell-line, .tell-figure { opacity: 1; translate: 0 0; }
+    #storm-land .forest-arrival-svg .tw-isle,
+    #storm-land .forest-arrival-svg .tw-trails { transition: none; }
   }
 
-  /* the scrollback (the studio's .chat-outcome): the prompt echo, then the reply */
-  .a2chat-scroll {
-    flex: 1 1 auto; min-height: 0; overflow-y: auto;
-    padding: 16px 18px 10px;
-    font-size: 13px; line-height: 1.65;
-  }
-  .a2chat-glyph { color: var(--chat-sage); font-weight: 700; user-select: none; }
-  .a2chat-prompt-echo { display: flex; gap: 0.5ch; margin-bottom: 0.85rem; }
-  .a2chat-user { color: var(--chat-user); }
-  .a2chat-reply-block { display: flex; gap: 0.5ch; }
-  .a2chat-glyph--agent { align-self: flex-start; }
-  .a2chat-reply-body { flex: 1; min-width: 0; }
-  .a2chat-line {
-    margin: 0 0 0.6rem; color: var(--chat-reply);
-    transition: opacity 0.4s ease, translate 0.4s ease;
-  }
-  .a2chat-line.is-hidden { opacity: 0; translate: 0 5px; }
-  /* the outcome-brief line — the EXAMPLE, set apart (a quiet card the way the
-     studio shows a plan block) */
-  .a2chat-brief {
-    color: var(--chat-user);
-    background: rgba(143, 184, 122, 0.09);
-    border-left: 2px solid var(--chat-sage);
-    padding: 0.5rem 0.7rem; border-radius: 0 6px 6px 0;
-  }
-  /* the honest "this is a mock" aside — muted, italic */
-  .a2chat-note { color: var(--chat-muted); font-style: italic; }
-  @media (prefers-reduced-motion: reduce) {
-    .a2chat-line { transition: none; }
-    .a2chat-line.is-hidden { opacity: 1; translate: 0 0; }
-  }
-  /* the streaming caret (amber ▋, 1s step blink — the studio's) */
-  .a2chat-caret {
-    color: var(--chat-caret);
-    animation: a2chat-blink 1s steps(1) infinite;
-  }
-  .a2chat-caret.is-done { display: none; }
-  @keyframes a2chat-blink { 50% { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { .a2chat-caret { animation: none; } }
-
-  /* the pinned input row (the studio's .chat-form): glyph + the quiet back +
-     the inert "input" (a diorama) + the reply chips (ADR-0165 §3 — the chips
-     sit exactly where the landed 'plant the first story →' primary lived) */
-  .a2chat-form {
-    flex: none;
-    display: flex; align-items: center; gap: 0.6ch;
-    padding: 11px 14px;
-    background: var(--chat-input-bg);
-    border-top: 1px solid var(--chat-border-inner);
-  }
-  .a2chat-input {
-    flex: 1; min-width: 0;
-    color: var(--chat-muted); font-size: 12px; font-style: italic;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .a2chat-actions {
-    flex: none; display: flex; align-items: center; gap: 0.5rem;
-    flex-wrap: wrap; justify-content: flex-end;
-  }
-  /* the bounded reply chip — the ONE advance affordance per step */
-  .a2chat-chip {
-    border: 1px solid var(--chat-sage); border-radius: 6px; cursor: pointer;
-    background: rgba(143, 184, 122, 0.14); color: var(--chat-sage);
-    font: 600 12px var(--chat-mono);
-    padding: 7px 13px; white-space: nowrap;
-    opacity: 0; transition: opacity 0.4s ease;
-  }
-  .a2chat-chip.is-on { opacity: 1; }
-  .a2chat-chip:hover { background: rgba(143, 184, 122, 0.24); color: #a9cf92; }
-  /* the quiet optional aside ("why does that matter?") — muted, never primary */
-  .a2chat-chip--aside {
-    border-color: var(--chat-muted); color: var(--chat-muted);
-    background: transparent; opacity: 1;
-  }
-  .a2chat-chip--aside:hover { background: rgba(111, 100, 80, 0.16); color: var(--chat-reply); }
-  @media (prefers-reduced-motion: reduce) {
-    .a2chat-chip { transition: none; opacity: 1; }
-  }
-  /* the quiet back — pure replay (accepted default 9); hidden at D0 */
-  .a2chat-back {
-    flex: none; border: 0; background: none; cursor: pointer;
-    font: 500 11.5px var(--chat-mono); color: var(--chat-muted);
-    padding: 6px 8px; white-space: nowrap;
-  }
-  .a2chat-back:hover { color: var(--chat-reply); }
-  .a2chat-back[hidden] { display: none; }
-  .a2chat-hint {
-    flex: none; margin: 0; padding: 5px 14px 9px;
-    background: var(--chat-input-bg);
-    font-size: 11px; color: var(--chat-muted);
-  }
-
-  /* ======================================================================
-     (The corner drive-machinery overlays of ADR-0153 §5/§6 are RETIRED —
-     ADR-0165 §2, accepted default 5. Their `.act2-overlay-*` chrome is gone;
-     the loop teach lives in the growing system diagram's D5 (below, a2d-*),
-     the CI/CD row-lists' load-bearing words ("gate", "signed") live in the
-     guide chat's D5/D6 copy, and the persistent mini-map replaces the corner
-     pattern.)
-
-     What follows is the COMPACT loop-diagram skin for the kept-but-unmounted
-     buildLoopDiagram export (act2-loop-diagram.ts) — the honest TDD LOOP
-     (ADR-0157 §5): boxes + arrows that visibly loop. The WRITE nodes read as
-     the agents; the CHECK nodes read as the SYSTEM (the referee) — the
-     load-bearing honest distinction. ---- */
+  /* ---- the COMPACT loop-diagram skin (act2-loop-diagram.ts) ---- */
   .act2-loop { margin: 0.15rem 0 0.1rem; }
   .act2-loop-svg { display: block; width: 100%; height: auto; overflow: visible; }
   /* the connecting arcs — the loop itself */
@@ -918,26 +942,18 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     .storm-finale .term-body { min-height: 150px; font-size: 12px; }
   }
 
-  /* ---- small screens: the guide chat + diagram + mini-map ---- */
-  @media (max-width: 680px) {
-    .a2chat-scroll { font-size: 12px; padding: 13px 14px 8px; }
-    /* the dock keeps the same fixed bottom band as desktop (the walkthrough's
-       camera/callout reserve assumes it) — just a touch shorter in px */
-    .a2chat-dock { max-height: min(46vh, 380px); }
-    .a2chat-back { padding: 6px 4px; }
-    .act2-diagram { padding: 10px 8px 6px; }
-    .act2-minimap { top: 8px; left: 8px; padding: 0.4rem 0.5rem 0.45rem; }
-    .act2-minimap-step small { display: none; } /* dots + dashes only */
-  }
 
   /* ======================================================================
      Act 2 — the guided walk on the REAL 2.5D map (ADR-0145). Global because
      the stage / callout DOM is created at runtime by act2-walkthrough.ts.
      The MAP itself is styled by TreeWorld.astro's tw-* vocabulary (always on
-     the page); only the walk chrome (callout, inspect, diagram, mini-map, chat
-     dock) lives here, namespaced act2-/a2chat-/a2d-. (The wrong-way ghost pads
-     + violation flag are RETIRED — ADR-0150 §4 / ADR-0153; the dependency
-     layers ARE the teach. The corner overlays are RETIRED — ADR-0165 §2.)
+     the page); only the walk chrome (stage, callout, inspect) lives here,
+     namespaced act2-. (The wrong-way ghost pads + violation flag are RETIRED —
+     ADR-0150 §4 / ADR-0153. The corner overlays went with ADR-0165 §2, and the
+     guide chat, growing diagram, mini-map and studio layer went with the
+     narrator's retirement — `website-refresh-arc-pitch-overlays`. The walk
+     itself is unmounted but NOT retired: its disc geometry still draws the real
+     forest, so it outlives its own chrome.)
      ====================================================================== */
 
   /* ---- the stage: fades up over the R3F canvas at begin ---- */
@@ -976,14 +992,12 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
           rotation (the wisp rests at a fixed orbit point), pulse only. Motion
           is site-side; the wisp presence marker stays the director's scene
           semantics (the ADR-0145 boundary). ---- */
-  .act2-stage .tw-wisp,
-  .act2-studio .tw-wisp {
+  .act2-stage .tw-wisp {
     transform-box: fill-box;
     transform-origin: center;
     animation: none; /* the orbit rides the wrapper, not the wisp group */
   }
-  .act2-stage .act2-orbit-spin,
-  .act2-studio .act2-orbit-spin {
+  .act2-stage .act2-orbit-spin {
     transform-box: fill-box;
     transform-origin: center;
     animation: act2-orbit 9s linear infinite;
@@ -991,17 +1005,14 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   @keyframes act2-orbit {
     to { transform: rotate(360deg); }
   }
-  .act2-stage .tw-wisp .glow,
-  .act2-studio .tw-wisp .glow { animation: act2-wisp-glow 3.4s ease-in-out infinite; }
+  .act2-stage .tw-wisp .glow { animation: act2-wisp-glow 3.4s ease-in-out infinite; }
   @keyframes act2-wisp-glow {
     0%, 100% { opacity: 0.22; }
     50%      { opacity: 0.5; }
   }
   @media (prefers-reduced-motion: reduce) {
     .act2-stage .act2-orbit-spin,
-    .act2-studio .act2-orbit-spin,
-    .act2-stage .tw-wisp .glow,
-    .act2-studio .tw-wisp .glow { animation: none; }
+    .act2-stage .tw-wisp .glow { animation: none; }
   }
   /* before beat 1 the land is empty — the synthetic territory's tree/plate/hit
      stay out of the render */
@@ -1058,137 +1069,6 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     animation: act2-reads 1.1s linear infinite;
   }
   @keyframes act2-reads { to { stroke-dashoffset: -7; } }
-
-  /* ======================================================================
-     The ONE growing system diagram (ADR-0165 §1, stages D1–D6) — assembles
-     left-to-right above the chat BEFORE any island is shown, additive only;
-     at the island handoff it compacts away and the docked mini-map (§2,
-     below) carries the picture through the walk. Created at runtime by
-     act2-diagram.ts; namespaced .act2-diagram / a2d-, drawn on site tokens
-     (the owner-approved proposal mock's geometry + classes).
-     ====================================================================== */
-  .act2-diagram {
-    position: absolute; left: 0; right: 0; top: 0;
-    bottom: min(46vh, 420px); /* the chat dock's band — keep in step with it */
-    z-index: 7;
-    pointer-events: none; /* visual only — the chat is the advance surface */
-    display: flex; align-items: center; justify-content: center;
-    padding: 16px 14px 8px;
-    transform-origin: 16% 14%; /* the compaction heads for the mini-map dock */
-    transition: opacity 0.55s ease, scale 0.55s ease, translate 0.55s ease;
-  }
-  .act2-diagram.is-away { opacity: 0; scale: 0.24; translate: -6% -8%; }
-  /* a soft parchment scrim lifts the assembling picture off the quiet ground
-     behind it (the approved mock read against a calm, near-empty stage); it
-     appears with the first stage so D0's bare ground stays untouched */
-  .act2-diagram::before {
-    content: ''; position: absolute; inset: -4% -2%;
-    background: radial-gradient(
-      78% 84% at 50% 46%,
-      rgba(251, 243, 234, 0.95) 0%,
-      rgba(251, 243, 234, 0.72) 55%,
-      rgba(251, 243, 234, 0) 100%
-    );
-    opacity: 0; transition: opacity 0.6s ease;
-    pointer-events: none;
-  }
-  .act2-diagram.has-stages::before { opacity: 1; }
-  @media (prefers-reduced-motion: reduce) {
-    .act2-diagram { transition: none; translate: 0 0; }
-    .act2-diagram::before { transition: none; }
-  }
-  .a2d-svg { position: relative; width: 100%; height: 100%; display: block; overflow: visible; }
-  /* additive growth: a stage's node pops in, its arrow follows a beat later;
-     reduced motion: elements appear without transitions */
-  .a2d-node {
-    opacity: 0; transform: scale(0.92);
-    transform-box: fill-box; transform-origin: center;
-    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
-  }
-  .a2d-step.is-on .a2d-node { opacity: 1; transform: scale(1); }
-  .a2d-arrow { opacity: 0; transition: opacity 0.5s ease 0.15s; }
-  .a2d-step.is-on .a2d-arrow { opacity: 1; }
-  @media (prefers-reduced-motion: reduce) {
-    .a2d-node, .a2d-arrow { transition: none; }
-  }
-  /* the spine boxes (the mock's dbox family, on the site's global tokens) */
-  .a2d-box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.3; }
-  .a2d-box--intent { fill: #fdf6e9; stroke: var(--wheat); }
-  .a2d-box--adr { stroke: var(--brown); }
-  .a2d-box--lib { fill: var(--surface); stroke: var(--line-strong); }
-  .a2d-box--story { fill: var(--evergreen-soft); stroke: var(--sage); }
-  .a2d-box--signal { fill: var(--evergreen-soft); stroke: var(--evergreen); }
-  .a2d-label { font: 600 13.5px var(--font-body); fill: var(--ink); }
-  .a2d-sub { font: 500 10.5px var(--font-body); fill: var(--ink-faint); }
-  .a2d-chiplabel { font: 600 10.5px var(--font-body); fill: var(--ink-soft); }
-  .a2d-kicker {
-    font: 700 9.5px var(--font-body); letter-spacing: 0.12em;
-    fill: var(--amber); text-transform: uppercase;
-  }
-  .a2d-quote { font: italic 500 13px var(--font-display); fill: var(--ink); }
-  .a2d-edge { fill: none; stroke: var(--road); stroke-width: 1.7; }
-  .a2d-edge-head { fill: var(--road); }
-  .a2d-edge-head--sage { fill: var(--sage); }
-  .a2d-doc { fill: none; stroke: var(--brown); stroke-width: 1.2; }
-  .a2d-doc-lines { fill: none; stroke: var(--brown); stroke-width: 1; }
-  /* the D5 honest-TDD ring — the landed loop CONTENT (act2-loop-diagram's
-     HONEST_LOOP) on the approved wide-canvas geometry; the CHECK nodes wear
-     the system's tint, never an agent's (the load-bearing honesty) */
-  .a2d-loop-box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; }
-  .a2d-loop-box--check { fill: #f0f4ec; stroke: var(--sage); }
-  .a2d-loop-lab { font: 600 10.2px var(--font-body); fill: var(--ink); }
-  .a2d-loop-who { font: 500 9px var(--font-body); fill: var(--ink-faint); }
-  .a2d-loop-who--sys { fill: var(--evergreen); font-weight: 700; }
-  .a2d-loop-centre { font: italic 600 10.5px var(--font-display); fill: var(--evergreen-deep); }
-  .a2d-loop-arc { fill: none; stroke: var(--sage); stroke-width: 1.5; opacity: 0.85; }
-  /* the tile-and-tree signal glyph */
-  .a2d-tile { fill: var(--sage-leaf); stroke: var(--sage); stroke-width: 1; }
-  .a2d-trunk { fill: var(--brown); }
-  .a2d-canopy { fill: var(--evergreen); }
-
-  /* ---- the persistent docked mini-map (ADR-0165 §2, accepted default 2):
-          ONE small stage-light — a 6-dot row lighting exactly the stage the
-          visitor is watching; it never grows toward a second diagram.
-          Created at runtime by act2-minimap.ts. ---- */
-  .act2-minimap {
-    position: absolute; top: 14px; left: 14px; z-index: 7;
-    background: rgba(255, 253, 250, 0.94);
-    border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
-    box-shadow: var(--shadow);
-    padding: 0.5rem 0.65rem 0.55rem;
-    max-width: 300px;
-    opacity: 0; translate: 0 -6px; pointer-events: none;
-    transition: opacity 0.5s ease, translate 0.5s ease, top 0.5s ease;
-  }
-  .act2-minimap.is-docked { opacity: 1; translate: 0 0; }
-  /* Phase Z: the studio top bar owns the frame's top edge — the persistent
-     mini-map steps below it (the mock docked its mini at top 50px for the
-     same reason) so the re-created chrome stays legible. */
-  .act2-studio-on .act2-minimap { top: 48px; }
-  @media (prefers-reduced-motion: reduce) {
-    .act2-minimap { transition: none; translate: 0 0; }
-  }
-  .act2-minimap-eyebrow {
-    margin: 0 0 0.3rem; font: 700 0.58rem var(--font-body);
-    letter-spacing: 0.12em; text-transform: uppercase; color: var(--amber);
-  }
-  .act2-minimap-row { display: flex; align-items: center; gap: 0.22rem; }
-  .act2-minimap-step { display: flex; flex-direction: column; align-items: center; gap: 0.18rem; }
-  .act2-minimap-dot {
-    width: 10px; height: 10px; border-radius: 50%;
-    background: var(--surface-2); border: 1.4px solid var(--line-strong);
-  }
-  .act2-minimap-step.is-lit .act2-minimap-dot {
-    background: var(--evergreen); border-color: var(--evergreen-deep);
-    box-shadow: 0 0 0 3px rgba(47, 107, 63, 0.15);
-  }
-  .act2-minimap-step small {
-    font: 600 0.52rem var(--font-body); color: var(--ink-faint); letter-spacing: 0.02em;
-  }
-  .act2-minimap-step.is-lit small { color: var(--evergreen-deep); }
-  .act2-minimap-link {
-    width: 12px; height: 1.4px; background: var(--line-strong); margin-bottom: 0.78rem;
-  }
 
   /* ---- the anchored callout (the game-tutorial box, tail at its anchor) ---- */
   .act2-callout {
@@ -1304,175 +1184,6 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   .act2-done-links {
     display: flex; flex-wrap: wrap; gap: 0.6rem;
     justify-content: center; align-items: center;
-  }
-
-  /* ======================================================================
-     Phase Z — the STUDIO LAYER (ADR-0165 §6, run 2): the zoom-out to the real
-     studio. Created at runtime by act2-studio.ts (.act2-studio / act2-stu-*),
-     chrome re-created from studio tokens (the chat-dock precedent), the
-     forest on the real map rail (tw-* vocabulary). It owns the same stage
-     band as the growing diagram — bottom stops at the chat dock's band (keep
-     in step with DOCK_RESERVE_* in act2-walkthrough.ts). z-order: above the
-     walk stage (2), below the mini-map (7) and the dock (9).
-     ====================================================================== */
-  .act2-studio {
-    position: absolute; left: 0; right: 0; top: 0;
-    bottom: min(46vh, 420px); /* the chat dock's band — keep in step with it */
-    z-index: 5;
-    display: flex; flex-direction: column;
-    background: var(--bg);
-    border-bottom: 1px solid var(--line-strong);
-    opacity: 0; pointer-events: none; visibility: hidden;
-    transition: opacity 0.9s ease, filter 0.9s ease, visibility 0s linear 0.9s;
-  }
-  .act2-studio.is-on {
-    opacity: 1; visibility: visible;
-    transition: opacity 0.9s ease, filter 0.9s ease;
-  }
-  /* the crossfade (Z1): the walk canvas fades UNDER the studio layer; its
-     callout leaves entirely (the studio is the picture now). The walk's
-     beat-6 state stays live beneath — Back returns it. */
-  .act2-canvas { transition: opacity 0.9s ease; }
-  .act2-studio-on .act2-canvas { opacity: 0; pointer-events: none; }
-  .act2-studio-on .act2-callout { display: none; }
-  /* the done step: the landed CTA card (inside the walk stage) lifts OVER the
-     gently veiled studio — the stage rises above the layer and lets the
-     studio show through where the card is not. */
-  .act2-cta-on .act2-stage { z-index: 6; background: none; }
-  .act2-cta-on .act2-studio { filter: brightness(0.93) saturate(0.8); }
-
-  /* ---- the top bar (chrome dimmed at Z1/Z2 — the mock's stu-dim idiom) ---- */
-  .act2-stu-bar {
-    flex: none; display: flex; align-items: center; gap: 0.7rem;
-    background: var(--surface); border-bottom: 1px solid var(--line);
-    padding: 0.45rem 0.8rem;
-    transition: opacity 0.6s ease, filter 0.6s ease;
-  }
-  .act2-studio.is-dim .act2-stu-bar { opacity: 0.28; filter: saturate(0.55); }
-  .act2-stu-logo { font: 700 0.78rem var(--font-display); color: var(--evergreen-deep); }
-  .act2-stu-tabs { display: flex; align-items: center; gap: 0.15rem; }
-  .act2-stu-tab {
-    font: 500 0.68rem var(--font-body); color: var(--ink-faint);
-    padding: 0.15rem 0.5rem; border-radius: 5px;
-  }
-  .act2-stu-tab.is-on {
-    background: var(--evergreen-soft); color: var(--evergreen-deep); font-weight: 600;
-  }
-  .act2-stu-session {
-    margin-left: auto;
-    font: 500 0.62rem 'SF Mono', 'Cascadia Code', Consolas, Menlo, ui-monospace, monospace;
-    color: var(--ink-faint); background: var(--surface-2);
-    border: 1px solid var(--line); border-radius: 999px;
-    padding: 0.12rem 0.55rem; white-space: nowrap;
-  }
-
-  /* ---- the map area: the staged forest on the real rail ---- */
-  .act2-stu-main { position: relative; flex: 1; min-height: 0; overflow: hidden; }
-  .act2-stu-svg {
-    width: 100%; height: 100%; display: block;
-    /* hover titles work (the layer itself is pointer-inert); nothing here is
-       clickable — the hit layer is post-processed inert, no handlers bound */
-    pointer-events: auto;
-  }
-  .act2-studio .tw-hit { pointer-events: none; cursor: default; }
-  /* the OTHER islands + trails + wisps light up at the 'forest' stage only */
-  .act2-studio .act2-stu-other { opacity: 0; transition: opacity 0.6s ease; }
-  .act2-studio.has-forest .act2-stu-other { opacity: 1; }
-  /* faint trails — quiet connective tissue, never the walk's animated teach.
-     Hidden by default map-wide (ADR-0169 §3/§4); this diorama's forest stage
-     narratively shows them, so the container opts back in. Widths ride the
-     engine's path attributes; this restyles colour/dash only. */
-  .act2-studio .tw-trails { display: inline; }
-  .act2-studio .tw-trail-shadow, .act2-studio .tw-trail-casing { display: none; }
-  .act2-studio .tw-trail-fill {
-    stroke: var(--road); stroke-width: 1.4; opacity: 0.45;
-    stroke-dasharray: 4 5; animation: none;
-  }
-
-  /* ---- the legend card (Z2 — brightens bottom-left; the outline emphasis
-          holds while the legend IS the reveal, then the forest takes over) ---- */
-  .act2-stu-legend {
-    position: absolute; left: 14px; bottom: 14px; z-index: 3;
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: var(--radius-sm); box-shadow: var(--shadow);
-    padding: 0.55rem 0.75rem 0.6rem;
-    opacity: 0; translate: 0 6px;
-    transition: opacity 0.55s ease, translate 0.55s ease;
-  }
-  .act2-studio.has-legend .act2-stu-legend { opacity: 1; translate: 0 0; }
-  .act2-studio.has-legend:not(.has-forest) .act2-stu-legend {
-    outline: 2px solid var(--evergreen); outline-offset: 3px;
-  }
-  .act2-stu-lg-h {
-    margin: 0 0 0.35rem; font: 700 0.6rem var(--font-body);
-    letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint);
-  }
-  .act2-stu-lg-row {
-    display: flex; align-items: center; gap: 0.45rem;
-    font: 500 0.72rem var(--font-body); color: var(--ink-soft); padding: 0.1rem 0;
-  }
-  .act2-stu-lg-k { width: 11px; height: 11px; border-radius: 50%; flex: none; }
-  .act2-stu-lg-k.is-green { background: var(--evergreen); }
-  .act2-stu-lg-k.is-pale { background: var(--wheat); }
-  .act2-stu-lg-k.is-withered { background: var(--crimson); }
-  /* the wisp key matches what the rail actually paints (band-building teal —
-     the real studio legend's own key colour), not the mock's amber: the
-     legend must describe the map. */
-  .act2-stu-lg-k.is-wisp {
-    background: #2f9e8f; box-shadow: 0 0 6px 1px rgba(47, 158, 143, 0.55);
-  }
-
-  /* ---- the details panel (Z4 — slides in from the right) ---- */
-  .act2-stu-details {
-    position: absolute; top: 10px; right: 10px; bottom: 10px;
-    width: min(260px, 44%); z-index: 4; overflow: auto;
-    background: var(--surface); border: 1px solid var(--line-strong);
-    border-radius: var(--radius-sm); box-shadow: var(--shadow);
-    padding: 0.8rem 0.85rem;
-    opacity: 0; translate: 16px 0;
-    transition: opacity 0.55s ease, translate 0.55s ease;
-  }
-  .act2-studio.has-details .act2-stu-details { opacity: 1; translate: 0 0; }
-  .act2-stu-dp-title {
-    margin: 0 0 0.3rem; font-family: var(--font-display);
-    font-weight: 600; font-size: 0.98rem; color: var(--ink);
-  }
-  .act2-stu-dp-status {
-    display: inline-block; font: 700 0.58rem var(--font-body);
-    letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--evergreen-deep); background: var(--evergreen-soft);
-    border-radius: 999px; padding: 0.14rem 0.5rem; margin-bottom: 0.55rem;
-  }
-  .act2-stu-dp-h {
-    font: 700 0.6rem var(--font-body); letter-spacing: 0.11em;
-    text-transform: uppercase; color: var(--ink-faint); margin: 0.6rem 0 0.25rem;
-  }
-  .act2-stu-dp-li {
-    font: 500 0.74rem var(--font-body); color: var(--ink-soft);
-    padding: 0.12rem 0; display: flex; gap: 0.4rem; align-items: baseline;
-  }
-  .act2-stu-dp-li .ok { color: var(--evergreen); font-weight: 700; }
-  .act2-stu-dp-li .pend { color: var(--amber); font-weight: 700; }
-  .act2-stu-dp-adr {
-    font: 500 0.7rem 'SF Mono', 'Cascadia Code', Consolas, Menlo, ui-monospace, monospace;
-    color: var(--evergreen-deep); background: var(--evergreen-soft);
-    border-radius: 5px; padding: 0.06rem 0.4rem; display: inline-block;
-    margin: 0.1rem 0.2rem 0.1rem 0;
-  }
-
-  /* ---- small screens: the studio chrome stays legible ---- */
-  @media (max-width: 680px) {
-    .act2-stu-details { width: min(240px, 62%); }
-    .act2-stu-legend { left: 8px; bottom: 8px; padding: 0.45rem 0.55rem 0.5rem; }
-    .act2-stu-bar { gap: 0.45rem; }
-  }
-
-  /* ---- reduced motion: everything instant, orbits static ---- */
-  @media (prefers-reduced-motion: reduce) {
-    .act2-studio, .act2-studio.is-on { transition: none; }
-    .act2-canvas { transition: none; }
-    .act2-stu-bar, .act2-stu-legend, .act2-stu-details,
-    .act2-studio .act2-stu-other { transition: none; }
   }
 
   /* ---- reduced motion: jump-cuts, no growth, no dash march ---- */
