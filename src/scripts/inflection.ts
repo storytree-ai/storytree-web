@@ -16,12 +16,14 @@
 // existing dynamic import keeps chapter 2 entirely outside the guarded closure, which is where the
 // rung's authors put the seam on purpose.
 //
-// THE FLOW, as of `website-refresh-arc-pitch-overlays` (TELL), on top of `…-arrival` (GROW,
-// ADR-0453 D11): the transform's collapse finishes on quiet ground; the ground turns out to be
-// storytree's OWN forest, already in the DOM, serialised by `index.astro` at build time from the
-// same stamped snapshot `/forest/` renders. `forest-arrival` frames it at the designed resting view
-// (ADR-0471) and hands the visitor pan and zoom — and then `act2-tell` speaks over it, on a timing
-// this repo owns, and gets out of the way.
+// THE FLOW, as of `website-refresh-arc-click-to-explain` (ROAM), on top of `…-pitch-overlays`
+// (TELL) and `…-arrival` (GROW, ADR-0453 D11): the transform's collapse finishes on quiet ground;
+// the ground turns out to be storytree's OWN forest, already in the DOM, serialised by
+// `index.astro` at build time from the same stamped snapshot `/forest/` renders. `forest-arrival`
+// frames it at the designed resting view (ADR-0471) and hands the visitor pan and zoom;
+// `act2-tell` speaks over it, on a timing this repo owns, and gets out of the way; and `act2-roam`
+// answers clicks on the map for as long as the visitor stays — quietly, on their clock rather than
+// ours.
 //
 // ⚠ THE NARRATOR IS GONE — DELETED, NOT UNMOUNTED. `act2-orchestrator` (the chat dock),
 // `act2-guide` (its scripted dialogue) and the chrome that only ever served it (`act2-diagram`,
@@ -45,6 +47,7 @@
 
 import { mountForestArrival, type ArrivalHandle } from './forest-arrival';
 import { mountForestGrowth, type GrowthHandle } from './forest-growth';
+import { mountRoam, type RoamHandle } from './act2-roam';
 import { mountTell, type TellHandle } from './act2-tell';
 
 /** The exported handle the storm engine holds — name kept for the unchanged
@@ -102,8 +105,17 @@ export function mountForestLand(container: HTMLElement): InflectionHandle {
       ? mountTell({ host, map, stage: arrival, reducedMotion })
       : null;
 
+  // ROAM is live from the FIRST FRAME, not after TELL. It adds nothing to the timed sequence — no
+  // beat, no delay, no clock — because everything it says is pulled by a click and nothing it says
+  // is scheduled. Mounting it after TELL would mean a visitor who reached for the map during the
+  // prose (which already stops the prose) then found their clicks doing nothing for another minute,
+  // which is the sequence holding on to them by another route.
+  const roam: RoamHandle | null =
+    host instanceof HTMLElement && map !== null ? mountRoam({ host, map }) : null;
+
   return {
     unmount(): void {
+      roam?.unmount();
       tell?.unmount();
       // Before the map framing goes, so a mid-growth skip leaves every island revealed rather than
       // parked at scale 0.62 under a class nothing will now remove.

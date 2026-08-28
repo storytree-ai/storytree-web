@@ -372,6 +372,60 @@ export function islandDiameters(snap: ForestSnapshot): number[] {
   return placeStories(snap.stories).map((p) => 2 * p.radius);
 }
 
+// ── the ROAM payload ────────────────────────────────────────────────────────
+
+/** One capability, as ROAM needs it: an id, a title, and the status the export folded. */
+export interface RoamCapability {
+  readonly id: string;
+  readonly title: string;
+  readonly status: SceneStatus;
+}
+
+/** One story, as ROAM needs it. `status` is the SAME value the island is painted with — folded
+ *  once here and read by both the picture and the panel, so the two can never disagree. */
+export interface RoamStory {
+  readonly id: string;
+  readonly title: string;
+  readonly status: SceneStatus;
+  readonly capabilities: readonly RoamCapability[];
+}
+
+/** What ROAM is handed at build time. `asOf` is the SAME stamp the page prints under the map. */
+export interface RoamPayload {
+  readonly asOf: string;
+  readonly stories: readonly RoamStory[];
+}
+
+/**
+ * The facts ROAM explains, taken from the snapshot at build time.
+ *
+ * ⚠ IT ADDS NOTHING AND DERIVES NOTHING. Every field here is already in the snapshot, and every
+ * status runs through the SAME `toSceneStatus` the island's own colour class does — so a panel
+ * that says "proven" is reading the value that painted the island green, not a second opinion
+ * about it. That is D7's fence (`asset:adr-0453`) held at the panel rather than merely at the
+ * picture: no new status computation happens on this site, in either surface.
+ *
+ * ⚠ AND IT IS A BUILD-TIME PAYLOAD FOR THE SAME REASON `data-forest-counts` IS. The alternative —
+ * fetching or recomputing in the browser — would put a second reader on this page, which is the
+ * exact drift D7 exists to prevent, and would make the panel able to disagree with the map it is
+ * drawn over.
+ */
+export function roamPayload(snap: ForestSnapshot): RoamPayload {
+  return {
+    asOf: formatStampDate(snap.generatedAt),
+    stories: snap.stories.map((story) => ({
+      id: story.id,
+      title: story.title,
+      status: toSceneStatus(story.status),
+      capabilities: story.capabilities.map((cap) => ({
+        id: cap.id,
+        title: cap.title,
+        status: toSceneStatus(cap.status),
+      })),
+    })),
+  };
+}
+
 /**
  * The same map, prepared for chapter 2's ARRIVAL rather than for the `/forest/` poster.
  *
@@ -385,7 +439,10 @@ export function islandDiameters(snap: ForestSnapshot): number[] {
  *  3. its `viewBox` is the WHOLE world, which is the honest thing to serve: if the client script
  *     never runs, the visitor gets the entire forest as a static picture instead of a blank div.
  *     The crop is an enhancement, never a prerequisite;
- *  4. it carries `data-forest-counts`, which is what TELL's copy says its numbers OUT OF.
+ *  4. it carries `data-forest-counts`, which is what TELL's copy says its numbers OUT OF;
+ *  5. it carries `data-forest-roam` — the story/capability facts ROAM explains when the visitor
+ *     clicks. Same fence as (4) and for the same reason: the panel reads the value that painted
+ *     the island, so the sentence and the picture cannot disagree.
  *
  * ⚠ (4) IS A CORRECTNESS FENCE, NOT A CONVENIENCE. TELL speaks over this map — "{proven} of them
  * are green" — and this snapshot is republished by a job, so any count written into the copy by
@@ -413,10 +470,12 @@ export function forestArrivalSvg(snap: ForestSnapshot): string {
     proven: snap.provenStoryCount,
     capabilities: snap.capabilityCount,
   });
+  const roam = JSON.stringify(roamPayload(snap));
   return (
     `<svg class="tw-svg forest-arrival-svg" viewBox="0 0 ${input.width} ${input.height}" ` +
     `preserveAspectRatio="xMidYMid slice" role="img" aria-label="${escXml(label)}" ` +
-    `data-forest-frame="${escXml(frame)}" data-forest-counts="${escXml(counts)}">` +
+    `data-forest-frame="${escXml(frame)}" data-forest-counts="${escXml(counts)}" ` +
+    `data-forest-roam="${escXml(roam)}">` +
     `<defs>` +
     `<radialGradient id="tw-board" cx="50%" cy="40%" r="80%">` +
     `<stop offset="0" stop-color="#fbf3ea"/><stop offset="1" stop-color="#edd9c9"/>` +

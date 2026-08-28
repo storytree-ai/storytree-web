@@ -256,10 +256,19 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     grounds: ['ADR-0040'],
   },
   {
-    // TELL ends by getting out of the way. It does not promise clicking: ROAM is the next movement
-    // and is not built yet, so this names the two gestures that genuinely work today.
+    // TELL ends by getting out of the way, naming the gestures that genuinely work — and since
+    // `website-refresh-arc-click-to-explain` landed ROAM, clicking is one of them. The old line
+    // named two of three and its own comment said why ("ROAM is the next movement and is not built
+    // yet"); leaving it would have made this the one sentence on the page that undersold what the
+    // map does.
+    //
+    // ⚠ IT IS SHORTER THAN WHAT IT REPLACED, ON PURPOSE. The owner has an open question about the
+    // sequence's LENGTH — readable now costs ~72s where the unreadable version cost ~55 — so a
+    // movement that is not part of the sequence must not lengthen it on its way past. 39 characters
+    // became 33, which at `CPS` is about half a second OFF the total. ROAM adds nothing to the
+    // clock, here or anywhere else.
     id: 'handoff',
-    lines: ['It is yours now.', 'Drag to move around it. Scroll to zoom.'],
+    lines: ['It is yours now.', 'Drag it, zoom it, click anything.'],
     lens: 'none',
     figure: 'none',
   },
