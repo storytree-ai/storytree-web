@@ -911,6 +911,254 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     filter: drop-shadow(0 0 0 rgba(74, 58, 38, 0.9)) drop-shadow(0 8px 22px rgba(48, 34, 18, 0.42));
   }
 
+
+  /* ======================================================================
+     ROAM — the panel the visitor pulls open by clicking the map, and the
+     invisible hit stroke that makes a trail clickable. Global because
+     act2-roam.ts creates all of it at runtime; namespaced roam-.
+
+     ⚠ NOTHING HERE APPEARS UNLESS SOMETHING WAS CLICKED. `.roam-panel` starts
+     `hidden` and is only unhidden by a click; there is no timer anywhere in
+     this movement. That is the whole of "we are quiet" expressed in CSS: the
+     one movement that speaks is TELL, and every sentence in this panel is
+     pulled rather than pushed.
+
+     ⚠ AND NOTHING HERE CHANGES THE RESTING COMPOSITION. The owner has a look
+     pending on how the forest opens; every rule below is either inside the
+     panel, or scoped to `.roam-selected` — a class no element carries until a
+     click puts it there. The one unscoped rule is the trail hit stroke, and it
+     is TRANSPARENT.
+     ====================================================================== */
+
+  /* THE TRAIL HIT STROKE. A trail's visible line is ~3 units wide, which at the
+     resting scale is roughly a CSS pixel and a half — not a thing a hand can
+     hit. Rather than fatten the line (which would change the picture) or add a
+     layer (which would change the DOM), this re-uses the CASING pass: the same
+     routed geometry, already in the markup, currently `display: none` on this
+     surface. It is painted with `transparent` and given `pointer-events:
+     stroke`, so it is a wide invisible target sitting exactly under the visible
+     line it belongs to. Nothing about the composition moves. */
+  .storm-land-canvas .tw-trail-casing {
+    display: inline;
+    stroke: transparent;
+    stroke-width: 18;
+    opacity: 1;
+    pointer-events: stroke;
+    cursor: pointer;
+  }
+
+  /* The thing the panel is talking about, ringed on the map. The ring is a
+     class on an element that is already there — nothing is drawn and nothing
+     moves, which is the same fence TELL's lenses keep. */
+  #storm-land .forest-arrival-svg .roam-selected.tw-isle,
+  #storm-land .forest-arrival-svg .roam-selected.tw-ground {
+    filter: drop-shadow(0 0 0 rgba(74, 58, 38, 0.9)) drop-shadow(0 8px 22px rgba(48, 34, 18, 0.42));
+  }
+  #storm-land .forest-arrival-svg .tw-trail-fill.roam-selected {
+    stroke: rgba(88, 66, 36, 0.92);
+    stroke-width: 5;
+  }
+
+  .roam-panel {
+    position: absolute;
+    z-index: 9;
+    top: clamp(1rem, 4vh, 2.4rem);
+    right: clamp(0.9rem, 3vw, 2.2rem);
+    width: min(23rem, 42vw);
+    max-height: min(82vh, 46rem);
+    /* ⚠ A COLUMN WHOSE ONLY FLEXIBLE PART IS THE CAPABILITY LIST. The floor note and the snapshot
+       date sit at the bottom and are the two things that must never be scrolled away — one is the
+       conversion point, the other is what stops a dated export reading as a live feed. A fixed
+       `max-height` on the list was tried first and does not work: it bounds the list without
+       bounding everything above it, so a long title plus nine capabilities still pushed both off.
+       Flex shrinks the list to whatever is left, whatever the story's size — the largest on this
+       map has 27 capabilities. */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 1rem 1.05rem 0.85rem;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid rgba(122, 98, 62, 0.28);
+    box-shadow: 0 10px 30px rgba(48, 34, 18, 0.16);
+    font-family: var(--font-body);
+    color: var(--ink);
+  }
+  .roam-panel[hidden] { display: none; }
+
+  .roam-close {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.45rem;
+    width: 1.7rem;
+    height: 1.7rem;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .roam-close:hover { background: var(--surface-2); color: var(--ink); }
+
+  .roam-kind {
+    margin: 0 0 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+  .roam-title {
+    margin: 0 0 0.2rem;
+    padding-right: 1.3rem;
+    font-size: 1.02rem;
+    font-weight: 600;
+    line-height: 1.32;
+    color: var(--ink);
+  }
+  .roam-id {
+    margin: 0 0 0.7rem;
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+  }
+
+  /* One or two sentences. The size is the reading size, not a caption size —
+     this is the only text on the page a visitor asked for. */
+  .roam-note { margin: 0 0 0.75rem; }
+  .roam-line {
+    margin: 0 0 0.4rem;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+  .roam-line:last-child { margin-bottom: 0; }
+
+  /* The two rows a story panel offers: its colour, and what is inside it.
+     Buttons, because they are the two further questions the visitor may ask. */
+  .roam-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    margin: 0 0 0.55rem;
+    padding: 0.42rem 0.55rem;
+    border: 1px solid rgba(122, 98, 62, 0.22);
+    border-radius: 8px;
+    background: var(--surface-2);
+    font: inherit;
+    font-size: 0.86rem;
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+  }
+  .roam-row:hover { border-color: rgba(122, 98, 62, 0.45); }
+  .roam-row[aria-expanded='true'] {
+    border-color: var(--amber);
+    background: var(--amber-soft);
+  }
+  .roam-row:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+
+  /* The status dot, in the SAME hues the island's own crown is painted with —
+     the panel and the picture read one value, so they cannot disagree. */
+  .roam-chip { display: inline-flex; align-items: center; gap: 0.42rem; }
+  .roam-dot {
+    width: 0.62rem;
+    height: 0.62rem;
+    border-radius: 50%;
+    background: #9ca3af;
+    flex: none;
+  }
+  .roam-dot.st-healthy { background: #2f6b3f; }
+  .roam-dot.st-proposed { background: #b06a24; }
+  .roam-dot.st-mapped { background: #7d5f3b; }
+  .roam-dot.st-building { background: #4a7d8c; }
+  .roam-dot.st-unhealthy { background: #9f2d22; }
+  .roam-chip-word { font-weight: 550; }
+
+  /* ⚠ THE LIST SCROLLS INSIDE ITSELF SO THE FLOOR STAYS ON SCREEN. The floor note sits BELOW this
+     list and is the panel's conversion point — where the public map stops and what opens it. Left
+     unbounded the list simply pushed it, and the snapshot stamp under it, past the panel's own
+     max-height: both were in the DOM and neither was on screen, which a check reading textContent
+     cannot tell apart from working. The largest story on this map has 27 capabilities. */
+  .roam-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  /* The one part that gives. `min-height` keeps at least a couple of rows visible so the list never
+     collapses to nothing and reads as empty. */
+  .roam-caps {
+    margin: 0 0 0.75rem;
+    padding: 0 0.3rem 0 0;
+    list-style: none;
+    flex: 1 1 auto;
+    min-height: 4rem;
+    overflow-y: auto;
+    /* A VISIBLE scrollbar, not the overlay one the engine hides. The row above says how many
+       capabilities there are; without a track, a list showing two of nine looks like a list of
+       two, and the panel would understate the island it is describing. */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(122, 98, 62, 0.45) transparent;
+  }
+  .roam-caps::-webkit-scrollbar { width: 7px; }
+  .roam-caps::-webkit-scrollbar-thumb {
+    background: rgba(122, 98, 62, 0.45);
+    border-radius: 4px;
+  }
+  /* Never shrink the two that carry the meaning. */
+  .roam-note[data-roam-note='floor'] { flex: none; }
+  .roam-cap {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    margin: 0 0 0.35rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--ink-soft);
+  }
+  .roam-cap .roam-dot { position: relative; top: 0.12rem; }
+  .roam-cap-title { flex: 1; }
+
+  .roam-edges { margin: 0; padding: 0; list-style: none; }
+  /* The honest tail of a truncated list. It carries a COUNT, because a list that simply stops
+     looks complete — which would make the panel understate a hub, the exact opposite of what a
+     dependency view is for. */
+  .roam-more { margin: 0.2rem 0 0; font-size: 0.82rem; color: var(--ink-faint); }
+  .roam-edge {
+    margin: 0 0 0.4rem;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    color: var(--ink);
+  }
+
+  /* The date, once, at the bottom of every panel. Without it a present-tense
+     sentence about a story's state reads as a live feed, which is the single
+     way a stamped snapshot backfires. */
+  .roam-stamp {
+    flex: none;
+    margin: 0.7rem 0 0;
+    padding-top: 0.55rem;
+    border-top: 1px solid rgba(122, 98, 62, 0.18);
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+  }
+
+  @media (max-width: 680px) {
+    .roam-panel {
+      top: auto;
+      bottom: 3.4rem;
+      left: 0.7rem;
+      right: 0.7rem;
+      width: auto;
+      max-height: 46vh;
+    }
+  }
+
   @media (max-width: 680px) {
     .tell-column { max-width: 88vw; }
     .tell-figure { width: min(18rem, 78vw); }
