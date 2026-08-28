@@ -17,6 +17,38 @@
 // THE PROJECTION IS ORTHOGRAPHIC (ADR-0380 D6 fence 4). Everything here sizes an orthographic
 // frustum; the eye's DISTANCE no longer affects the delivered scale, so `position` sets only the
 // view direction and the clip range.
+//
+// ⚠⚠ THIS IS NOT THE SHIPPED FRAMING, AND HAS NOT BEEN SINCE 2026-08-28. `restingFrame`
+// (`packages/forest-world/src/resting-view.ts`, ADR-0471) is the ONE place that decides how much
+// forest a surface opens on. Both maps a visitor can actually reach converge on it: the studio's
+// SVG map through `apps/studio/src/lib/worldCamera.ts`, and the public `/forest/` page through
+// `web/src/scripts/forest-arrival.ts`. `<ForestWorldCanvas>` is mounted only in this package's own
+// dev harness — the website syncs this file but imports nothing from it, only `act2-director`'s
+// pure state machine. ADR-0471 D8 records why this rule was deliberately left behind rather than
+// converted: `InstanceDescriptor` carries no island identity, so there is nothing here to pin a
+// composition to.
+//
+// ⚠ WHAT THIS RULE ACTUALLY FRAMES — 2.154x the vertical room a flat world can occupy, and the
+// margin is NOT headroom. `spread` is a max over GROUND |x| and |z|, but the eye looks down at 45°,
+// so a ground span of z delivers only `sin(45°)` of SCREEN height. `back * FRAME_HALF_HEIGHT_PER_BACK`
+// is `spread * 1.523` — the retired perspective camera's own margin, carried forward on purpose —
+// and dividing that by `sin(45°)` is where 2.154 comes from. The obvious defence, that a world
+// contains tall things a ground box knows nothing about, is refuted rather than assumed: raising
+// every instance to a 92-unit hero-tree crown moves the over-frame only 2.154 → 1.972. Tall objects
+// need a factor of 1.09; the rule reserves 2.15. All four figures are measured in
+// `camera-framing.test.ts` from the POSE this function returns, with a 30°-elevation control and a
+// corrected-rule control that prove the instrument distinguishes the two.
+//
+// ⚠ AND IT IS DELIBERATELY LEFT THAT WAY — do not "fix" it with a `sin(elev)` factor. That repair
+// was proposed, costed at ~1.3x more detail, and declined for two reasons. Nothing a visitor sees
+// is framed by this function, so the 1.3x accrues to nobody. And `resting-view.ts` says in terms
+// that the framing is one decision now and a second must not be added: if this canvas is ever
+// mounted, it adopts `restingFrame` — which means giving `InstanceDescriptor` island identity
+// first — rather than growing a better fit of its own. Repairing the fit would be building the
+// wrong thing better. The `2.6` itself was born in the original spike commit `ee675ad3`, where
+// `back` was a perspective camera's eye DISTANCE and the comment beside it read "the camera backs
+// off proportionally to the world's spread"; it was never a headroom decision by anyone.
+// (Increment `does-the-shipped-framing-waste-a-third-of-the-screen`, settled 2026-08-29.)
 
 import type { InstanceDescriptor } from './world-to-3d';
 
