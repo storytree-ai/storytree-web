@@ -365,6 +365,57 @@ export function forestSceneInput(snap: ForestSnapshot): SceneInput & { width: nu
   };
 }
 
+/** Every island's on-screen DIAMETER, in the map's own units — what the designed resting frame is
+ *  pinned to (ADR-0471). Exported so the ARRIVAL can hand these to the browser as a payload rather
+ *  than shipping the whole layout engine to the client to recompute what the build already knew. */
+export function islandDiameters(snap: ForestSnapshot): number[] {
+  return placeStories(snap.stories).map((p) => 2 * p.radius);
+}
+
+/**
+ * The same map, prepared for chapter 2's ARRIVAL rather than for the `/forest/` poster.
+ *
+ * Three differences, all of them because this one is a VIEWPORT the visitor moves around in while
+ * the poster is a picture in a scrolling document:
+ *
+ *  1. it carries `data-forest-frame`, the extent and island sizes the client needs to compute the
+ *     designed resting view for whatever viewport it lands in;
+ *  2. `preserveAspectRatio` is `slice`, so it fills the frame rather than letterboxing while a
+ *     resize is in flight;
+ *  3. its `viewBox` is the WHOLE world, which is the honest thing to serve: if the client script
+ *     never runs, the visitor gets the entire forest as a static picture instead of a blank div.
+ *     The crop is an enhancement, never a prerequisite.
+ *
+ * The poster's own `forestSvg` is deliberately left alone — its shape is pinned by tests and it has
+ * no viewport to frame against.
+ */
+export function forestArrivalSvg(snap: ForestSnapshot): string {
+  const input = forestSceneInput(snap);
+  const label =
+    `A map of storytree's own system as of ${formatStampDate(snap.generatedAt)}: ` +
+    `${snap.storyCount} story islands, ${snap.provenStoryCount} of them green because a signed ` +
+    `test proved them, connected by trails where one depends on another. Not live. ` +
+    `Drag to move around it; scroll to zoom.`;
+  const frame = JSON.stringify({
+    width: input.width,
+    height: input.height,
+    islandDiameters: islandDiameters(snap),
+  });
+  return (
+    `<svg class="tw-svg forest-arrival-svg" viewBox="0 0 ${input.width} ${input.height}" ` +
+    `preserveAspectRatio="xMidYMid slice" role="img" aria-label="${escXml(label)}" ` +
+    `data-forest-frame="${escXml(frame)}">` +
+    `<defs>` +
+    `<radialGradient id="tw-board" cx="50%" cy="40%" r="80%">` +
+    `<stop offset="0" stop-color="#fbf3ea"/><stop offset="1" stop-color="#edd9c9"/>` +
+    `</radialGradient>` +
+    `</defs>` +
+    `<rect class="tw-bg" x="0" y="0" width="${input.width}" height="${input.height}"/>` +
+    sceneToSvg(buildScene(input)) +
+    `</svg>`
+  );
+}
+
 /** The whole map as one inert SVG string. */
 export function forestSvg(snap: ForestSnapshot): string {
   const label =

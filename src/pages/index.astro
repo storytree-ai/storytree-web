@@ -7,11 +7,44 @@ import Base from '../layouts/Base.astro';
 // the how-it-works page that hosted the full TreeWorld map was itself retired in
 // the info-pages retirement — the experience is now the whole site.)
 import home from '../data/home.json';
+import snapshotJson from '../data/forest-snapshot.json';
 // The Act 2 guided walk (ADR-0145) renders a buildScene → sceneToSvg map SVG that
 // needs the `tw-*` map-layer paint rules; the walk is now their SOLE consumer (the
 // TreeWorld component that used to share them retired with how-it-works). Without
 // this stylesheet the territory/flora would fall back to black fill.
 import '../styles/tree-world-map.css';
+// GROW (ADR-0453 D11): chapter 2 opens on storytree's REAL forest, from the same stamped snapshot
+// `/forest/` renders, laid out and serialised HERE at build time. A synthetic forest is a claim
+// about a product; the real one is evidence of it, and this site's whole argument is that the
+// system built it.
+//
+// ⚠ THIS IMPORT IS BUILD-TIME ONLY, and there is a live hazard sitting under it that the next
+// person to touch this line needs to know about.
+//
+// Astro frontmatter runs at BUILD time: the map is serialised to markup here and the browser
+// downloads no part of this module graph. Measured on the built output — the whole client payload
+// for this page is ~24 KB across two chunks, with no `zod`, no `act2-director` and no `three` in
+// either. That is the property that actually matters and it holds.
+//
+// What does NOT hold cleanly is the gate's guard on it. `forest-snapshot-map` reaches
+// `act2-walkthrough` for its disc geometry, and `act2-walkthrough` imports
+// `../lib/forest-world-r3f/act2-director` — a specifier `check:web-experience-closure` (ADR-0336)
+// is written to forbid anywhere in this page's static closure, because it makes no distinction
+// between a frontmatter import and a browser one. The rung passes today ONLY because its
+// `STATIC_IMPORT_RE` excludes newlines and therefore cannot see MULTI-LINE `import { … } from '…'`
+// statements, which is how that import happens to be written. So: reflowing an import in
+// `act2-walkthrough.ts` onto one line would red the gate with no semantic change whatsoever, and
+// the red would name this page rather than the file that moved.
+//
+// The dependency is real and predates this change — `/forest/` has imported the same chain since
+// the snapshot landed. What is new is that it is now in the ENTRY PAGE's closure. Breaking it
+// properly means lifting `buildDisc`/`escXml` out of `act2-walkthrough` into their own module,
+// which is a sizeable edit to a file that `website-refresh-arc-pitch-overlays` is about to retire
+// anyway — so it is deliberately NOT done here, and is written down instead of discovered.
+import { assertSnapshot, forestArrivalSvg, renderStamp } from '../scripts/forest-snapshot-map';
+const forestSnapshot = assertSnapshot(snapshotJson);
+const forestArrival = forestArrivalSvg(forestSnapshot);
+const forestStamp = renderStamp(forestSnapshot);
 // ---------------------------------------------------------------------------
 // THE HOME FLIP (ADR-0134 Act 1): the page ships two top-level branches.
 //   1. The storm  — [data-experience-entry] — a diegetic AI-agent terminal
@@ -194,10 +227,15 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
       class="storm-land"
       id="storm-land"
       tabindex="-1"
-      aria-label="A guided 2.5D walk where one story grows — one step at a time"
+      aria-label="storytree's own forest — every island a story. Drag to move around it."
       hidden
     >
-      <div class="storm-land-canvas" id="storm-land-canvas"></div>
+      <div class="storm-land-canvas" id="storm-land-canvas" set:html={forestArrival}></div>
+      <!-- The stamp is load-bearing copy, not a caption: it is what stops a snapshot reading as a
+           live view, and the site's own `signals-must-be-real` principle is the reason. Rendered
+           in the markup rather than by script so it is present even if the framing script never
+           runs — an undated map is the one way this backfires. -->
+      <p class="storm-land-stamp">{forestStamp}</p>
     </div>
   </section>
 
@@ -607,6 +645,59 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   .storm-land[hidden] { display: none; }
   .storm-root.is-resolved .storm-land { opacity: 1; pointer-events: auto; }
   .storm-land-canvas { position: absolute; inset: 0; }
+
+  /* GROW: the real forest fills the layer, and the SVG's own viewBox does the framing — the
+     client script sets it to the designed resting view (ADR-0471) on mount and on resize.
+     `touch-action: none` is what makes drag-to-pan work on a touch screen: without it the
+     browser claims the gesture for page scrolling and the pointermove handler never sees it. */
+  .storm-land-canvas .forest-arrival-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+  }
+  /* ⚠ THE BOARD COLOUR IS ON THE LAYER, NOT ONLY ON THE MAP'S OWN BACKGROUND RECT. The SVG's
+     `tw-bg` rect covers the WORLD, and the view is routinely larger than the world — whenever the
+     frame is wider than the forest at the resting scale, and always once the reader zooms out past
+     the fit. Without this, those margins show the dark storm behind, and the forest reads as a
+     letterboxed picture pasted onto the previous chapter instead of as ground the visitor is
+     standing on. Same two stops as the map's own `#tw-board` gradient. */
+  .storm-land-canvas {
+    background: radial-gradient(ellipse 80% 80% at 50% 40%, #fbf3ea 0%, #edd9c9 100%);
+  }
+  .storm-land-canvas .forest-arrival-svg.is-grabbing { cursor: grabbing; }
+  /* The dependency trails are hidden by default in the shared stylesheet (each host opts in).
+     Here they are quiet connective tissue — what depends on what, readable but never competing
+     with the islands. Same treatment as the /forest/ poster. */
+  .storm-land-canvas .tw-trails { display: inline; }
+  .storm-land-canvas .tw-trail-shadow,
+  .storm-land-canvas .tw-trail-casing { display: none; }
+  .storm-land-canvas .tw-trail-fill { stroke: rgba(122, 98, 62, 0.42); stroke-width: 3; }
+
+  /* The snapshot stamp. Sits over the map rather than under it because the map fills the
+     viewport, and it must be readable without scrolling: a map that presents itself as a live
+     reading is the single way this backfires. */
+  .storm-land-stamp {
+    position: absolute;
+    left: 50%;
+    bottom: 1.1rem;
+    transform: translateX(-50%);
+    z-index: 2;
+    margin: 0;
+    max-width: min(46rem, calc(100% - 2rem));
+    text-align: center;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: #4a3a2a;
+    background: rgba(251, 243, 234, 0.82);
+    border-radius: 8px;
+    padding: 0.4rem 0.9rem;
+    pointer-events: none;
+  }
+  @media (max-width: 640px) {
+    .storm-land-stamp { font-size: 0.74rem; bottom: 0.6rem; }
+  }
 
   /* ======================================================================
      The session orchestrator GUIDE CHAT (ADR-0165 §3, over the landed ADR-0148
