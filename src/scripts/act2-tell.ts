@@ -83,7 +83,9 @@ export interface TellBeat {
   /**
    * The beat's prose, one entry per line. Lines phase in one at a time within the beat; the beat's
    * dwell is DERIVED from their length (`beatDwellMs`) rather than hand-set, so editing the copy
-   * cannot silently leave a line on screen for less time than it takes to read.
+   * cannot silently leave a line on screen for less time than it takes to read. The unit is
+   * CHARACTERS and the budget pays for the fade separately — see the timing section's header for
+   * the three ways the first version of that promise was false.
    */
   readonly lines: readonly string[];
   readonly lens: TellLens;
@@ -350,14 +352,74 @@ export function stateAt(
  * next person to edit a line would have to remember to retune a number in a different place, and
  * would not. Reading pace is a property of the sentence, so it is computed from the sentence.
  *
- * `MS_PER_WORD` is ~238 wpm — comfortable for short display lines held over a picture, slower than
- * silent prose reading because the reader is also looking at the map. It is ONE constant on
- * purpose: the whole sequence's length is an operator-attested judgement (ADR-0070 stage 2), and
- * the owner changing his mind about the pace should be one number, not ten.
+ * ── THE BASIS, AND WHY THE FIRST VERSION OF THIS FAILED ─────────────────────────────────────────
+ *
+ * The owner walked the live site on 2026-08-29 and reported: *"the overlay text looks too fast
+ * though, couldnt read it"*. The budget then in force was `MS_PER_WORD = 252` — 238 wpm, which is
+ * the MEAN silent reading rate for continuous non-fiction prose — with `MS_LINE_FLOOR = 1150` for
+ * short lines. Both numbers are defensible in isolation. The schedule they produced was not, for
+ * three separate reasons, and it is worth writing all three down because each is a trap on its own:
+ *
+ * 1. **THE FADE WAS CHARGED TO THE READING BUDGET.** A beat's block phases in over a CSS
+ *    transition, and a reader cannot read text that is not yet opaque. That time was inside the
+ *    dwell, not on top of it. Measured against the shipped constants, the first line of every short
+ *    beat was LEGIBLE for 430–540 ms:
+ *
+ *      "You just watched the problem."   540 ms   → 53.7 cps
+ *      "{proven} of them are green."     540 ms   → 38.9 cps
+ *      "That one is this website."       540 ms   → 46.3 cps
+ *      "It is yours now."                430 ms   → 37.2 cps
+ *
+ *    `MS_LINE_FLOOR` existed to stop exactly this, and could not, because 720 ms of its 1150 was
+ *    spent fading. A floor that sits UNDER an unpriced cost is not a floor.
+ *
+ * 2. **WORDS ARE THE WRONG UNIT.** `capabilities` and `it` cost one word each. Across lines the
+ *    old budget believed were equally paced, the DELIVERED rate ranged 16.5 → 27.1 cps.
+ *
+ * 3. **238 wpm IS A MEAN, FOR A DIFFERENT TASK.** It is measured on readers already in reading
+ *    posture, working through continuous prose where context accumulates. Half of readers are
+ *    slower than it by construction. This copy is unfamiliar propositional claims, arriving one at
+ *    a time, deliberately OVER a map the same visitor is being invited to look at.
+ *
+ * ── WHAT IT IS SET AGAINST NOW ──────────────────────────────────────────────────────────────────
+ *
+ * This is the SUBTITLE problem — text over a picture the viewer also needs to watch — and that
+ * problem has a published standard measured over decades. Subtitle reading rate is quoted in
+ * CHARACTERS PER SECOND: Netflix's Timed Text Style Guide caps adult programming at 17 cps, and the
+ * BBC's Subtitle Guidelines take 160–180 wpm as a default and advise going slower where the picture
+ * competes for attention.
+ *
+ * `CPS` is set BELOW the professional dialogue ceiling, on three named grounds: this copy is silent
+ * (no audio track carries it in parallel), it is propositional rather than narrative the viewer is
+ * already following, and the visitor has just been handed a map and told to look at it. At 13 cps
+ * every line in `TELL_SCRIPT` is delivered between 134 and 195 wpm — inside the BBC band, and under
+ * it for the lines whose words are long, which is the correct direction.
+ *
+ * It is still ONE number: the whole sequence's length is an operator-attested judgement (ADR-0070
+ * stage 2), and the owner changing his mind about the pace should be one constant, not ten.
  */
-export const MS_PER_WORD = 252;
-/** Floor per line — even three words need long enough to be seen arriving. */
-export const MS_LINE_FLOOR = 1150;
+export const CPS = 13;
+/** Milliseconds of READING time per character, derived from `CPS`. */
+export const MS_PER_CHAR = 1000 / CPS;
+/**
+ * The minimum READING time any line gets, however short.
+ *
+ * ⚠ THIS IS A FLOOR ON LEGIBLE TIME, NOT ON DWELL, and the distinction is the whole repair. It is
+ * applied AFTER acquisition has been paid for, so a three-word line is readable for 900 ms rather
+ * than nominally allotted 1150 ms of which 720 was a fade.
+ */
+export const MS_READ_FLOOR = 900;
+/**
+ * ⚠ ACQUISITION — the time a line is ON SCREEN BUT NOT YET READABLE, because it is still phasing
+ * in. THESE TWO NUMBERS MUST TRACK `index.astro`'s `.tell-block` AND `.tell-line` TRANSITIONS.
+ * They are the CSS durations plus `applyBeat`'s one-frame `is-on` deferral.
+ *
+ * They are transcribed rather than derived, because the CSS is not reachable from here — so
+ * `act2-tell.test.ts` reads the stylesheet out of `index.astro` and fails if the two drift. That
+ * check is the only thing standing between this module and defect 1 above coming back silently.
+ */
+export const MS_BLOCK_ACQUIRE = 340 + 20;
+export const MS_LINE_ACQUIRE = 300;
 /** The pause after a beat's last line before the next beat displaces it. */
 export const MS_BEAT_GAP = 470;
 /**
@@ -370,8 +432,13 @@ export const MS_BEAT_GAP = 470;
  * nothing but a name held over a picture — played out almost entirely against a dark screen and was
  * gone by the time there was a forest to say it over. The first thing the site says was the one
  * thing nobody could read.
+ *
+ * It now also has a second job: `forest-growth` reveals the islands from the foundation row upward
+ * starting at `MS_GROWTH_LEAD_IN`, and the name beat is deliberately timed to land while the last
+ * ranks are still arriving. The name over a forest still assembling itself is the opening; waiting
+ * for the growth to finish first would be two events queued rather than one.
  */
-export const MS_LEAD_IN = 2100;
+export const MS_LEAD_IN = 2600;
 /** The beat holds after its last line lands, so the final sentence is not yanked mid-read. */
 export const MS_LINE_TAIL = 430;
 /** How long the loop figure takes to assemble: a lead, then its four nodes in clockwise order. */
@@ -388,14 +455,46 @@ export const MS_FIGURE_REVEAL = 260 + 3 * 420;
  */
 export const MS_FIGURE_DWELL = MS_FIGURE_REVEAL + 3600;
 
-function wordCount(line: string): number {
-  const trimmed = line.trim();
-  return trimmed === '' ? 0 : trimmed.split(/\s+/).length;
+/** Acquisition for the line at position `index` within its beat: the first line arrives with the
+ *  whole block, later ones un-hide on their own shorter transition. */
+export function acquireMs(index: number): number {
+  return index === 0 ? MS_BLOCK_ACQUIRE : MS_LINE_ACQUIRE;
 }
 
-/** How long one rendered line stays before the next line of the same beat joins it. */
-export function lineDwellMs(line: string): number {
-  return Math.max(MS_LINE_FLOOR, wordCount(line) * MS_PER_WORD);
+/** How long one line needs to be READABLE, before any acquisition is added. */
+export function readMs(line: string): number {
+  return Math.max(MS_READ_FLOOR, line.length * MS_PER_CHAR);
+}
+
+/**
+ * The per-line schedule of one beat: how many milliseconds each line holds the column before the
+ * next thing displaces it.
+ *
+ * ⚠ ONE FUNCTION COMPUTES THIS AND BOTH CONSUMERS READ IT. `applyBeat` uses the running sum to
+ * schedule each line's un-hide, and `beatDwellMs` sums it for the beat's length. The first draft
+ * had those two derive the same schedule separately from `lineDwellMs`, which is how a per-line
+ * correction can land in one and not the other.
+ *
+ * ⚠ THE LAST LINE IS SHORTER THAN ITS READING BUDGET ON PURPOSE. Nothing replaces the column until
+ * the NEXT beat starts, so the last line keeps `MS_LINE_TAIL + MS_BEAT_GAP` of fully-opaque time
+ * after its own slice ends. Charging it that time twice would add ~9 s of dead air across the
+ * sequence for no extra legibility. It never falls below acquisition plus the reading floor.
+ */
+export function beatSlicesMs(lines: readonly string[]): readonly number[] {
+  return lines.map((line, i) => {
+    const acquire = acquireMs(i);
+    const need = acquire + readMs(line);
+    if (i < lines.length - 1) return Math.round(need);
+    return Math.round(Math.max(acquire + MS_READ_FLOOR, need - MS_LINE_TAIL - MS_BEAT_GAP));
+  });
+}
+
+/**
+ * How long one rendered line holds the column. Kept as a named export because it is the number a
+ * reader of this file wants, but `beatSlicesMs` is what the runtime schedules from.
+ */
+export function lineDwellMs(line: string, index = 0): number {
+  return Math.round(acquireMs(index) + readMs(line));
 }
 
 /** How long a whole beat holds, derived from everything it puts on screen — its copy AND its
@@ -404,8 +503,40 @@ export function beatDwellMs(
   lines: readonly string[],
   figure: TellFigure = 'none',
 ): number {
-  const body = lines.reduce((total, line) => total + lineDwellMs(line), 0) + MS_LINE_TAIL;
+  const body = beatSlicesMs(lines).reduce((total, slice) => total + slice, 0) + MS_LINE_TAIL;
   return figure === 'none' ? body : Math.max(body, MS_FIGURE_DWELL);
+}
+
+/**
+ * How long line `index` of a beat is actually LEGIBLE — opaque, on screen, and not yet displaced.
+ *
+ * This is the number the owner's complaint was about, and the one the test holds a ceiling on. It
+ * is deliberately NOT the dwell: acquisition comes off the front, and the last line of a beat is
+ * credited the tail, the gap, and any slack a figure floor added to the beat.
+ */
+export function legibleMs(
+  lines: readonly string[],
+  index: number,
+  figure: TellFigure = 'none',
+): number {
+  const slices = beatSlicesMs(lines);
+  const own = slices[index] ?? 0;
+  if (index < lines.length - 1) return own - acquireMs(index);
+  const body = slices.reduce((t, s) => t + s, 0) + MS_LINE_TAIL;
+  const slack = figure === 'none' ? 0 : Math.max(0, MS_FIGURE_DWELL - body);
+  return own - acquireMs(index) + MS_LINE_TAIL + MS_BEAT_GAP + slack;
+}
+
+/** The rate line `index` is actually delivered at, in characters per second — the unit the ceiling
+ *  is stated in. Higher is faster, and faster is the failure direction. */
+export function deliveredCps(
+  lines: readonly string[],
+  index: number,
+  figure: TellFigure = 'none',
+): number {
+  const line = lines[index] ?? '';
+  const legible = legibleMs(lines, index, figure);
+  return legible <= 0 ? Infinity : line.length / (legible / 1000);
 }
 
 /**
@@ -635,9 +766,9 @@ export function mountTell(opts: TellOptions): TellHandle {
       const line = el('p', 'tell-line', text);
       if (!reducedMotion && i > 0) {
         line.classList.add('is-hidden');
-        const at = state.lines
+        const at = beatSlicesMs(state.lines)
           .slice(0, i)
-          .reduce((total, prev) => total + lineDwellMs(prev), 0);
+          .reduce((total, slice) => total + slice, 0);
         timers.push(
           window.setTimeout(() => {
             line.classList.remove('is-hidden');

@@ -759,10 +759,67 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
       0 0 18px rgba(251, 243, 234, 0.95),
       0 0 34px rgba(251, 243, 234, 0.7);
   }
+  /* ======================================================================
+     THE FOREST ARRIVES BY GROWING (forest-growth.ts) — chapter 2's GROW.
+
+     ⚠ EVERY RULE HERE IS SCOPED UNDER `.forest-arrival-svg.is-growing`, AND
+     THAT SCOPE IS THE NO-SCRIPT GUARANTEE, NOT TIDINESS. The class is added
+     by `mountForestGrowth` at runtime. A visitor whose script never runs
+     therefore matches none of this and gets the whole forest as the static,
+     dated picture the build serialised — the property `…-arc-arrival` bought
+     and this must not quietly spend. Hoisting `opacity: 0` out of this scope
+     would hide the map from exactly the people who cannot tell you.
+
+     The order is the build's own placement order, which is dependency rank
+     from the foundation row up; `--grow-delay` is stamped per island from
+     the wave schedule. See forest-growth.ts for why it is waves and not one
+     step per island (35 islands at the retired walk's 0.22s law took 7.5s).
+     ====================================================================== */
+  @keyframes act2-forest-grow {
+    from { opacity: 0; transform: scale(0.62); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes act2-forest-rise {
+    from { opacity: 0; translate: 0 9px; }
+    to   { opacity: 1; translate: 0 0; }
+  }
+  @keyframes act2-forest-trails {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  /* THE LAND. `tw-isle` (the shore) and `tw-ground` (the disc) share a bounding
+     box, so a 50%/50% fill-box origin scales both about the island's real
+     centre — it grows in place rather than sliding in from the map's origin. */
+  .forest-arrival-svg.is-growing .tw-isle,
+  .forest-arrival-svg.is-growing .tw-ground {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: act2-forest-grow 620ms cubic-bezier(0.34, 1.32, 0.44, 1) both;
+    animation-delay: var(--grow-delay, 0ms);
+  }
+  /* THE TREES. ⚠ DELIBERATELY NOT SCALED — see forest-growth.ts. `tw-terr`
+     wraps the trees AND the name plate below them, so where the disc sits
+     inside its box varies per island (measured: 28.7%–50.4% vertically). Any
+     fixed origin slides the trees off their own ground, worst on the tall
+     islands. A translate is bounding-box independent and therefore exact. */
+  .forest-arrival-svg.is-growing .tw-terr {
+    animation: act2-forest-rise 620ms cubic-bezier(0.34, 1.32, 0.44, 1) both;
+    animation-delay: calc(var(--grow-delay, 0ms) + 300ms);
+  }
+  .forest-arrival-svg.is-growing .tw-trails {
+    animation: act2-forest-trails 700ms ease-out both;
+    animation-delay: var(--grow-delay, 0ms);
+  }
+
+  /* ⚠ THE FADE IS ACQUISITION — TIME THE READER CANNOT READ THROUGH — AND act2-tell BUDGETS FOR
+     IT BY NAME. `MS_BLOCK_ACQUIRE` and `MS_LINE_ACQUIRE` are these two durations transcribed, and
+     `act2-tell.test.ts` reads this stylesheet and reds if they drift. A slower fade here is not a
+     free polish: it is reading time taken away from every first line on the page, which is exactly
+     how "couldnt read it" happened at 0.7s. */
   .tell-block {
     opacity: 0;
     translate: 0 10px;
-    transition: opacity 0.7s ease, translate 0.7s ease;
+    transition: opacity 0.34s ease, translate 0.34s ease;
   }
   .tell-block.is-on { opacity: 1; translate: 0 0; }
   .tell-line {
@@ -774,7 +831,7 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     letter-spacing: -0.005em;
     opacity: 1;
     translate: 0 0;
-    transition: opacity 0.55s ease, translate 0.55s ease;
+    transition: opacity 0.3s ease, translate 0.3s ease;
   }
   .tell-line.is-hidden { opacity: 0; translate: 0 6px; }
   /* The first beat is the name, alone. It gets the size that says so. */
@@ -865,6 +922,12 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
      over from the animated path moves. Auto-advancing text is itself a motion
      the reader asked not to have. */
   @media (prefers-reduced-motion: reduce) {
+    .forest-arrival-svg.is-growing .tw-isle,
+    .forest-arrival-svg.is-growing .tw-ground,
+    .forest-arrival-svg.is-growing .tw-terr,
+    .forest-arrival-svg.is-growing .tw-trails {
+      animation: none; opacity: 1; transform: none; translate: 0 0;
+    }
     .tell-layer, .tell-block, .tell-line, .tell-figure { transition: none; }
     .tell-block, .tell-line, .tell-figure { opacity: 1; translate: 0 0; }
     #storm-land .forest-arrival-svg .tw-isle,
