@@ -21,11 +21,18 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   MS_FIGURE_REVEAL,
   MS_LEAD_IN,
-  MS_LINE_FLOOR,
+  MS_READ_FLOOR,
+  MS_BLOCK_ACQUIRE,
+  MS_LINE_ACQUIRE,
+  CPS,
+  legibleMs,
+  deliveredCps,
+  beatSlicesMs,
   SELF_CLAUSE,
   SELF_STORY_ID,
   TELL_SCRIPT,
@@ -244,7 +251,104 @@ test('a beat holds long enough to read, and a longer line holds longer', () => {
     'Which leaves two options, both bad: read every line yourself, or trust it and hope.',
   );
   assert.ok(long > short, 'a nine-times-longer line did not get more time');
-  assert.ok(short >= MS_LINE_FLOOR, 'a short line fell under the floor');
+  assert.ok(
+    short >= MS_BLOCK_ACQUIRE + MS_READ_FLOOR,
+    'a short line fell under acquisition plus the reading floor',
+  );
+});
+
+test('TEETH: NO LINE IS DELIVERED FASTER THAN THE CEILING — the owner could not read it', () => {
+  // ⚠ THIS IS THE TEST THE 2026-08-29 DEFECT NEEDED AND DID NOT HAVE. The owner walked the live
+  // site and reported "couldnt read it". Every timing test above passed at the time, because they
+  // all asked about DWELL — and the defect was that acquisition (the CSS fade) was inside the
+  // dwell rather than on top of it, so a line nominally allotted 1150ms was READABLE for 430.
+  //
+  // The ceiling is stated in characters per second because that is the unit the subtitle standards
+  // use, and this is the subtitle problem: text over a picture the viewer also has to watch.
+  // Netflix's Timed Text Style Guide caps adult programming at 17 cps. This copy is silent,
+  // propositional and deliberately over a map, so it sits under that.
+  //
+  // FALSIFIABILITY, MEASURED RATHER THAN CLAIMED. Against the pre-fix constants
+  // (MS_PER_WORD = 252, MS_LINE_FLOOR = 1150, a 0.7s block fade charged to the budget) this test
+  // reds on four lines at 37.2, 38.9, 46.3 and 53.7 cps — two to three times the ceiling. The
+  // record is in docs/research/tell-pace-2026-08-29/.
+  const script = resolveScript(TELL_SCRIPT, TODAY);
+  const offenders: string[] = [];
+  for (let i = 0; i < script.length; i += 1) {
+    const state = stateAt(i, script, TODAY);
+    state.lines.forEach((line, j) => {
+      const cps = deliveredCps(state.lines, j, state.figure);
+      if (cps > CPS + 0.5) {
+        offenders.push(
+          `${state.id}[${j}] "${line}" — ${cps.toFixed(1)} cps over ${legibleMs(state.lines, j, state.figure)}ms`,
+        );
+      }
+    });
+  }
+  assert.deepEqual(offenders, [], `lines delivered faster than ${CPS} cps:\n  ${offenders.join('\n  ')}`);
+});
+
+test('TEETH: every line is legible for at least the reading floor, fade excluded', () => {
+  // The companion to the ceiling. A long line can satisfy the cps ceiling while a SHORT one is
+  // flashed — "It is yours now." was on screen opaque for 430ms — so the floor is asserted on the
+  // legible window directly, never on the allotted dwell.
+  const script = resolveScript(TELL_SCRIPT, TODAY);
+  for (let i = 0; i < script.length; i += 1) {
+    const state = stateAt(i, script, TODAY);
+    state.lines.forEach((_, j) => {
+      const legible = legibleMs(state.lines, j, state.figure);
+      assert.ok(
+        legible >= MS_READ_FLOOR,
+        `${state.id}[${j}] is legible for ${legible}ms, under the ${MS_READ_FLOOR}ms floor`,
+      );
+    });
+  }
+});
+
+test('TEETH: the acquisition constants track the stylesheet they were transcribed from', () => {
+  // ⚠ THE ONE JOINT NOTHING ELSE HOLDS. `MS_BLOCK_ACQUIRE` / `MS_LINE_ACQUIRE` are the .tell-block
+  // and .tell-line transition durations copied into TypeScript, because the CSS lives in an .astro
+  // file this module cannot import. Slowing a fade in index.astro without touching this file would
+  // silently re-create the original defect — the budget would keep paying for a fade shorter than
+  // the one actually running — and every other test here would stay green. So this one reads the
+  // stylesheet.
+  const page = readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
+  const grab = (selector: string): number => {
+    const block = new RegExp(`\\.${selector}\\s*\\{[^}]*?transition:\\s*opacity\\s+([0-9.]+)s`, 's');
+    const m = block.exec(page);
+    assert.ok(m !== null, `could not find a .${selector} opacity transition in index.astro`);
+    return Math.round(Number(m[1]) * 1000);
+  };
+  const blockFade = grab('tell-block');
+  const lineFade = grab('tell-line');
+  // The block constant also carries applyBeat's one-frame `is-on` deferral, so it is the fade plus
+  // a small, bounded scheduling cost — never less than the fade.
+  assert.ok(
+    MS_BLOCK_ACQUIRE >= blockFade && MS_BLOCK_ACQUIRE <= blockFade + 60,
+    `.tell-block fades over ${blockFade}ms but the budget charges ${MS_BLOCK_ACQUIRE}ms`,
+  );
+  assert.equal(
+    MS_LINE_ACQUIRE,
+    lineFade,
+    `.tell-line fades over ${lineFade}ms but the budget charges ${MS_LINE_ACQUIRE}ms`,
+  );
+});
+
+test('the last line of a beat is credited the tail and the gap, not charged them twice', () => {
+  // Nothing replaces the column until the NEXT beat starts, so the last line keeps
+  // MS_LINE_TAIL + MS_BEAT_GAP of fully-opaque time after its own slice ends. Budgeting its slice
+  // as if that time did not exist would add ~9s of dead air across ten beats for no legibility.
+  const lines = ['Short one.', 'A rather longer second line that needs a real reading budget.'];
+  const slices = beatSlicesMs(lines);
+  assert.ok(slices.length === 2);
+  assert.ok(
+    slices[1]! < MS_LINE_ACQUIRE + (lines[1]!.length * 1000) / CPS,
+    'the last line was charged its full reading budget as well as keeping the tail and gap',
+  );
+  assert.ok(
+    legibleMs(lines, 1) >= (lines[1]!.length * 1000) / CPS - 1,
+    'the last line ends up with less legible time than its reading budget',
+  );
 });
 
 test('TEETH: lengthening a line lengthens its beat — the cadence is derived, not hand-set', () => {
@@ -316,8 +420,16 @@ test('SHORT AND LIGHT is measured, not asserted (ADR-0453 D1)', () => {
   // "Short and light is the binding constraint, not a style note." A ceiling is the only way that
   // sentence can survive future edits, and the number is deliberately generous: this fails when
   // someone adds a paragraph, not when they add a word.
+  //
+  // ⚠ THE CEILING MOVED FROM 65s TO 85s ON 2026-08-29, AND THE COPY DID NOT GROW BY A WORD. The
+  // pace repair raised the sequence from 54s to 72s on the SAME 779 characters, because the old
+  // 54s was not a length — it was 779 characters delivered too fast to read. Roughly 135 words of
+  // unfamiliar propositional copy takes about a minute at any honest rate; that is arithmetic, and
+  // the only way to make this materially shorter is to say less. If the sequence should be
+  // shorter, CUT COPY — do not buy it back by raising CPS, which is the change this ceiling exists
+  // to make visible.
   const seconds = totalDurationMs(resolveScript(TELL_SCRIPT, TODAY), TODAY) / 1000;
-  assert.ok(seconds < 65, `TELL runs ${seconds.toFixed(1)}s — it has grown into a lesson`);
+  assert.ok(seconds < 85, `TELL runs ${seconds.toFixed(1)}s — it has grown into a lesson`);
   assert.ok(seconds > 20, `TELL runs ${seconds.toFixed(1)}s — too short to have said anything`);
 });
 

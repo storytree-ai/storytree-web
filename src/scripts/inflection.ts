@@ -44,6 +44,7 @@
 // ---------------------------------------------------------------------------
 
 import { mountForestArrival, type ArrivalHandle } from './forest-arrival';
+import { mountForestGrowth, type GrowthHandle } from './forest-growth';
 import { mountTell, type TellHandle } from './act2-tell';
 
 /** The exported handle the storm engine holds — name kept for the unchanged
@@ -74,25 +75,39 @@ function prefersReducedMotion(): boolean {
  */
 export function mountForestLand(container: HTMLElement): InflectionHandle {
   // The real forest is ALREADY IN THE DOM — `index.astro` serialised it at build time into
-  // `#storm-land-canvas`. Nothing is fetched, built or grown here; this only frames it at the
-  // designed resting view (ADR-0471) and lets the visitor move around it.
+  // `#storm-land-canvas`. Nothing is fetched or built here; this frames it at the designed resting
+  // view (ADR-0471) and lets the visitor move around it. `forest-growth` then reveals it — the
+  // islands are already present and are only DISPLAYED differently, which is the same fence TELL's
+  // lenses keep and the reason the reveal cannot imply a live feed.
   const arrival: ArrivalHandle = mountForestArrival(container);
+
+  const host = container.closest('#storm-land');
+  const map = container.querySelector('svg.forest-arrival-svg');
+  const reducedMotion = prefersReducedMotion();
+
+  // ⚠ GROWTH IS ARMED BEFORE TELL AND AFTER FRAMING, AND THAT ORDER IS LOAD-BEARING. The islands
+  // must be parked on the frame the visitor will actually see (framing first), and the first thing
+  // TELL says has to land on a forest that is arriving rather than one still waiting to (growth
+  // first). `MS_LEAD_IN` is timed to overlap the last waves on purpose — the name over a forest
+  // still assembling is the opening; queueing the two would be two events where there is one.
+  const growth: GrowthHandle | null = map !== null ? mountForestGrowth(map, reducedMotion) : null;
 
   // TELL speaks over that forest. Both of its inputs come from the map itself — the counts it
   // quotes and the status of the island it points at — so if the map is missing or unreadable,
   // `mountTell` returns an inert handle and the visitor simply gets the forest, silently and
   // correctly. A prose overlay is an enhancement on top of an enhancement; neither is a prerequisite
   // for the other.
-  const host = container.closest('#storm-land');
-  const map = container.querySelector('svg.forest-arrival-svg');
   const tell: TellHandle | null =
     host instanceof HTMLElement && map !== null
-      ? mountTell({ host, map, stage: arrival, reducedMotion: prefersReducedMotion() })
+      ? mountTell({ host, map, stage: arrival, reducedMotion })
       : null;
 
   return {
     unmount(): void {
       tell?.unmount();
+      // Before the map framing goes, so a mid-growth skip leaves every island revealed rather than
+      // parked at scale 0.62 under a class nothing will now remove.
+      growth?.unmount();
       arrival.unmount();
     },
   };
