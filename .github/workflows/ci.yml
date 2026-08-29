@@ -1,0 +1,166 @@
+name: CI
+
+# The PR gate, and the merge that follows it.
+#
+# Until this file existed, A PULL REQUEST ON THIS REPO RAN NOTHING: `deploy.yml` is the only other
+# workflow and it triggers on `push: main`, so every check happened AFTER the merge, during the
+# deploy. A broken change was caught by a red deploy on `main` — i.e. once the site had already
+# failed to publish. The `verify` job below moves those checks to the PR, which is the larger half
+# of what this file is for; `automerge` is the convenience on top.
+#
+# The motivating case is the engine sync. The parent repo (`storytree-ai/storytree`) vendors this
+# repo as its `web/` submodule and periodically opens a PR here to re-sync its render core. Those
+# PRs are machine-generated, are green or they are nothing, and had no way to land except an owner
+# merging by hand — storytree-web#61 sat open until it was merged manually.
+
+on:
+  pull_request:
+    branches: [main]
+
+# A new push to the same PR supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Node 22 + `npm ci` deliberately mirrors `deploy.yml`. This repo is npm, NOT pnpm — the
+      # PARENT repo is the pnpm workspace, and reaching for pnpm here is the easy mistake to make.
+      # Action major versions also match `deploy.yml`; a repo whose two workflows pin different
+      # majors of the same action is a repo where nobody can tell which one is deliberate.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm test` is `bun test src/`, so Bun has to be on PATH — npm installs it for nobody, and
+      # without this step the Test step below dies with `bun: not found` (a failure that names
+      # neither Bun nor the fix). Pinned to the SAME version as the parent repo's ci.yml, because
+      # the two repos share source through the engine sync and a test runtime that differs between
+      # them is a difference that shows up as a mystery red on one side only.
+      - name: Set up Bun (test runtime — npm still owns install)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # The build is a real check here, not just a packaging step: this is a static site, so every
+      # page is rendered at build time and a broken component fails the build rather than the
+      # browser.
+      #
+      # NOT DUPLICATED HERE: `deploy.yml`'s "Assert expected pages built" step, which checks that a
+      # specific list of pages exists in `dist/`. A PR that deletes a page therefore still goes
+      # green here and reds the deploy after merging. That is a known, deliberate gap — the fix is
+      # to share ONE list between the two workflows rather than to keep a second copy in sync, and
+      # that is a bigger change than this file.
+      - name: Build
+        run: npm run build
+
+  automerge:
+    name: automerge
+    needs: verify
+    # Verbatim from the parent repo's ci.yml: a PR merges the instant it is green UNLESS it is a
+    # draft or carries the `hold` label. Those two are the escape hatch, and they are the only one —
+    # anything not meant to land on its own must be opened as a draft or labelled `hold`.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == false &&
+      !contains(github.event.pull_request.labels.*.name, 'hold')
+    runs-on: ubuntu-latest
+    # This repo's DEFAULT workflow token is read-only (Settings → Actions → Workflow permissions).
+    # An explicit block like this one is not capped by that default, so these grants do take effect
+    # — but it also means the grants must be written out here rather than inherited.
+    permissions:
+      contents: write # merge the PR and delete its branch
+      pull-requests: write # ditto, via the PR API
+      actions: write # dispatch deploy.yml below — see the deploy step's comment
+    steps:
+      # ⚠ `--merge`, NEVER `--squash` or `--rebase`. THIS IS THE LOAD-BEARING FLAG IN THIS FILE.
+      #
+      # The parent repo pins an EXACT commit of this repo as its `web/` submodule gitlink. A squash
+      # or a rebase rewrites the branch's commits into new ones, so the commit the parent pins stops
+      # existing in this repo's history — and the pin dangles the moment the old branch is tidied
+      # away. A fresh `git clone --recurse-submodules` of the parent then fails outright. A merge
+      # commit keeps every branch commit reachable, which is what the pin needs.
+      - name: Merge now that the gate is green
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --merge \
+            --delete-branch
+
+          # READ THE OUTCOME BACK rather than assuming it, because the step after this one acts on
+          # `main` and must never act on a `main` this PR is not actually in.
+          #
+          # Carried over from the parent's ci.yml deliberately, with its reason changed. There it
+          # also distinguishes MERGED from queued, because `gh pr merge` against a base branch with
+          # a merge queue ADDS TO THE QUEUE instead of merging. This repo has no queue and `main` is
+          # unprotected, so that branch is unreachable today — the read stays because it costs one
+          # API call, because it is the only thing standing between a failed merge and a deploy of
+          # the wrong tree, and because it remains correct if a queue or branch protection is ever
+          # switched on here.
+          #
+          # `state`, not `merged`: gh exposes no `merged` field and asking for one is a hard error,
+          # not an empty result. That exact typo shipped in the parent (#1139) and skipped every
+          # post-merge step.
+          state=$(gh pr view ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} --json state --jq '.state' || echo "")
+          case "$state" in
+            MERGED)
+              echo "merged=true" >> "$GITHUB_OUTPUT"
+              echo "Merged."
+              ;;
+            *)
+              echo "merged=false" >> "$GITHUB_OUTPUT"
+              echo "::error::Could not confirm the merge (PR state read back as '${state}'). The merge itself may well have succeeded — check the PR. The deploy dispatch is skipped; run it by hand with 'gh workflow run deploy.yml --ref main' if the PR did merge."
+              exit 1
+              ;;
+          esac
+
+      # -----------------------------------------------------------------------
+      # WITHOUT THIS STEP, AUTOMERGE WOULD SILENTLY STOP DEPLOYING THE SITE.
+      #
+      # `deploy.yml` triggers on `push: main`. GitHub deliberately does NOT cascade a
+      # push-triggered workflow from a push made with the built-in GITHUB_TOKEN (anti-recursion, so
+      # workflows can't loop). The merge above is exactly such a push. So an auto-merged PR would
+      # land on `main` and the site would keep serving the OLD build until someone noticed — while
+      # an owner's MANUAL merge (a user token) cascades normally, which is why this gap only opens
+      # once automerge exists.
+      #
+      # This is not hypothetical. The parent repo hit precisely this bug after adding automerge, as
+      # a real "the deploy doesn't show my updates" report, and fixed it the same way (ADR-0061):
+      # `workflow_dispatch` is the documented exception — it fires even from GITHUB_TOKEN, given the
+      # `actions: write` scope granted above — and `deploy.yml` already declares that trigger.
+      #
+      # UNCONDITIONAL, unlike the parent's path-gated equivalent: this is a single-purpose site
+      # repo, so nearly every merge changes what gets published, and a path filter here would buy a
+      # few skipped builds at the price of a silently stale site whenever the filter is wrong. A
+      # redundant rebuild is cheap and idempotent; a missed one is the bug being fixed.
+      #
+      # MUST STAY LAST, and is deliberately LOUD (no continue-on-error) — a missed deploy is the
+      # failure this step exists to prevent, so it should be visible as a red job.
+      # -----------------------------------------------------------------------
+      - name: Dispatch the here.now deploy (GITHUB_TOKEN merges don't cascade — ADR-0061)
+        if: success() && steps.merge.outputs.merged == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main --repo ${{ github.repository }}
