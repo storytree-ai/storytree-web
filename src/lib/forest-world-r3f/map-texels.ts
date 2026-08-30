@@ -37,27 +37,51 @@ export interface MapMeans {
   opaqueFraction: number;
 }
 
-/**
- * Draw a decoded texture image into a 2D canvas and answer its raw and linearised means.
+/** RGBA bytes, in the one shape a canvas readback and a hand-built fixture both answer.
  *
- * ⚠ BOTH MEANS ARE COMPUTED HERE, FROM THE SAME TEXELS, IN THE SAME PASS. The linearised one is
+ *  ⚠ ITS OWN KEY ITERATOR IS PART OF THE CONTRACT. The means are taken over `data.keys()` rather
+ *  than over a counter, because a `for (let i = 0; i < n; i += 4)` carries mutants that flip `+=`
+ *  to `-=` and `<` to `>` — neither fails an assertion, both run forever, and the mutation rung
+ *  scores a hang as unproven. */
+export type TexelBuffer = ArrayLike<number> & { keys(): IterableIterator<number> };
+
+/** What a run of texels averages to, raw and linearised, and how many of them counted. */
+export interface TexelMeans {
+  raw: Rgb;
+  linear: Rgb;
+  /** How many texels passed the opaque cut — a COUNT, which {@link MapMeans} turns into a
+   *  fraction of the whole map. */
+  opaque: number;
+}
+
+/** A decoded map's own pixel dimensions. */
+export interface DecodedSize {
+  width: number;
+  height: number;
+}
+
+/**
+ * ⚠ BOTH MEANS ARE COMPUTED FROM THE SAME TEXELS IN THE SAME PASS. The linearised one is
  * `mean(srgb_to_linear(texel))` and NOT `srgb_to_linear(mean(texel))` — the curve is convex, so
  * those differ, and predicting with the wrong one leaves a systematic error that a tolerance
  * would then have to absorb. A tolerance absorbing a modelling error has stopped discriminating.
  */
-export function mapMeans(image: DecodedMap): MapMeans {
-  const width = Number(image.width ?? 0);
-  const height = Number(image.height ?? 0);
-  if (!(width > 0 && height > 0)) throw new Error('map-texels: a map has no decoded pixels');
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) throw new Error('map-texels: no 2d context to read a map with');
-  ctx.drawImage(image, 0, 0);
-  const data = ctx.getImageData(0, 0, width, height).data;
-
+/**
+ * THE MEANS THEMSELVES — the arithmetic, over raw RGBA bytes, with no canvas anywhere.
+ *
+ * ⚠⚠ EXTRACTED FROM {@link mapMeans} SO IT CAN BE PROVED. Reading a texture's texels needs a 2D
+ * canvas and therefore a browser; the arithmetic over them does not, and it is where every claim
+ * lives — which mean is which, that only solid texels count, and what "no solid texels at all"
+ * does. Left inside the canvas read it was 65 mutants nothing could reach, and
+ * `check:mutation-diff` said so. The remedy is not a better browser fixture: it is that the
+ * subject of the assertions was never the canvas.
+ *
+ * ⚠ IT ITERATES `data.keys()` RATHER THAN A COUNTER. A `for (let i = 0; i < n; i += 4)` carries
+ * mutants that flip `+=` to `-=` and `<` to `>`; neither fails an assertion, both run forever, and
+ * the rung scores a hang UNPROVEN — credited to nobody. A typed array's own key iterator has
+ * nothing to mutate into one.
+ */
+export function texelMeans(data: TexelBuffer): TexelMeans {
   let rr = 0;
   let gg = 0;
   let bb = 0;
@@ -65,7 +89,8 @@ export function mapMeans(image: DecodedMap): MapMeans {
   let lg = 0;
   let lb = 0;
   let n = 0;
-  for (let i = 0; i < data.length; i += 4) {
+  for (const i of data.keys()) {
+    if (i % 4 !== 0) continue;
     if (data[i + 3]! < OPAQUE_TEXEL_CUT) continue;
     const r = data[i]!;
     const g = data[i + 1]!;
@@ -76,14 +101,83 @@ export function mapMeans(image: DecodedMap): MapMeans {
     lr += srgbToLinearUnit(r / 255) * 255;
     lg += srgbToLinearUnit(g / 255) * 255;
     lb += srgbToLinearUnit(b / 255) * 255;
-    n++;
+    n += 1;
   }
   if (n === 0) throw new Error('map-texels: a map has no solid texels at all');
   return {
     raw: { r: rr / n, g: gg / n, b: bb / n },
     linear: { r: lr / n, g: lg / n, b: lb / n },
+    opaque: n,
+  };
+}
+
+/**
+ * A DECODED MAP'S OWN PIXEL DIMENSIONS — refused when it has none, never defaulted.
+ *
+ * ⚠ THE REFUSAL IS THE POINT. A texture whose image never decoded answers `undefined` for both,
+ * and a zero-sized read returns an empty buffer — which {@link texelMeans} would then refuse as
+ * "no solid texels", naming the wrong fault. This says the true one, and it is arithmetic rather
+ * than canvas work, so it is proved here rather than only in a browser.
+ */
+export function decodedSize(image: { width?: number; height?: number }): DecodedSize {
+  const width = Number(image.width ?? 0);
+  const height = Number(image.height ?? 0);
+  if (!(width > 0 && height > 0)) throw new Error('map-texels: a map has no decoded pixels');
+  return { width, height };
+}
+
+/** {@link MapMeans} over an already-read texel buffer of known dimensions — the whole answer,
+ *  assembled, with the opaque COUNT turned into the fraction a caller reads. */
+export function meansOverTexels(data: TexelBuffer, width: number, height: number): MapMeans {
+  const means = texelMeans(data);
+  return {
+    raw: means.raw,
+    linear: means.linear,
     width,
     height,
-    opaqueFraction: n / (width * height),
+    opaqueFraction: means.opaque / (width * height),
   };
+}
+
+/** The 2D drawing surface a decoded map's texels are read back through. */
+export interface TexelContext {
+  drawImage(image: DecodedMap, dx: number, dy: number): void;
+  getImageData(sx: number, sy: number, sw: number, sh: number): { data: Uint8ClampedArray };
+}
+
+/** A canvas that surface is got from — sized before it is drawn into. */
+export interface TexelCanvas {
+  width: number;
+  height: number;
+  getContext(id: '2d', opts: { willReadFrequently: boolean }): TexelContext | null;
+}
+
+/** Where that canvas comes from: the document in a browser, a double in a test.
+ *
+ *  ⚠⚠ A SEAM, NOT INDIRECTION, AND IT NAMES THE ACTUAL BROWSER-BOUND PART. What needs a browser
+ *  here is DECODING an image; sizing a canvas to the map's own dimensions, asking for a readback
+ *  context, drawing at the origin and refusing a surface that has none are all claims about this
+ *  module and none of them need one. Left behind `document` they were mutants nothing could
+ *  reach — the same finding that pulled {@link texelMeans} out of the read above it. */
+export type TexelCanvasFactory = () => TexelCanvas;
+
+const domCanvas: TexelCanvasFactory = () => document.createElement('canvas');
+
+/**
+ * Draw a decoded texture image into a 2D canvas and answer its raw and linearised means.
+ *
+ * ⚠ THE ARITHMETIC IS {@link texelMeans}'S and the assembly is {@link meansOverTexels}'S. What is
+ * left here is the READBACK — get the texels out of a decoded image — and it is the only part of
+ * this module that depends on where the canvas came from.
+ */
+export function mapMeans(image: DecodedMap, canvasFor: TexelCanvasFactory = domCanvas): MapMeans {
+  const { width, height } = decodedSize(image);
+
+  const canvas = canvasFor();
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('map-texels: no 2d context to read a map with');
+  ctx.drawImage(image, 0, 0);
+  return meansOverTexels(ctx.getImageData(0, 0, width, height).data, width, height);
 }
