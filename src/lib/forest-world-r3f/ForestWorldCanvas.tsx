@@ -31,17 +31,22 @@
 // nothing focused, nothing shown; opting in draws the whole network. Ghost
 // (under-island) strips are never drawn here — the cave props carry that story.
 
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Instance, Instances, Line, MapControls } from '@react-three/drei';
 import { Color, OrthographicCamera } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d';
 import { frameWorld, orthographicZoomFor } from './camera-framing';
 import { cellGroundGeometry, type LinearRgb } from './cell-ground-geometry';
-import { landRelief } from './land-relief';
+import { LAND_RELIEF_AMPLITUDE, landRelief } from './land-relief';
+import { buildGroundOcclusion } from './contact-shade';
+import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from './ground-casters';
+import type { ShadowCaster } from './land-shadow';
 import {
   GROUND_STATUS_ATTRIBUTE,
   createBandedGroundMaterial,
+  groundShadowTexture,
+  type BandedGroundMaterialOptions,
 } from './banded-ground-material';
 
 /** THE DECIDED GROUND VOCABULARY — five colours over six states.
@@ -190,9 +195,65 @@ const groundRowOf = (material: string | undefined): number =>
   GROUND_ROWS.get(material ?? UNKNOWN_STATUS) ?? GROUND_ROWS.get(UNKNOWN_STATUS)!;
 
 /** The ONE banded ground material, built once for the module rather than per canvas: it holds
- *  only the authored ramp and the authored light, both of which are constants, so a second
- *  instance would be a second copy of the same 24 colours with a second chance to disagree. */
-const BANDED_GROUND = createBandedGroundMaterial({ tokens: GROUND_TOKENS });
+ *  only the authored ramp, the authored light and the authored grain, all of which are constants,
+ *  so a second instance would be a second copy of the same 24 colours with a second chance to
+ *  disagree.
+ *
+ *  ⚠ IT WEARS THE GRAIN'S NORMAL HALF, UNCONDITIONALLY AND WITH NO FLAG (2026-08-30) — the third
+ *  component of the approved treatment to cross, and the rest of the owner's "improve the ground
+ *  texture". The ladder gave the land authored zones; the grain is what gives those zones an EDGE
+ *  at the zoomed read, which is the component the research measured as worth +54% of the bare
+ *  land's micro-contrast and the only lever that makes the ground survive being zoomed into.
+ *
+ *  ⚠⚠ AND IT IS THE NORMAL HALF ONLY, WHICH IS A MEASUREMENT RATHER THAN A CAUTION. The Cycles
+ *  grain is two mechanisms. The normal half perturbs the lambert BEFORE the quantiser, so the
+ *  fragment still writes an authored ramp entry and this material's whole guarantee — every
+ *  delivered land pixel is one of 20 authored `(token x level)` colours — is untouched. The
+ *  COLOUR half mixes a noise ramp into the delivered colour, and
+ *  `harness/grain-status-reading.ts` drove all six ground tokens through that mix and found its
+ *  authored fac of 0.13 INADMISSIBLE: the `proposed`/`building` yellow at the ladder's two
+ *  darkest rungs walks into `healthy`'s green under the house reader model, which is an
+ *  ADR-0392 D5 / ADR-0398 D7 failure rather than a matter of taste. The largest fac every reading
+ *  survives is 0.031. That fork is the owner's and is open;
+ *  `oq-the-grain-s-colour-half-is-inadmissible-on-the-shipped-pa` carries it. */
+/**
+ * The ONE banded ground material for a scene.
+ *
+ * ⚠ IT USED TO BE A MODULE-SCOPE SINGLETON and stopped being one when the shadow arrived
+ * (2026-08-30). The ramp, the light and the grain are all constants, so one instance for the
+ * module was right; the OCCLUSION FIELD is not a constant — it is built over this island's own
+ * ground bounds from this island's own casters — so a shared material would hand every canvas
+ * the first one's shadow. It is memoised per parcel set instead, which keeps the "one material,
+ * one copy of the 24 colours" property that mattered.
+ *
+ * ⚠ IT WEARS THE OCCLUSION FIELD UNCONDITIONALLY AND WITH NO FLAG, like the relief, the ladder
+ * and the grain before it — the arc's end-state item 6 is explicit that a flag nobody flips is
+ * not adoption. The owner asked for shadows by name on 2026-08-29.
+ *
+ * ⚠⚠ AND THE RUNG IT DARKENS TO IS DERIVED, NOT CHOSEN. `shadowLadderFor` sweeps the ladder
+ * downward asking whether every authored ground token still reads as ITSELF, and hands back the
+ * deepest level at which they all do — 0.77 on this palette, against a flat-ground rung of 0.90,
+ * so a shadowed parcel is about 14% darker than a lit one. One rung below that, the
+ * `proposed`/`building` yellow reads as `healthy` green: a merely-proposed capability reporting
+ * as signed-off, which is an ADR-0392 D5 / ADR-0398 D7 failure rather than a matter of taste. The
+ * headroom is 3.0 weighted channel units and it is the PALETTE's tightness, not the shadow's
+ * greed — the same wall the grain's colour half met.
+ */
+function buildGroundMaterial(cells: readonly InstanceDescriptor[], casters: readonly ShadowCaster[]) {
+  const opts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS, grain: 'normal' };
+  const bounds = groundBounds(cells);
+  // A parcel set that bounds nothing gets no field rather than a one-texel one every fragment
+  // then samples. `groundBounds` returns null rather than a degenerate rect precisely so this
+  // branch has to be written down.
+  const shadow =
+    bounds === null
+      ? null
+      : groundShadowTexture(
+          buildGroundOcclusion({ bounds, relief: LAND_RELIEF_AMPLITUDE, casters }),
+        );
+  if (shadow !== null) opts.shadow = shadow;
+  return { material: createBandedGroundMaterial(opts), shadow };
+}
 
 /** The RELAXED-MESH ground: every parcel on the island in ONE merged, flat-shaded buffer.
  *
@@ -221,28 +282,50 @@ const BANDED_GROUND = createBandedGroundMaterial({ tokens: GROUND_TOKENS });
  *  could deliver any lightness the scene lights produced, where every pixel this one can emit is
  *  one of the 24 authored `(token x level)` products, floored at 0.78 of the token.
  *
+ *  ⚠ AND IT WEARS THE GRAIN'S NORMAL HALF, ALSO UNCONDITIONALLY AND FOR THE SAME REASON
+ *  (2026-08-30). See {@link BANDED_GROUND} for why only that half of the grain ships.
+ *
  *  ⚠ SO THE COLOUR ATTRIBUTE IS GONE FROM THE UPLOAD, and `statusIndex` is what replaces it. The
  *  buffer still CARRIES `colors` — the comparison instrument builds the pre-adoption arms out of
  *  it — but uploading an attribute no material reads would be payload the map draws nothing
  *  with. */
-function CellGround({ cells }: { cells: InstanceDescriptor[] }) {
-  const geo = useMemo(
-    () =>
-      cellGroundGeometry({
-        cells,
-        resolve: linearColourOf,
-        index: groundRowOf,
-        relief: landRelief,
-      }),
-    [cells],
+function CellGround({
+  cells,
+  casters,
+}: {
+  cells: InstanceDescriptor[];
+  casters: readonly ShadowCaster[];
+}) {
+  const built = useMemo(() => {
+    const geo = cellGroundGeometry({
+      cells,
+      resolve: linearColourOf,
+      index: groundRowOf,
+      relief: landRelief,
+    });
+    return { geo, ...buildGroundMaterial(cells, casters) };
+  }, [cells, casters]);
+  // ⚠ THE MATERIAL AND ITS TEXTURE ARE DISPOSED, WHICH THE MODULE-SCOPE SINGLETON NEVER NEEDED
+  // TO BE. The occlusion field is about 107 KB of GPU memory for one island, and a canvas that
+  // re-mounts on every navigation would strand one copy per visit — a leak that grows with use
+  // and is invisible until a long session runs out of texture memory.
+  useEffect(
+    () => () => {
+      built.material.dispose();
+      built.shadow?.texture.dispose();
+    },
+    [built],
   );
-  if (geo.triangles === 0) return null;
+  if (built.geo.triangles === 0) return null;
   return (
-    <mesh material={BANDED_GROUND}>
+    <mesh material={built.material}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[geo.positions, 3]} />
-        <bufferAttribute attach="attributes-normal" args={[geo.normals, 3]} />
-        <bufferAttribute attach={`attributes-${GROUND_STATUS_ATTRIBUTE}`} args={[geo.statuses, 1]} />
+        <bufferAttribute attach="attributes-position" args={[built.geo.positions, 3]} />
+        <bufferAttribute attach="attributes-normal" args={[built.geo.normals, 3]} />
+        <bufferAttribute
+          attach={`attributes-${GROUND_STATUS_ATTRIBUTE}`}
+          args={[built.geo.statuses, 1]}
+        />
       </bufferGeometry>
     </mesh>
   );
@@ -252,13 +335,21 @@ function StoryTree({ tree }: { tree: InstanceDescriptor }) {
   const { x, y, z } = tree.transform;
   const colour = crownColourOf(tree.material);
   return (
+    /* ⚠ THE DIMENSIONS COME FROM `ground-casters.ts`, NOT FROM LITERALS HERE. The occlusion
+       field derives this tree's shadow from the same two constants, so a tree that grew and a
+       shadow that did not is unrepresentable — the argument `bandGlsl` makes about the ladder,
+       applied to a silhouette. */
     <group position={[x, y, z]}>
-      <mesh position={[0, 4, 0]}>
-        <cylinderGeometry args={[1.2, 1.6, 8]} />
+      <mesh position={[0, STORY_TREE_TRUNK.height / 2, 0]}>
+        <cylinderGeometry
+          args={[STORY_TREE_TRUNK.radiusTop, STORY_TREE_TRUNK.radiusBottom, STORY_TREE_TRUNK.height]}
+        />
         <meshStandardMaterial color="#6b4f35" />
       </mesh>
-      <mesh position={[0, 12, 0]}>
-        <coneGeometry args={[7, 14, 8]} />
+      <mesh position={[0, STORY_TREE_CROWN.centreY, 0]}>
+        <coneGeometry
+          args={[STORY_TREE_CROWN.radius, STORY_TREE_CROWN.height, STORY_TREE_CROWN.segments]}
+        />
         <meshStandardMaterial color={colour} />
       </mesh>
     </group>
@@ -350,8 +441,16 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   // practice exactly one of `grounds` / `cells` is ever non-empty — but both are drawn
   // unconditionally rather than switched on, because a mapper that started emitting both would
   // then show it rather than silently drop one.
-  const cells = byKind(descriptors, 'cell-ground');
-  const trees = byKind(descriptors, 'story-tree');
+  // ⚠ MEMOISED ON `descriptors` RATHER THAN RECOMPUTED PER RENDER, which `byKind` alone was.
+  // The parcel slice is what `CellGround` keys its own memo on, and that memo now builds a 107 KB
+  // occlusion field and uploads a texture: a fresh array identity every render would rebuild and
+  // re-upload both on every frame the canvas re-rendered for any reason at all.
+  const cells = useMemo(() => byKind(descriptors, 'cell-ground'), [descriptors]);
+  const trees = useMemo(() => byKind(descriptors, 'story-tree'), [descriptors]);
+  // Everything that stands on the land and therefore darkens it. Derived from the WHOLE
+  // descriptor set rather than from `trees` alone, because cave portals cast too and a caller
+  // reading this list should see one place that answers "what casts a shadow here".
+  const casters = useMemo(() => groundCasters(descriptors), [descriptors]);
   // trail-ghost-strip descriptors are deliberately not drawn (the surface's call —
   // the under-island run is told by the cave props, which render unconditionally
   // like the 2D scene's flora-layer props).
@@ -370,7 +469,7 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
       <ambientLight intensity={0.7} />
       <directionalLight position={[120, 300, 80]} intensity={1.1} />
       <HexGround tiles={grounds} />
-      <CellGround cells={cells} />
+      <CellGround cells={cells} casters={casters} />
       {trees.map((t, i) => (
         <StoryTree key={i} tree={t} />
       ))}
