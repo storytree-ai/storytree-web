@@ -258,9 +258,48 @@ check('the shape on screen is the shape on disk — counted, never written',
   }),
   `disk: ${JSON.stringify(diskArcs.map((a) => [a.incrementsClosed, a.incrementsOpen]))}  `
   + `panel: ${JSON.stringify(s.arcs.map((a) => a.tally))}`);
-check('NO ARC BODY REACHES THE PAGE — the one protection this tier has',
-  !/(intent|end state|endState|objective)/i.test(s.text ?? ''),
-  `the panel text carries a body word: ${JSON.stringify((s.text ?? '').slice(0, 400))}`);
+// ⚠ THIS CHECK ASKS THE PAYLOAD, NOT THE PROSE, AND IT WAS WRONG TWICE BEFORE IT WAS RIGHT.
+//
+// It began as a grep of the panel's text for body words — and shipped with a literal BACKSPACE byte
+// where each `\\b` should have been (a shell heredoc ate the escape), so the regex could not match
+// anything and the check passed unconditionally. It reported a PASS against the LIVE site having
+// verified nothing: the exact fault this file's own header warns about, landed in the check whose
+// subject is the only protection this tier has.
+//
+// Repairing the escape is NOT the fix, because the grep was the wrong question anyway: ROAM's own
+// copy says "tracked from its intent to its end", so a WORKING word-grep fails on correct output.
+// Body prose is a DATA property — does the published record carry a field it may not — so this walks
+// the keys of every arc record the build emitted. That can genuinely fail, does not depend on what
+// any sentence happens to say, and catches a leak wherever in the payload it lands.
+const arcRecords = await page.evaluate(() => {
+  const raw = document.querySelector('.forest-arrival-svg')?.getAttribute('data-forest-roam');
+  if (!raw) return null;
+  const parsed = JSON.parse(raw);
+  const arcs = parsed.arcs ?? [];
+  return {
+    arcKeys: [...new Set(arcs.flatMap((a) => Object.keys(a)))].sort(),
+    adrKeys: [...new Set(arcs.flatMap((a) => (a.adrs ?? []).flatMap((d) => Object.keys(d))))].sort(),
+    count: arcs.length,
+  };
+});
+const ARC_ALLOWED = ['adrs', 'id', 'incrementsClosed', 'incrementsOpen', 'lifecycle', 'title'];
+const ADR_ALLOWED = ['number', 'status', 'title'];
+const arcKeysOk =
+  arcRecords !== null &&
+  arcRecords.count > 0 &&
+  arcRecords.arcKeys.every((k) => ARC_ALLOWED.includes(k)) &&
+  arcRecords.adrKeys.every((k) => ADR_ALLOWED.includes(k));
+check('NO ARC BODY REACHES THE PAGE — the one protection this tier has', arcKeysOk,
+  arcRecords === null
+    ? 'no arc payload on the page at all'
+    : `${arcRecords.count} arc record(s); keys ${JSON.stringify(arcRecords.arcKeys)} / decision keys `
+      + `${JSON.stringify(arcRecords.adrKeys)}`
+      + `\n        allowed: ${JSON.stringify(ARC_ALLOWED)} / ${JSON.stringify(ADR_ALLOWED)}`);
+// TEETH, in the same run: the walk must reject a record carrying a body field. Without this the
+// check is indistinguishable from the vacuous one it replaced — both print a tick.
+check('TEETH: the key walk REJECTS an arc record carrying a body',
+  !['id', 'title', 'intent'].every((k) => ARC_ALLOWED.includes(k)),
+  'a record with `intent` must not satisfy the allow-list the check above applies');
 check('every decision listed is one the corpus attaches to that arc',
   s.arcs.every((panelArc, i) => (panelArc.adrs ?? []).every((t) => (diskArcs[i]?.adrs ?? []).some((d) => d.title === t))),
   `panel: ${JSON.stringify(s.arcs.map((a) => a.adrs))}`);
