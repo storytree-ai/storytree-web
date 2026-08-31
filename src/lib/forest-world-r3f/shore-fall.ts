@@ -376,6 +376,10 @@ export function shoreField(
           const ez = b.z - a.z;
           const lenSq = ex * ex + ez * ez;
           const raw = lenSq === 0 ? 0 : ((x - a.x) * ex + (z - a.z) * ez) / lenSq;
+          // Stryker disable next-line EqualityOperator: EQUIVALENT — at `raw` exactly 0 or exactly
+          // 1 both sides of each comparison yield the SAME parameter, because the clamp's bound IS
+          // the parameter there. No input separates `<` from `<=` or `>` from `>=`. This is the
+          // note `nearestOnSegment` carries verbatim, on the same arithmetic.
           const t = raw < 0 ? 0 : raw > 1 ? 1 : raw;
           const qx = x - (a.x + ex * t);
           const qz = z - (a.z + ez * t);
