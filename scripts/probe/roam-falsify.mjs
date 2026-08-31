@@ -115,6 +115,65 @@ const MUTATIONS = [
       "'It has its own tests.', 'And its own colour.'],",
     expect: 'every note is one or two sentences',
   },
+  // ── target 5 · the arc drawer ─────────────────────────────────────────────
+  //
+  // ⚠ THE FIRST ONE IS THE IMPORTANT ONE. The arc tier's only protection is that the strategy prose
+  // never leaves the exporter: the forest is safe because it is illegible on purpose, and arc bodies
+  // are readable English about what we are trying to do. `ArcRollup` carries `intent`, `endState`
+  // and every increment `objective` right there beside the title, so "completing" the drawer with
+  // them is a one-line edit that looks like an improvement. It has to be a defect a NAMED test
+  // refuses, on both sides of the repo boundary.
+  //
+  // ⚠ THE MUTATION IS A SPREAD, NOT AN ADDED FIELD, AND THE FIRST ATTEMPT AT IT WAS VACUOUS.
+  // Writing `intent: arc.intent` here leaks nothing: `SnapshotArc` has no such field, the value
+  // is `undefined`, and `JSON.stringify` drops undefined keys — so the mutant behaved exactly
+  // like the original and this probe correctly reported that NOTHING caught it. The defect this
+  // repo can genuinely commit is the SPREAD: `{ ...arc }` looks like a tidy-up, passes review,
+  // and silently forwards whatever the exporter adds next — which is the one thing the named
+  // fold exists to prevent. The test it must red is fed an arc that HAS a body, because today's
+  // published data has none and a fence tested only against today's data has no teeth.
+  {
+    name: 'THE DRAWER RENDERS AN ARC BODY — the one protection this tier has',
+    file: MAP,
+    from: '    arcs: snap.arcs.map((arc) => ({',
+    to: '    arcs: snap.arcs.map((arc) => ({ ...arc,',
+    expect: 'roamPayload NARROWS',
+  },
+  {
+    name: 'an OPEN arc is described as running now, over a dated picture',
+    file: SRC,
+    from: "  active: { word: 'open', sentence: 'It was still open when this picture was taken.' },",
+    to: "  active: { word: 'open', sentence: 'It is still running right now.' },",
+    expect: 'an OPEN arc is described in the picture',
+  },
+  {
+    name: 'a closed step is counted as a LANDING it may not have been',
+    file: SRC,
+    from: "  if (open === 0) return done === 1 ? '1 step, closed' : `${done} steps, all closed`;",
+    to: "  if (open === 0) return done === 1 ? '1 step, landed' : `${done} steps, all landed`;",
+    expect: 'the arc shape is COUNTED from the payload',
+  },
+  {
+    name: 'a lifecycle the exporter can publish has no reading here',
+    file: SRC,
+    from: "  closed: { word: 'finished', sentence: 'It ran to its end and closed.' },",
+    to: "  closedd: { word: 'finished', sentence: 'It ran to its end and closed.' },",
+    expect: 'every lifecycle the REAL corpus carries has a reading',
+  },
+  {
+    name: 'the empty state invents a reason the snapshot does not support',
+    file: SRC,
+    from: "  lines: ['No initiative on record reaches this one. Not everything here was built under one.'],",
+    to: "  lines: ['No initiative on record reaches this one, because it predates the arcs.'],",
+    expect: 'the drawer’s own notes carry the same grounding and length bars',
+  },
+  {
+    name: 'a long decision list stops silently, understating an arc',
+    file: SRC,
+    from: "  return hidden <= 0 ? null : `…and ${hidden} more.`;",
+    to: "  return null;",
+    expect: 'a long decision list is CAPPED and says how much it left out',
+  },
 ];
 
 const originals = new Map();

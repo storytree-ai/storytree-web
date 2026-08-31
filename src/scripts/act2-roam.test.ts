@@ -27,6 +27,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
+  ADR_LIST_CAP,
+  LIFECYCLE_READING,
+  ROAM_ARC_EMPTY,
+  ROAM_ARC_NOTE,
   ROAM_CAPABILITY_NOTE,
   ROAM_COLOUR_NOTE,
   ROAM_FLOOR_NOTE,
@@ -34,7 +38,12 @@ import {
   ROAM_STORY_NOTE,
   ROAM_TRAIL_NOTE,
   STATUS_READING,
+  adrOverflow,
+  adrTally,
+  arcTally,
   capabilityTally,
+  incrementTally,
+  lifecycleReading,
   edgeSentence,
   parseRoamPayload,
   parseTrailEdges,
@@ -73,6 +82,7 @@ const story = (
     title: `cap ${capId}`,
     status: capStatus,
   })),
+  arcs: [],
 });
 
 // ── the copy says nothing it has not read ───────────────────────────────────
@@ -208,6 +218,7 @@ test('nothing ROAM says claims the system is doing something RIGHT NOW', () => {
   const everyLine = [
     ...ROAM_NOTES.flatMap((n) => n.lines),
     ...Object.values(STATUS_READING).map((r) => r.sentence),
+    ...Object.values(LIFECYCLE_READING).map((r) => r.sentence),
   ];
   for (const line of everyLine) {
     assert.doesNotMatch(line, LIVE, `"${line}" reads as a live feed over a dated snapshot`);
@@ -453,4 +464,213 @@ test('a story with no NAME in its title is called by the label the map shows —
     // Never a truncation: whatever is printed is either the id or a whole prefix of the title.
     assert.ok(name === s.id || s.title.startsWith(name), `"${name}" is neither the id nor a whole name`);
   }
+});
+
+// ── target 5 · the arc drawer ───────────────────────────────────────────────
+//
+// The tier one level ABOVE the code, and the one where the protection is different in kind. The
+// forest is safe to publish because it is illegible on purpose (ADR-0453 D3): a stranger reads
+// `cli` and learns nothing. Arc titles are readable English about strategy, so that argument does
+// not carry up here — what keeps this tier publishable is that the BODIES never leave the exporter.
+// Every test below is aimed at that, or at the count/tense classes the rest of the suite covers.
+
+test('⚠ THE PUBLISHED ARC TIER CARRIES NO PROSE — the fence, against the REAL snapshot', () => {
+  // The exporter's own suite holds the same line one repo up with sentinel strings. This is the
+  // website's half, and it is worth having separately: it asserts against the file that is actually
+  // shipped, so a snapshot published by a FUTURE exporter that leaked a body would red here even
+  // though nothing in this repo changed.
+  const ALLOWED = new Set(['id', 'title', 'lifecycle', 'incrementsClosed', 'incrementsOpen', 'adrs']);
+  const ADR_ALLOWED = new Set(['number', 'status', 'title']);
+  assert.ok(SNAP.arcs.length > 0, 'the published snapshot carries no arc tier at all');
+  for (const arc of SNAP.arcs) {
+    for (const key of Object.keys(arc)) {
+      assert.ok(ALLOWED.has(key), `the published arc "${arc.id}" carries "${key}", which is below the floor`);
+    }
+    for (const adr of arc.adrs) {
+      for (const key of Object.keys(adr)) {
+        assert.ok(ADR_ALLOWED.has(key), `a decision on "${arc.id}" carries "${key}"`);
+      }
+    }
+  }
+  // …and the same again through the fold the browser actually receives, because that is the copy a
+  // panel reads. A field could be dropped from the file and re-derived here.
+  const wire = JSON.parse(JSON.stringify(roamPayload(SNAP))) as { arcs: Record<string, unknown>[] };
+  for (const arc of wire.arcs) {
+    for (const key of Object.keys(arc)) assert.ok(ALLOWED.has(key), `the wire arc carries "${key}"`);
+  }
+});
+
+test('⚠ roamPayload NARROWS — an arc arriving WITH a body does not reach the browser', () => {
+  // THE CASE TODAY'S DATA CANNOT TEST. The published snapshot carries no arc prose, so a fold that
+  // spread the whole arc would look identical to one that names its fields — and a fence that only
+  // ever sees the good input is not a fence. This feeds the fold an arc that DOES carry the bodies
+  // (the shape a future exporter leak would produce) and asserts none of it survives the narrowing.
+  const poisoned = {
+    ...SNAP,
+    arcs: [
+      {
+        ...SNAP.arcs[0],
+        intent: 'SENTINEL-intent',
+        endState: 'SENTINEL-endState',
+        description: 'SENTINEL-description',
+        questions: [{ stakes: 'SENTINEL-stakes' }],
+        increments: [{ objective: 'SENTINEL-objective' }],
+      },
+    ],
+  };
+  const wire = JSON.stringify(roamPayload(poisoned as never));
+  for (const sentinel of [
+    'SENTINEL-intent',
+    'SENTINEL-endState',
+    'SENTINEL-description',
+    'SENTINEL-stakes',
+    'SENTINEL-objective',
+  ]) {
+    assert.ok(!wire.includes(sentinel), `the fold forwarded ${sentinel} to the browser`);
+  }
+  // The control: the poisoned arc DID carry them, so a green above means the fold dropped them
+  // rather than that the test built an arc with nothing in it.
+  assert.ok(JSON.stringify(poisoned.arcs[0]).includes('SENTINEL-intent'), 'the fixture is not poisoned');
+});
+
+test('TEETH: the prose fence would CATCH a leaked body — the check above is not vacuous', () => {
+  const ALLOWED = new Set(['id', 'title', 'lifecycle', 'incrementsClosed', 'incrementsOpen', 'adrs']);
+  const leaked = { ...SNAP.arcs[0], intent: 'the strategy layer, which does not ship' };
+  assert.ok(Object.keys(leaked).some((k) => !ALLOWED.has(k)), 'the fence cannot see an added field');
+});
+
+test('every arc a story names RESOLVES — the drawer never opens on a dangling id', () => {
+  const known = new Set(SNAP.arcs.map((a) => a.id));
+  let edges = 0;
+  for (const story of SNAP.stories) {
+    for (const edge of story.arcs) {
+      edges += 1;
+      assert.ok(known.has(edge.id), `story "${story.id}" names arc "${edge.id}", which is not published`);
+    }
+  }
+  assert.ok(edges > 0, 'no story reaches an arc — the drawer has nothing to open on the real corpus');
+  // And nothing is published that no story can reach: an arc with no way in is dead weight on a
+  // file that is inlined into the page.
+  const reached = new Set(SNAP.stories.flatMap((s) => s.arcs.map((a) => a.id)));
+  for (const arc of SNAP.arcs) assert.ok(reached.has(arc.id), `arc "${arc.id}" is reachable from no island`);
+});
+
+test('the EMPTY state is exercised by the real corpus, not merely written for', () => {
+  // Measured on the published snapshot: a minority of islands are reached by no arc. If that ever
+  // became zero the empty branch would be untested prose, and if it became most of them the drawer
+  // would be a row that usually says nothing — either way this is the number to look at.
+  const empty = SNAP.stories.filter((s) => s.arcs.length === 0);
+  assert.ok(empty.length > 0, 'no island exercises the empty state — the branch is dead prose');
+  assert.ok(
+    empty.length < SNAP.stories.length / 2,
+    `${empty.length} of ${SNAP.stories.length} islands reach no arc — the drawer is mostly empty`,
+  );
+  assert.equal(arcTally({ ...story('x', 'proposed', []), arcs: [] }), 'no initiative on record');
+});
+
+test('every lifecycle the REAL corpus carries has a reading — none falls through to unknown', () => {
+  const seen = new Set(SNAP.arcs.map((a) => a.lifecycle));
+  assert.ok(seen.size > 0, 'the snapshot published no lifecycle at all');
+  for (const lifecycle of seen) {
+    assert.notEqual(
+      lifecycleReading(lifecycle).word,
+      'unknown',
+      `the exporter published lifecycle "${lifecycle}" and the drawer has no reading for it`,
+    );
+  }
+  // Every branch is a real sentence somebody wrote, including the ones this corpus does not yet
+  // reach — the same rule the status vocabulary follows, for the same reason.
+  for (const [key, reading] of Object.entries(LIFECYCLE_READING)) {
+    assert.ok(reading.word.length > 0 && reading.sentence.length > 10, `${key} is stubbed`);
+    assert.match(reading.sentence, /\.$/, `${key}'s reading is not a sentence`);
+  }
+  // …and a lifecycle from a future exporter reads as "we do not know", never as one we happen to have.
+  assert.equal(lifecycleReading('a-lifecycle-invented-later').word, 'unknown');
+});
+
+test('an OPEN arc is described in the picture’s tense, not the system’s', () => {
+  // 18 of the 19 arcs on this snapshot are closed, so the open branch is the one a careless edit
+  // would phrase as live. Both open branches must anchor to the moment the picture was taken.
+  for (const key of ['active', 'parked']) {
+    assert.match(
+      LIFECYCLE_READING[key]!.sentence,
+      /when this picture was taken/,
+      `"${key}" describes the system now rather than the snapshot`,
+    );
+  }
+});
+
+test('the arc shape is COUNTED from the payload, and moves when the arc moves', () => {
+  const base = { id: 'a', title: 'A', lifecycle: 'closed', adrs: [] };
+  assert.equal(incrementTally({ ...base, incrementsClosed: 0, incrementsOpen: 0 }), 'no steps recorded');
+  assert.equal(incrementTally({ ...base, incrementsClosed: 1, incrementsOpen: 0 }), '1 step, closed');
+  assert.equal(incrementTally({ ...base, incrementsClosed: 7, incrementsOpen: 0 }), '7 steps, all closed');
+  assert.equal(incrementTally({ ...base, incrementsClosed: 0, incrementsOpen: 1 }), '1 step, still open');
+  assert.equal(incrementTally({ ...base, incrementsClosed: 12, incrementsOpen: 3 }), '12 closed, 3 still open');
+  // The control: the REAL corpus produces more than one answer, so the function is reading data
+  // rather than returning a constant that happens to look right.
+  const distinct = new Set(SNAP.arcs.map((a) => incrementTally(a as never)));
+  assert.ok(distinct.size > 1, 'every published arc tallies the same — the count is not being read');
+});
+
+test('a long decision list is CAPPED and says how much it left out', () => {
+  const adrs = Array.from({ length: ADR_LIST_CAP + 4 }, (_, i) => ({
+    number: 100 + i,
+    status: 'accepted',
+    title: `decision ${i}`,
+  }));
+  assert.equal(adrOverflow(adrs), '…and 4 more.');
+  assert.equal(adrOverflow(adrs.slice(0, ADR_LIST_CAP)), null, 'a full-but-not-over list says nothing');
+  assert.equal(adrOverflow([]), null);
+  assert.equal(adrTally([]), null, 'an arc with no decisions gets no heading at all');
+  assert.equal(adrTally(adrs.slice(0, 1)), '1 decision behind it');
+  assert.equal(adrTally(adrs), `${adrs.length} decisions behind it`);
+  // The control: the real corpus actually overflows, so the cap is doing something.
+  assert.ok(
+    SNAP.arcs.some((a) => a.adrs.length > ADR_LIST_CAP),
+    'no published arc exceeds the cap — the truncation branch is untested against real data',
+  );
+});
+
+test('the arc tier survives the round trip to the browser', () => {
+  const parsed = parseRoamPayload(JSON.stringify(roamPayload(SNAP)));
+  assert.notEqual(parsed, null);
+  assert.equal(parsed?.arcs.length, SNAP.arcs.length, 'an arc was dropped between the build and the panel');
+  const reached = new Set((parsed?.arcs ?? []).map((a) => a.id));
+  for (const s of parsed?.stories ?? []) {
+    for (const id of s.arcs) assert.ok(reached.has(id), `"${id}" survived on a story but not as a record`);
+  }
+});
+
+test('a MALFORMED arc record is dropped, and its absence never kills the forest', () => {
+  // The asymmetry is the decision: a missing arc tier is a snapshot taken before the layer existed
+  // and the drawer simply has nothing to open; a record present but unreadable would render a panel
+  // of `undefined`, so it goes. Neither may take the map down with it.
+  const noArcs = parseRoamPayload('{"asOf":"1 January 2026","stories":[{"id":"a","title":"A","capabilities":[]}]}');
+  assert.notEqual(noArcs, null, 'a snapshot with no arc tier must still render its forest');
+  assert.deepEqual(noArcs?.arcs, []);
+  assert.deepEqual(noArcs?.stories[0]?.arcs, []);
+
+  const junk = parseRoamPayload(
+    '{"asOf":"1 January 2026","stories":[{"id":"a","title":"A","capabilities":[],"arcs":["ok",7]}],' +
+      '"arcs":[{"id":"ok","title":"OK"},{"title":"no id"},null,7]}',
+  );
+  assert.notEqual(junk, null);
+  assert.deepEqual(junk?.stories[0]?.arcs, ['ok'], 'a non-string arc id must not reach the panel');
+  assert.equal(junk?.arcs.length, 1, 'only the readable record survives');
+  // and the missing fields read as an honest zero rather than `undefined` in a sentence
+  assert.equal(junk?.arcs[0]?.lifecycle, 'unknown');
+  assert.equal(incrementTally(junk!.arcs[0]!), 'no steps recorded');
+});
+
+test('the drawer’s own notes carry the same grounding and length bars as the other four', () => {
+  // They are already in ROAM_NOTES, so the suite-wide scans cover them — this asserts the wiring,
+  // because a note left OUT of that list would silently escape every one of those checks.
+  assert.ok(ROAM_NOTES.includes(ROAM_ARC_NOTE), 'the arc note is outside the scanned set');
+  assert.ok(ROAM_NOTES.includes(ROAM_ARC_EMPTY), 'the empty-state note is outside the scanned set');
+  assert.deepEqual(ROAM_ARC_NOTE.grounds, ['ADR-0183'], 'the arc note must cite the decision behind arcs');
+  // The empty state asserts nothing about the product — it reports that a record is empty — so it
+  // carries no grounding, and that is deliberate rather than an omission.
+  assert.equal(ROAM_ARC_EMPTY.grounds, undefined);
+  assert.doesNotMatch(ROAM_ARC_EMPTY.lines.join(' '), /because|predates|older/i, 'the empty state must not invent a cause');
 });

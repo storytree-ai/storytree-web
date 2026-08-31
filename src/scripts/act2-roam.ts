@@ -52,7 +52,7 @@
 //   2. its COLOUR       → proven vs not-yet-proven, and what proven means here
 //   3. INSIDE it        → what a capability is; and this is where the forest's floor lives
 //   4. a TRAIL          → dependencies, what rests on what
-//   5. the ARC drawer   → the initiative layer above the code   (NOT BUILT — see ROAM_ARC_ABSENT)
+//   5. the ARC drawer   → the initiative layer above the code — why this island exists at all
 //
 // One or two sentences each. The reader is an experienced developer confirming what they already
 // suspect (ADR-0453 D2/D4), not a student being taught (D1).
@@ -89,12 +89,43 @@ export interface RoamStory {
   readonly title: string;
   readonly status: RoamStatus;
   readonly capabilities: readonly RoamCapability[];
+  /** Arc ids, keys into {@link RoamPayload.arcs}. Empty is a real, designed state — see
+   *  {@link ROAM_ARC_EMPTY}. */
+  readonly arcs: readonly string[];
+}
+
+/** A decision attached to an arc. */
+export interface RoamArcAdr {
+  readonly number: number;
+  readonly status: string;
+  readonly title: string;
+}
+
+/**
+ * ONE ARC — target 5's subject, at title-and-shape depth and no deeper (ADR-0453 D12).
+ *
+ * ⚠ THERE IS NO PROSE HERE AND THAT IS THE PROTECTION, not an omission this file could repair. The
+ * forest above is safe to publish because it is illegible on purpose (D3) — a stranger reads `cli`
+ * and learns nothing, and projects their own project onto the shape. **Arc titles are readable
+ * English about strategy**, so D3's argument stops at this tier and what keeps it publishable is
+ * that the bodies are not in the exported snapshot at all. A field added here would render blank,
+ * because the exporter one repo up never wrote it.
+ */
+export interface RoamArc {
+  readonly id: string;
+  readonly title: string;
+  readonly lifecycle: string;
+  readonly incrementsClosed: number;
+  readonly incrementsOpen: number;
+  readonly adrs: readonly RoamArcAdr[];
 }
 
 export interface RoamPayload {
   /** The snapshot's own date, already formatted — the same string the page's stamp prints. */
   readonly asOf: string;
   readonly stories: readonly RoamStory[];
+  /** Every arc a story reaches, id-sorted — normalised, so a hub arc appears once. */
+  readonly arcs: readonly RoamArc[];
 }
 
 /** Narrow an unknown status string, defaulting to `unknown`. A status this site has no reading for
@@ -122,7 +153,8 @@ export function parseRoamPayload(raw: string | null): RoamPayload | null {
     return null;
   }
   if (typeof parsed !== 'object' || parsed === null) return null;
-  const { asOf, stories } = parsed as Record<string, unknown>;
+  const bag = parsed as Record<string, unknown>;
+  const { asOf, stories } = bag;
   if (typeof asOf !== 'string' || asOf.length === 0) return null;
   if (!Array.isArray(stories) || stories.length === 0) return null;
 
@@ -139,9 +171,40 @@ export function parseRoamPayload(raw: string | null): RoamPayload | null {
       if (typeof cap.id !== 'string' || typeof cap.title !== 'string') continue;
       capabilities.push({ id: cap.id, title: cap.title, status: toRoamStatus(cap.status) });
     }
-    out.push({ id: s.id, title: s.title, status: toRoamStatus(s.status), capabilities });
+    const storyArcs = Array.isArray(s.arcs) ? s.arcs.filter((a): a is string => typeof a === 'string') : [];
+    out.push({ id: s.id, title: s.title, status: toRoamStatus(s.status), capabilities, arcs: storyArcs });
   }
-  return { asOf, stories: out };
+
+  // ⚠ A MISSING ARC TIER IS TOLERATED, A MALFORMED ONE IS NOT — and the asymmetry is deliberate.
+  // Absent means the drawer simply has nothing to open, which is the honest reading of a snapshot
+  // taken before the arc layer existed. A record present but unreadable is the shape that would
+  // render a drawer full of `undefined`, so it is dropped rather than half-drawn.
+  const arcs: RoamArc[] = [];
+  for (const entry of Array.isArray(bag.arcs) ? (bag.arcs as unknown[]) : []) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const a = entry as Record<string, unknown>;
+    if (typeof a.id !== 'string' || typeof a.title !== 'string') continue;
+    const adrs: RoamArcAdr[] = [];
+    for (const d of Array.isArray(a.adrs) ? a.adrs : []) {
+      if (typeof d !== 'object' || d === null) continue;
+      const adr = d as Record<string, unknown>;
+      if (typeof adr.number !== 'number' || typeof adr.title !== 'string') continue;
+      adrs.push({
+        number: adr.number,
+        status: typeof adr.status === 'string' ? adr.status : 'unknown',
+        title: adr.title,
+      });
+    }
+    arcs.push({
+      id: a.id,
+      title: a.title,
+      lifecycle: typeof a.lifecycle === 'string' ? a.lifecycle : 'unknown',
+      incrementsClosed: typeof a.incrementsClosed === 'number' ? a.incrementsClosed : 0,
+      incrementsOpen: typeof a.incrementsOpen === 'number' ? a.incrementsOpen : 0,
+      adrs,
+    });
+  }
+  return { asOf, stories: out, arcs };
 }
 
 // ── the copy ────────────────────────────────────────────────────────────────
@@ -285,21 +348,36 @@ export const ROAM_FLOOR_NOTE: RoamNote = {
 };
 
 /**
- * ⚠ TARGET 5, THE ARC DRAWER, IS NOT BUILT — and this constant is here so that absence is a stated
- * fact rather than something a later reader has to infer from silence.
+ * TARGET 5 — THE ARC DRAWER: the initiative layer above the code.
  *
- * The published snapshot carries stories and capabilities and nothing else: there is no arc in
- * `data-forest-roam`, because there is none in `src/data/forest-snapshot.json`, because the
- * exporter one repo up does not put one there. Shipping the drawer therefore is not a website
- * change at all — it is an export change (a new field, a schema-version bump, a re-publish), and
- * it must come through that path rather than through a second join, because ADR-0453 D12's closing
- * line puts the arc surface behind exactly the same D7 fence the forest is behind.
+ * The other four targets answer "what is this thing?" about something drawn on the map. This one
+ * answers a question the map cannot draw at all: *why does this island exist?* — which is the layer
+ * an experienced developer starts wondering about once the shape has stopped being new.
  *
- * Faking it here — hard-coding an arc, or deriving one from story ids — would have produced a
- * drawer that looked finished and asserted something the map never read.
+ * ⚠ PAST TENSE, AND IT IS NOT A STYLE CHOICE. Measured on the published snapshot, 18 of the 19 arcs
+ * that reach an island are CLOSED. Copy phrased as ongoing work ("the initiative currently building
+ * this") would be false of almost every arc a visitor can open, and false in the direction this page
+ * cannot afford — the snapshot-as-live-feed error one tier up from the forest, on the surface that
+ * spends the preceding movement asserting its signals are real.
  */
-export const ROAM_ARC_ABSENT =
-  'the arc surface is not in the published snapshot; shipping it is an exporter change (ADR-0453 D12 + D7)';
+export const ROAM_ARC_NOTE: RoamNote = {
+  id: 'arc',
+  lines: ['An arc is one initiative — a named piece of work, tracked from its intent to its end.'],
+  grounds: ['ADR-0183'],
+};
+
+/**
+ * THE EMPTY STATE, WHICH IS A REAL STATE AND NOT AN ERROR.
+ *
+ * Measured on the published snapshot, two of the 35 islands are reached by no arc. A blank panel
+ * there would read as a bug in the page; a sentence that invented a cause ("it predates the arcs")
+ * would be a claim nothing in the snapshot supports. So it says exactly what is known — the record
+ * is empty — and nothing more.
+ */
+export const ROAM_ARC_EMPTY: RoamNote = {
+  id: 'arc-empty',
+  lines: ['No initiative on record reaches this one. Not everything here was built under one.'],
+};
 
 /** Every line of prose this module can put on the page. The test holds the "one or two sentences"
  *  bar against this list, so a note added later is covered without anyone remembering to add it. */
@@ -309,7 +387,77 @@ export const ROAM_NOTES: readonly RoamNote[] = [
   ROAM_CAPABILITY_NOTE,
   ROAM_TRAIL_NOTE,
   ROAM_FLOOR_NOTE,
+  ROAM_ARC_NOTE,
+  ROAM_ARC_EMPTY,
 ];
+
+/**
+ * WHAT AN ARC'S LIFECYCLE MEANS, in the visitor's words and in the picture's tense.
+ *
+ * ⚠ EVERY BRANCH SHIPS AND THE DATA PICKS ONE — the same rule `STATUS_READING` follows, for the same
+ * reason: today's snapshot is almost entirely `closed`, and writing only that branch would leave the
+ * drawer speechless the day a live arc reaches an island, with the failure invisible because the row
+ * would still render.
+ *
+ * ⚠ THE TWO OPEN BRANCHES ARE PAST-TENSE ABOUT THE PICTURE, not present-tense about the system. "It
+ * is still running" would describe a live feed; "it was still open when this picture was taken" is
+ * what a dated export can honestly say.
+ */
+export const LIFECYCLE_READING: Readonly<Record<string, { word: string; sentence: string }>> = {
+  closed: { word: 'finished', sentence: 'It ran to its end and closed.' },
+  active: { word: 'open', sentence: 'It was still open when this picture was taken.' },
+  parked: { word: 'parked', sentence: 'It was set aside when this picture was taken, not dropped.' },
+  unknown: { word: 'unknown', sentence: 'Its state did not load, so the map does not guess at one.' },
+};
+
+/** The reading for a lifecycle, falling back to `unknown` rather than borrowing a reading we have —
+ *  the same rule `toRoamStatus` applies to a colour, and for the same reason. */
+export function lifecycleReading(lifecycle: string): { word: string; sentence: string } {
+  return LIFECYCLE_READING[lifecycle] ?? LIFECYCLE_READING.unknown!;
+}
+
+/**
+ * "12 closed, 3 still open" — an arc's shape, counted from the payload and never written into copy.
+ *
+ * ⚠ "STEPS", NOT "INCREMENTS". The corpus's word is `increment`, and this is the one place ROAM
+ * translates rather than quoting: the ids stay gibberish on purpose (ADR-0453 D3) because the
+ * visitor projects their own project onto them, but the SENTENCES are plain English, and an
+ * unexplained internal noun is neither.
+ *
+ * ⚠ AND "CLOSED", NOT "LANDED". A step also closes when the work drifted or turned out wrong, which
+ * is a closure and not a delivery. The exporter counts what the record says; so does this.
+ */
+export function incrementTally(arc: RoamArc): string {
+  const { incrementsClosed: done, incrementsOpen: open } = arc;
+  if (done + open === 0) return 'no steps recorded';
+  if (open === 0) return done === 1 ? '1 step, closed' : `${done} steps, all closed`;
+  if (done === 0) return open === 1 ? '1 step, still open' : `${open} steps, all still open`;
+  return `${done} closed, ${open} still open`;
+}
+
+/** How many decisions an arc panel lists before it stops and says how many are left. ROAM is a
+ *  short journey; the busiest arc in the published snapshot carries seven. */
+export const ADR_LIST_CAP = 3;
+
+/** The honest tail of a truncated decision list, or null when nothing was left out. The count is
+ *  what keeps the truncation from reading as completeness — the same rule the trail list follows. */
+export function adrOverflow(adrs: readonly RoamArcAdr[]): string | null {
+  const hidden = adrs.length - ADR_LIST_CAP;
+  return hidden <= 0 ? null : `…and ${hidden} more.`;
+}
+
+/** "5 decisions" / "1 decision" / null when an arc has none — counted, never written. */
+export function adrTally(adrs: readonly RoamArcAdr[]): string | null {
+  if (adrs.length === 0) return null;
+  return adrs.length === 1 ? '1 decision behind it' : `${adrs.length} decisions behind it`;
+}
+
+/** "N initiatives" for the row that opens the drawer — or the singular, or the honest empty. */
+export function arcTally(story: RoamStory): string {
+  const n = story.arcs.length;
+  if (n === 0) return 'no initiative on record';
+  return n === 1 ? '1 initiative' : `${n} initiatives`;
+}
 
 // ── reading the map's own facts ─────────────────────────────────────────────
 
@@ -510,7 +658,9 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
   const stamp = el('p', 'roam-stamp', `read from the snapshot of ${payload.asOf}`);
   panel.append(close, body, stamp);
 
-  let openSection: 'colour' | 'inside' | null = null;
+  const arcById = new Map(payload.arcs.map((a) => [a.id, a]));
+
+  let openSection: 'colour' | 'inside' | 'arcs' | null = null;
   let openStoryId: string | null = null;
 
   /** The witness hook. It reports WHICH panel is open, never what it says — a probe that read its
@@ -592,6 +742,52 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
       // the floor — a door rather than a wall, and it arrives exactly here, at the moment the
       // visitor has clicked their way to the bottom of what the public map holds.
       body.append(noteBlock(ROAM_FLOOR_NOTE));
+    }
+
+    // target 5 · the arc drawer — the initiative layer ABOVE the code, which is why it sits below
+    // the capability row rather than inside it: the visitor has just reached the bottom of the
+    // structure, and this is the one direction that is still up.
+    const arcRow = el('button', 'roam-row');
+    arcRow.type = 'button';
+    arcRow.setAttribute('data-roam-row', 'arcs');
+    arcRow.setAttribute('aria-expanded', String(openSection === 'arcs'));
+    arcRow.append(el('span', 'roam-row-word', arcTally(story)));
+    body.append(arcRow);
+    if (openSection === 'arcs') {
+      const arcs = story.arcs.map((id) => arcById.get(id)).filter((a): a is RoamArc => a !== undefined);
+      if (arcs.length === 0) {
+        // Either nothing reaches this story, or an id did not resolve. Both are "the record is
+        // empty here", and neither licenses a sentence about why.
+        body.append(noteBlock(ROAM_ARC_EMPTY));
+      } else {
+        body.append(noteBlock(ROAM_ARC_NOTE));
+        const list = el('ul', 'roam-arcs');
+        for (const arc of arcs) {
+          const item = el('li', 'roam-arc');
+          const reading = lifecycleReading(arc.lifecycle);
+          item.append(el('p', 'roam-arc-title', arc.title));
+          const shape = el('p', 'roam-arc-shape');
+          shape.append(
+            el('span', `roam-arc-word lc-${arc.lifecycle}`, reading.word),
+            el('span', 'roam-arc-tally', incrementTally(arc)),
+          );
+          item.append(shape);
+          item.append(el('p', 'roam-arc-line', reading.sentence));
+          const tally = adrTally(arc.adrs);
+          if (tally !== null) {
+            item.append(el('p', 'roam-arc-adr-head', tally));
+            const decisions = el('ul', 'roam-arc-adrs');
+            for (const adr of arc.adrs.slice(0, ADR_LIST_CAP)) {
+              decisions.append(el('li', 'roam-arc-adr', adr.title));
+            }
+            item.append(decisions);
+            const more = adrOverflow(arc.adrs);
+            if (more !== null) item.append(el('p', 'roam-more', more));
+          }
+          list.append(item);
+        }
+        body.append(list);
+      }
     }
     openPanel();
     witness('story', story.id);
@@ -713,7 +909,7 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     }
     const row = target.closest('[data-roam-row]');
     const which = row?.getAttribute('data-roam-row') ?? null;
-    if (which !== 'colour' && which !== 'inside') return;
+    if (which !== 'colour' && which !== 'inside' && which !== 'arcs') return;
     openSection = openSection === which ? null : which;
     if (openStoryId !== null) {
       const story = byId.get(openStoryId);

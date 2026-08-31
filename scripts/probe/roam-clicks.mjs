@@ -29,8 +29,13 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('../../dist/', import.meta.url).pathname;
+// ⚠ `fileURLToPath`, NOT `.pathname`. On Windows a file URL's pathname is `/C:/…` — the leading
+// slash survives `join`, which then resolves to `C:\C:\…` and every request 404s. The symptom is
+// not a path error: the server answers "nope" to everything, the page loads as plain text, and the
+// probe dies on a `waitForFunction` timeout that names the wrong thing entirely.
+const ROOT = fileURLToPath(new URL('../../dist/', import.meta.url));
 const OUT = process.env.OUT_DIR ?? '/tmp/roam-clicks';
 mkdirSync(OUT, { recursive: true });
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
@@ -50,7 +55,13 @@ const server = createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, r));
 const base = `http://127.0.0.1:${server.address().port}`;
 
-const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] });
+// ⚠ THE PATH IS OVERRIDABLE BECAUSE THIS PROBE IS LAPTOP-ONLY AND LAPTOPS DIFFER. The default is
+// the Linux box it was written on; `PW_CHROME` is how a Windows checkout points it at the browser
+// Playwright already downloaded (…/ms-playwright/chromium-*/chrome-win/chrome.exe). Hard-coding one
+// machine's path meant the browser half of the ROAM proof could only ever be run on that machine —
+// and the browser half is the one that catches what the unit suite structurally cannot.
+const CHROME = process.env.PW_CHROME ?? '/usr/bin/google-chrome';
+const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.error('PAGEERROR:', e.message));
 page.on('console', (m) => { if (m.type() === 'error') console.error('CONSOLE:', m.text()); });
@@ -101,8 +112,18 @@ const panelState = () =>
           const r = n.getBoundingClientRect();
           return r.height > 0 && r.top >= rect.top - 1 && r.bottom <= rect.bottom + 1;
         };
-        return { stamp: seen('.roam-stamp'), floor: seen('[data-roam-note="floor"]') };
+        return {
+          stamp: seen('.roam-stamp'),
+          floor: seen('[data-roam-note="floor"]'),
+          arcRow: seen('[data-roam-row="arcs"]'),
+        };
       })(),
+      arcs: [...document.querySelectorAll('.roam-arc')].map((a) => ({
+        title: a.querySelector('.roam-arc-title')?.textContent ?? null,
+        word: a.querySelector('.roam-arc-word')?.textContent ?? null,
+        tally: a.querySelector('.roam-arc-tally')?.textContent ?? null,
+        adrs: [...a.querySelectorAll('.roam-arc-adr')].map((d) => d.textContent),
+      })),
       selected: [...document.querySelectorAll('.roam-selected')].map((n) => n.getAttribute('data-id')),
       witness: window.__act2roam ?? null,
     };
@@ -204,18 +225,81 @@ check('the floor and the date are ON SCREEN, not merely in the DOM',
   `floor onScreen=${s.onScreen.floor}  stamp onScreen=${s.onScreen.stamp} — the conversion point ` +
   `and the honesty stamp are the two things that must never be scrolled away`);
 
+// ── 5b · TARGET 5 · the arc drawer, and the empty state ─────────────────────
+//
+// ⚠ THE CONTROL IS THE SNAPSHOT ON DISK, as everywhere else here. The panel's arc titles are
+// compared against the arcs the FILE says reach this island — never against the `data-forest-roam`
+// attribute the build wrote, which would only prove the runtime can read its own input.
+check('the arc row is ON SCREEN, not scrolled off below the floor', s.onScreen.arcRow === true,
+  `arcRow onScreen=${s.onScreen.arcRow} — the drawer is the tier above the code, and the visitor ` +
+  `has just reached the bottom of the tier below it`);
+
+await clickEl('[data-roam-row="arcs"]');
+await page.screenshot({ path: join(OUT, '04b-arc-drawer.png') });
+s = await panelState();
+const diskArcIds = (selfStory?.arcs ?? []).map((a) => a.id);
+const diskArcs = diskArcIds.map((id) => SNAP.arcs.find((a) => a.id === id)).filter(Boolean);
+check('the drawer lists the initiatives the CORPUS attaches to this island',
+  diskArcs.length === s.arcs.length && diskArcs.every((a, i) => a.title === s.arcs[i]?.title),
+  `panel ${s.arcs.length}, disk ${diskArcs.length}  [04b-arc-drawer.png]`
+  + `
+        panel: ${JSON.stringify(s.arcs.map((a) => a.title))}`
+  + `
+        disk : ${JSON.stringify(diskArcs.map((a) => a.title))}`);
+check('the arc note explains what an initiative is, and is grounded in a decision',
+  (s.notes.find((n) => n.id === 'arc')?.grounds ?? '').startsWith('ADR-'),
+  `arc note: ${JSON.stringify(s.notes.find((n) => n.id === 'arc'))}`);
+check('the shape on screen is the shape on disk — counted, never written',
+  diskArcs.every((a, i) => {
+    const t = s.arcs[i]?.tally ?? '';
+    return a.incrementsOpen === 0
+      ? t.includes(String(a.incrementsClosed)) && !/still open/.test(t)
+      : t.includes(String(a.incrementsClosed)) && t.includes(String(a.incrementsOpen));
+  }),
+  `disk: ${JSON.stringify(diskArcs.map((a) => [a.incrementsClosed, a.incrementsOpen]))}  `
+  + `panel: ${JSON.stringify(s.arcs.map((a) => a.tally))}`);
+check('NO ARC BODY REACHES THE PAGE — the one protection this tier has',
+  !/(intent|end state|endState|objective)/i.test(s.text ?? ''),
+  `the panel text carries a body word: ${JSON.stringify((s.text ?? '').slice(0, 400))}`);
+check('every decision listed is one the corpus attaches to that arc',
+  s.arcs.every((panelArc, i) => (panelArc.adrs ?? []).every((t) => (diskArcs[i]?.adrs ?? []).some((d) => d.title === t))),
+  `panel: ${JSON.stringify(s.arcs.map((a) => a.adrs))}`);
+
 // ── 6 · TARGET 4 · a trail between islands ──────────────────────────────────
 // The busiest trunk on the map: the segment carrying the most merged dependencies. Clicking a
 // hairline is the case a unit test cannot see at all.
+// ⚠ IT MUST BE THE BUSIEST SEGMENT A VISITOR CAN ACTUALLY REACH, NOT THE BUSIEST FULL STOP. The map
+// is CROPPED to the designed resting frame (ADR-0471) and the visitor pans from there, so a segment
+// whose midpoint sits outside the viewport is not a target — clicking it lands on nothing. This
+// probe used to take the busiest segment unconditionally, which was fine only for as long as the
+// layout held still: the corpus moved between two snapshot publishes, the winner moved with it, and
+// its midpoint came to rest 88 px ABOVE the top of the frame. The run then reported three failures
+// about the trail panel and the cap, none of which was about the trail panel or the cap.
 const trail = await page.evaluate(() => {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
   const segs = [...document.querySelectorAll('.tw-trail-fill[data-edges]')];
   let best = null;
+  let bestOffScreen = null;
   for (const seg of segs) {
     const n = (seg.getAttribute('data-edges') ?? '').split(',').filter(Boolean).length;
-    if (best === null || n > best.n) best = { id: seg.getAttribute('data-id'), n, edges: seg.getAttribute('data-edges') };
+    const id = seg.getAttribute('data-id');
+    const row = { id, n, edges: seg.getAttribute('data-edges') };
+    if (bestOffScreen === null || n > bestOffScreen.n) bestOffScreen = row;
+    const casing = document.querySelector(`.tw-trail-casing[data-id="${id}"]`);
+    if (!casing) continue;
+    const pt = casing.getPointAtLength(casing.getTotalLength() / 2);
+    const p = new DOMPoint(pt.x, pt.y).matrixTransform(casing.getScreenCTM());
+    if (p.x < 8 || p.y < 8 || p.x > vw - 8 || p.y > vh - 8) continue;
+    if (best === null || n > best.n) best = row;
   }
-  return best;
+  return best === null ? { ...bestOffScreen, offScreen: true } : best;
 });
+check('the busiest reachable trail is ON SCREEN — a target the visitor can actually click',
+  trail !== null && trail.offScreen !== true,
+  trail?.offScreen === true
+    ? `every trail midpoint is outside the resting frame; the busiest overall is "${trail.id}" (${trail.n} edges)`
+    : `"${trail?.id}" carries ${trail?.n} edges`);
 // Click the visible line's own midpoint, so what is exercised is the hit stroke under it.
 const hitTrail = await page.evaluate((id) => {
   const seg = document.querySelector(`.tw-trail-casing[data-id="${id}"]`);
@@ -323,8 +407,101 @@ const afterState = await panelState();
 const after = afterState.text ?? '';
 await page.screenshot({ path: join(OUT, '07-after-6s-wait.png') });
 check('the panel does not change on its own — nothing here is on a clock',
-  before.length > 0 && before === after,
+  // ⚠ `visible` IS LOAD-BEARING, not decoration. Without it this reads a CLOSED panel's own empty
+  // text against itself and passes — which it did, once, after an earlier step panned the island
+  // out from under the click that was meant to open it. "Nothing changed" is only evidence of a
+  // quiet surface when there was something on screen to change.
+  afterState.visible === true && before.length > 40 && before === after,
   `${before.length} chars before a 6s wait, ${after.length} after; still visible=${afterState.visible}  [07-after-6s-wait.png]`);
+
+// ── 11 · TARGET 5's EMPTY STATE, on a real island, and it PANS to reach one ──
+//
+// ⚠ THIS RUNS LAST, AND THE ORDER IS THE DECISION. Reaching an arc-less island means DRAGGING the
+// map, and a drag moves every other island too — including the one the earlier steps are about. Run
+// mid-sequence, this excursion left the later steps clicking co-ordinates their targets had vacated:
+// every click became a no-op, and the final "nothing is on a clock" check compared a CLOSED panel
+// against itself and passed. A vacuous pass is worse than the red it replaced, so the pan goes at
+// the end where it can disturb nothing.
+// The EMPTY state, driven on a real island rather than described. Measured on the published
+// snapshot, a minority of islands are reached by no arc — a blank drawer there would read as a bug.
+// ⚠ AND IT MUST BE ONE THE CROP ACTUALLY SHOWS, for the same reason the trail target must be. An
+// island outside the resting frame has a zero-size client rect, `clickEl` returns false, and the
+// NEXT click then toggles the previous island's drawer shut — which reads exactly like the empty
+// state working, on a story that has an arc. The two `assert`-shaped returns below are what stop a
+// no-op reading as a pass.
+const lonelyIds = SNAP.stories.filter((st) => (st.arcs ?? []).length === 0).map((st) => st.id);
+const inFrame = () =>
+  page.evaluate((ids) => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    for (const id of ids) {
+      const el = document.querySelector(`.tw-hit[data-id="${id}"]`);
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && r.left > 8 && r.top > 8 && r.right < vw - 8 && r.bottom < vh - 8) {
+        return { id, x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }
+    }
+    return null;
+  }, lonelyIds);
+
+let lonely = await inFrame();
+if (lonely === null && lonelyIds.length > 0) {
+  // PAN TO IT, because a visitor can. The resting frame is a designed crop, not the whole map
+  // (ADR-0471) — GROW settles there and leaves the visitor free to drag. So an island outside the
+  // opening view is reachable, and testing the empty state only when the layout happens to put one
+  // on screen would make this check come and go with the corpus. The drag is a REAL gesture on the
+  // same element the pan is bound to, and it is far longer than the click slop, so it cannot be
+  // mistaken for a click.
+  const target = await page.evaluate((ids) => {
+    for (const id of ids) {
+      const el = document.querySelector(`.tw-hit[data-id="${id}"]`);
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      return { id, x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }
+    return null;
+  }, lonelyIds);
+  if (target !== null) {
+    const cx = 500;
+    const cy = 450;
+    let dx = cx - target.x;
+    let dy = cy - target.y;
+    // one drag can only move as far as the cursor can travel, so walk it in viewport-sized steps
+    for (let i = 0; i < 6 && (Math.abs(dx) > 40 || Math.abs(dy) > 40); i += 1) {
+      const stepX = Math.max(-600, Math.min(600, dx));
+      const stepY = Math.max(-320, Math.min(320, dy));
+      await page.mouse.move(700, 450);
+      await page.mouse.down();
+      await page.mouse.move(700 + stepX, 450 + stepY, { steps: 12 });
+      await page.mouse.up();
+      await page.waitForTimeout(120);
+      const now = await page.evaluate((id) => {
+        const el = document.querySelector(`.tw-hit[data-id="${id}"]`);
+        const r = el.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }, target.id);
+      dx = cx - now.x;
+      dy = cy - now.y;
+    }
+    lonely = await inFrame();
+  }
+}
+if (lonely !== null) {
+  const gotIsland = await clickEl(`.tw-hit[data-id="${lonely.id}"]`);
+  const gotRow = await clickEl('[data-roam-row="arcs"]');
+  check('the empty-state island and its drawer row were both actually clicked',
+    gotIsland && gotRow, `island=${gotIsland} row=${gotRow} — a missed click would fake this test`);
+  await page.screenshot({ path: join(OUT, '04c-arc-empty.png') });
+  const e = await panelState();
+  check('an island no initiative reaches says so, rather than opening an empty drawer',
+    e.arcs.length === 0 && (e.notes.find((n) => n.id === 'arc-empty')?.text ?? '').length > 0,
+    `"${lonely.id}" — arcs=${e.arcs.length} note=${JSON.stringify(e.notes.find((n) => n.id === 'arc-empty')?.text)}  [04c-arc-empty.png]`);
+} else {
+  check('an island no initiative reaches says so, rather than opening an empty drawer', false,
+    'no island reached by zero arcs is inside the resting frame on this snapshot — the empty ' +
+    'branch went untested in a browser. It is covered by the unit suite; this is the gap, stated.');
+}
 
 await browser.close();
 server.close();
