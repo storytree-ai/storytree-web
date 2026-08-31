@@ -63,6 +63,39 @@ export interface SnapshotCapability {
   readonly dependsOn: readonly string[];
 }
 
+/** How one story reaches one arc, and by which of the two edges (`via` — the exporter's ADR-0306 D4
+ *  note explains why the provenance travels with the link instead of being flattened away). */
+export interface SnapshotStoryArc {
+  readonly id: string;
+  readonly via: string;
+}
+
+/** A decision attached to an arc. Number, status and title — the whole of what ADR-0453 D12 ships. */
+export interface SnapshotArcAdr {
+  readonly number: number;
+  readonly status: string;
+  readonly title: string;
+}
+
+/**
+ * ONE ARC AT TITLE-AND-SHAPE DEPTH — the initiative layer above the code (ADR-0453 D12).
+ *
+ * ⚠ THE ABSENT PROSE IS THE PROTECTION, AND IT IS ABSENT UPSTREAM. The forest is publishable because
+ * it is illegible by construction (D3); arc titles are readable English about strategy, so that
+ * argument does not carry up here and what makes this tier safe is that the bodies — `intent`,
+ * `endState`, every increment objective, every question's stakes — are not in the exported file at
+ * all. A field added to this interface would render nothing, because the data is not there; the
+ * fence lives in `apps/studio/server/forestSnapshot.ts` one repo up, and that is deliberate.
+ */
+export interface SnapshotArc {
+  readonly id: string;
+  readonly title: string;
+  readonly lifecycle: string;
+  readonly incrementsClosed: number;
+  readonly incrementsOpen: number;
+  readonly adrs: readonly SnapshotArcAdr[];
+}
+
 export interface SnapshotStory {
   readonly id: string;
   readonly title: string;
@@ -70,6 +103,8 @@ export interface SnapshotStory {
   readonly dependsOn: readonly string[];
   readonly building?: boolean;
   readonly capabilities: readonly SnapshotCapability[];
+  /** Always present, empty when no arc reaches this story — the drawer's designed empty state. */
+  readonly arcs: readonly SnapshotStoryArc[];
 }
 
 export interface ForestSnapshot {
@@ -81,10 +116,18 @@ export interface ForestSnapshot {
   readonly provenStoryCount: number;
   readonly capabilityCount: number;
   readonly stories: readonly SnapshotStory[];
+  /** Every arc a story above reaches, id-sorted — normalised, so a hub arc appears once. */
+  readonly arcs: readonly SnapshotArc[];
 }
 
-/** The schema version this renderer understands. */
-export const SUPPORTED_SCHEMA_VERSION = 1;
+/**
+ * The schema version this renderer understands.
+ *
+ * 2 — the arc layer (ADR-0453 D12). The pin is EXACT and `assertSnapshot` refuses anything else at
+ * build time, which is what stops the two repos disagreeing about what a published file means: an
+ * exporter that has moved past this site reds the build rather than rendering half a map.
+ */
+export const SUPPORTED_SCHEMA_VERSION = 2;
 
 /**
  * Refuse a snapshot this renderer cannot honestly draw, LOUDLY and at build time.
@@ -388,12 +431,35 @@ export interface RoamStory {
   readonly title: string;
   readonly status: SceneStatus;
   readonly capabilities: readonly RoamCapability[];
+  /** Arc ids only — keys into {@link RoamPayload.arcs}. The exporter's `via` provenance is dropped
+   *  on the way to the browser: the drawer's copy is true of both edges, so shipping the
+   *  distinction would put a field on the page that no sentence reads. */
+  readonly arcs: readonly string[];
+}
+
+/** One decision attached to an arc, as ROAM needs it. */
+export interface RoamArcAdr {
+  readonly number: number;
+  readonly status: string;
+  readonly title: string;
+}
+
+/** One arc at title-and-shape depth (ADR-0453 D12). The prose is absent because the EXPORTER never
+ *  wrote it — see `SnapshotArc` above; this shape only refuses to re-add it. */
+export interface RoamArc {
+  readonly id: string;
+  readonly title: string;
+  readonly lifecycle: string;
+  readonly incrementsClosed: number;
+  readonly incrementsOpen: number;
+  readonly adrs: readonly RoamArcAdr[];
 }
 
 /** What ROAM is handed at build time. `asOf` is the SAME stamp the page prints under the map. */
 export interface RoamPayload {
   readonly asOf: string;
   readonly stories: readonly RoamStory[];
+  readonly arcs: readonly RoamArc[];
 }
 
 /**
@@ -422,6 +488,20 @@ export function roamPayload(snap: ForestSnapshot): RoamPayload {
         title: cap.title,
         status: toSceneStatus(cap.status),
       })),
+      // The edge only. `via` is dropped here BECAUSE it is dropped: the drawer's copy says "the
+      // initiative that built this", which is true of both edges, so shipping the distinction to
+      // the browser would put a field on the page with no reader and no sentence.
+      arcs: (story.arcs ?? []).map((a) => a.id),
+    })),
+    // Named field by field, exactly as the story fold above is, and for the same reason: a spread
+    // would publish whatever the exporter adds next without anyone choosing to.
+    arcs: snap.arcs.map((arc) => ({
+      id: arc.id,
+      title: arc.title,
+      lifecycle: arc.lifecycle,
+      incrementsClosed: arc.incrementsClosed,
+      incrementsOpen: arc.incrementsOpen,
+      adrs: arc.adrs.map((d) => ({ number: d.number, status: d.status, title: d.title })),
     })),
   };
 }

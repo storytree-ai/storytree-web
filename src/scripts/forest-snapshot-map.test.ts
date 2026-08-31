@@ -40,6 +40,7 @@ function story(id: string, dependsOn: string[] = [], capabilities = 2): Snapshot
       status: 'proposed',
       dependsOn: [],
     })),
+    arcs: [],
   };
 }
 
@@ -52,6 +53,7 @@ function snapshot(over: Partial<ForestSnapshot> = {}): ForestSnapshot {
     provenStoryCount: 1,
     capabilityCount: 4,
     stories: [story('base'), story('top', ['base'])],
+    arcs: [],
     ...over,
   };
 }
