@@ -179,7 +179,16 @@ export const SHIPPED_SHORE: ShoreArm = 'beach';
  */
 export function shoreFall(distance: number, width: number): number {
   if (width <= 0) return 1;
-  const t = distance <= 0 ? 0 : distance >= width ? 1 : distance / width;
+  // ⚠ THERE IS NO LOWER CLAMP, AND ITS ABSENCE IS DELIBERATE. A `distance <= 0 ? 0 :` branch was
+  // written here first and the mutation rung showed it was doing nothing: at distance 0 the
+  // division already gives exactly 0, so the guard and the formula agree everywhere in the
+  // function's domain and no test could ever separate them. It was a correctness guard's clothes
+  // on an arithmetic identity. Deleted rather than annotated — the playbook's own preference.
+  //
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — `>=` and `>` differ only at
+  // `distance === width`, where the division gives exactly 1 and the branch returns 1. There is no
+  // input that separates them, for the same reason `nearestOnSegment`'s clamp carries this note.
+  const t = distance >= width ? 1 : distance / width;
   return t * t * (3 - 2 * t);
 }
 
@@ -201,7 +210,15 @@ export function shoreFall(distance: number, width: number): number {
  * zero wherever that axis sits near the band's inner edge.
  */
 export function shoreFallSlope(distance: number, width: number): number {
-  if (width <= 0) return 0;
+  // ⚠ THE `width <= 0` EARLY-OUT THAT USED TO SIT HERE IS GONE, AND THE LINE BELOW SUBSUMES IT.
+  // The mutation rung found it unkillable, and the reason is that it was a DUPLICATE early-out
+  // rather than a guard: at width 0 a zero distance is caught by `distance <= 0`, and any positive
+  // distance is caught by `distance >= width`. Two branches answering the same input the same way
+  // are two mutants no test can separate, so the fix is to keep one.
+  //
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — at `distance === 0` and at
+  // `distance === width` the derivative `6t(1-t)/width` is exactly 0, which is what the branch
+  // returns, so `<` / `<=` and `>` / `>=` are indistinguishable at both bounds by construction.
   if (distance <= 0 || distance >= width) return 0;
   const t = distance / width;
   return (6 * t * (1 - t)) / width;
@@ -223,7 +240,9 @@ export interface ShoreSample {
   gz: number;
 }
 
-interface LoopBounds {
+/** A coast loop with its bounding box precomputed — the unit {@link boxDistance} prunes against.
+ *  Exported alongside it because a function you can test needs an argument you can build. */
+export interface LoopBounds {
   points: readonly CoastPoint[];
   minX: number;
   maxX: number;
@@ -231,15 +250,29 @@ interface LoopBounds {
   maxZ: number;
 }
 
-/** How far a point sits outside a box — 0 when inside it. The prune's own arithmetic, and a lower
- *  bound on the distance to anything the box contains, which is what makes skipping exact. */
-function boxDistance(b: LoopBounds, x: number, z: number): number {
+/**
+ * How far a point sits outside a box — 0 when inside it. The prune's own arithmetic, and a lower
+ * bound on the distance to anything the box contains, which is what makes skipping exact.
+ *
+ * ⚠ EXPORTED FOR ITS OWN TESTS, AND THE MUTATION RUNG IS WHY. It is a pure cost OPTIMISATION: it
+ * changes which loops the sweep bothers to walk and never which answer comes back, so every mutant
+ * in it survives a test that can only see `sample`'s output. That is the playbook's
+ * "an optimisation bound cannot be seen from output it does not change".
+ *
+ * ⚠ AND DELETING IT IS THE WRONG FIX HERE, which the playbook also warns about — the coast clip
+ * removed an "unkillable optimisation" once and turned a caught-as-wrong-answer mutant into a
+ * TIMEOUT. Without this prune the forest sweep walks 35 loops x 208 segments for every one of
+ * 30,240 vertices. So it stays, and it is tested DIRECTLY instead.
+ */
+export function boxDistance(b: LoopBounds, x: number, z: number): number {
   const dx = x < b.minX ? b.minX - x : x > b.maxX ? x - b.maxX : 0;
   const dz = z < b.minZ ? b.minZ - z : z > b.maxZ ? z - b.maxZ : 0;
   return Math.hypot(dx, dz);
 }
 
-function boundsOf(points: readonly CoastPoint[]): LoopBounds {
+/** A loop's bounding box. ⚠ Exported for the same reason {@link boxDistance} is: it feeds a prune,
+ *  so its own arithmetic never reaches an answer a caller can observe. */
+export function boundsOf(points: readonly CoastPoint[]): LoopBounds {
   let minX = Infinity;
   let maxX = -Infinity;
   let minZ = Infinity;
@@ -282,9 +315,19 @@ export function shoreField(
   cells: readonly InstanceDescriptor[],
   width: number,
 ): ShoreFieldReader {
-  const rings = cells
-    .filter((d) => coastalIsland(d) !== null)
-    .map((d) => (d.points ?? []).map((p) => ({ x: p.x, z: p.z })));
+  // ⚠ ONE PASS, NOT filter-THEN-map, AND THE MUTATION RUNG IS WHY. The two-step form ended
+  // `.map((d) => (d.points ?? []). …)`, and that `?? []` is UNREACHABLE: `coastalIsland` already
+  // returns null for a ringless descriptor, so the filter has removed every one before the map
+  // runs. The rung reported it as the file's only NO-COVERAGE mutant, which is what dead code
+  // looks like from outside. Reading `points` once and skipping on it removes the fallback rather
+  // than leaving a branch no input can take.
+  const rings: CoastPoint[][] = [];
+  for (const d of cells) {
+    if (coastalIsland(d) === null) continue;
+    const points = d.points;
+    if (points === undefined) continue;
+    rings.push(points.map((p) => ({ x: p.x, z: p.z })));
+  }
   const bounds = rimLoops(rings).map(boundsOf);
   return {
     width,
