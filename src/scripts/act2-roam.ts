@@ -67,6 +67,11 @@
 // no DOM. Same shape as `act2-tell.ts`, for the same reason.
 // ---------------------------------------------------------------------------
 
+// The ONLY import this module has, and it is deliberately a pure one: `capability-dag.ts` is
+// geometry with no DOM, so importing it costs this module nothing of what makes it testable —
+// everything here is still inert until `mountRoam` is called.
+import { DAG_METRICS, idLines, layoutCapabilityDag } from './capability-dag';
+
 // ── the payload ─────────────────────────────────────────────────────────────
 
 /** The statuses the export can fold to — the same set `toSceneStatus` produces and the same set the
@@ -87,6 +92,9 @@ export interface RoamCapability {
   readonly id: string;
   readonly title: string;
   readonly status: RoamStatus;
+  /** What this component rests on, inside the same island — the edges the graph draws. Published
+   *  since ADR-0502; the fold that emits this payload used to drop them (`forest-snapshot-map.ts`). */
+  readonly dependsOn: readonly string[];
 }
 
 /** The states a UAT leg's own signed verdict folds to. */
@@ -249,7 +257,18 @@ export function parseRoamPayload(raw: string | null): RoamPayload | null {
       if (typeof c !== 'object' || c === null) continue;
       const cap = c as Record<string, unknown>;
       if (typeof cap.id !== 'string' || typeof cap.title !== 'string') continue;
-      capabilities.push({ id: cap.id, title: cap.title, status: toRoamStatus(cap.status) });
+      // Edges default to NONE when the field is absent or malformed, which is the reading that
+      // claims least: an island whose payload predates ADR-0502 draws as unconnected boxes rather
+      // than failing to draw, and a graph that asserts no edge is honest about knowing none.
+      const deps = Array.isArray(cap.dependsOn)
+        ? cap.dependsOn.filter((d): d is string => typeof d === 'string')
+        : [];
+      capabilities.push({
+        id: cap.id,
+        title: cap.title,
+        status: toRoamStatus(cap.status),
+        dependsOn: deps,
+      });
     }
     const storyArcs = Array.isArray(s.arcs) ? s.arcs.filter((a): a is string => typeof a === 'string') : [];
     // ⚠ THE JOURNEY'S ORDER IS THE EXPORTER'S AND IS NEVER RE-SORTED HERE. A leg with no title is
@@ -942,6 +961,287 @@ function statusChip(status: RoamStatus): HTMLElement {
   return wrap;
 }
 
+// ── the capability graph ────────────────────────────────────────────────────
+//
+// ⚠ THIS IS THE SECTION THE OWNER OPENED THE MAP TO ON 2026-09-01 AND FOUND MISSING. ADR-0453 D6
+// named the public depth floor as "Forest → island → capability tree"; what shipped was a COUNT
+// that expanded to a text list. He supplied a screenshot of the studio's own capability graph:
+// *"i'm not seeing this pretty dag graph on the website - this is what i meant by the capability
+// tree."* The geometry lives in `capability-dag.ts`; everything here is DOM, colour and gesture.
+//
+// ⚠ IT PANS, IT DOES NOT SCROLL (ADR-0502). The owner, on the studio's version: *"also be nice if
+// we could get rid of the ugly scroll bars and instead have it a pannable surface."* The treatment
+// is the one `.world-viewport` already uses for the map — `overflow: hidden`, `touch-action: none`,
+// `cursor: grab` — and `touch-action` is the clause that must not be dropped, or the PAGE scrolls
+// under a reader's finger while they try to pan.
+//
+// ⚠ AND A SCROLLBAR SAYS SOMETHING PAN DOES NOT: that there IS more, and roughly how much. That
+// signal is replaced deliberately rather than assumed away — the RESTING view fits the WHOLE graph,
+// so at rest there is nothing off-frame for a bar to have hinted at, and the moment the reader
+// zooms past the fit a "fit" control appears, which is both the hint and the way back. Nothing is
+// ever stranded off-frame with no route home.
+//
+// ⚠ NO CLOCKS. Pan and zoom write the `viewBox` directly from the pointer event that caused them.
+// No `requestAnimationFrame`, no easing, no inertia — see the load-bearing test in
+// `act2-roam.test.ts`. A gesture the reader is making is not this movement speaking.
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * THE GRAPH'S OWN DESCRIPTION, for anyone not seeing it — and the graph's only visitor-facing prose.
+ *
+ * ⚠ EXPORTED SO THE VOCABULARY FENCE CAN SCAN IT. `vocabulary.test.ts` walks `visitorProse()`, and a
+ * string built inline inside a render function is invisible to it — which is the blind spot that
+ * suite has already paid for once, when `renderStamp` shipped "stories" under a map whose prose said
+ * "microservice" ten seconds later. A sentence inside an SVG attribute is exactly that shape again.
+ *
+ * The counts are read from the laid-out picture rather than written down, so this cannot describe a
+ * graph other than the one drawn.
+ */
+export function capabilityGraphLabel(nodes: number, edges: number): string {
+  const parts = nodes === 1 ? '1 component' : `${nodes} components`;
+  const rests = edges === 1 ? '1 of them rests on another' : `${edges} of them rest on another`;
+  return `${parts} inside this microservice, ${rests}. What a component rests on is drawn below it.`;
+}
+
+/** The control that returns the graph to its resting view. Visitor-facing, so it is fenced too. */
+export const ROAM_DAG_FIT_LABEL = 'Fit the whole component graph back into view';
+
+function svgEl(tag: string, className: string): SVGElement {
+  const node = document.createElementNS(SVG_NS, tag);
+  if (className !== '') node.setAttribute('class', className);
+  return node;
+}
+
+/** The live camera over the graph, in layout units. */
+interface DagView {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Build the island's capability graph: a node per component, an edge per in-island dependency,
+ * coloured from the SAME status the island itself is painted with.
+ *
+ * Returns `null` when the island records no components — that is a sentence, not a picture, and the
+ * caller says it in words instead.
+ */
+function capabilityGraph(story: RoamStory): HTMLElement | null {
+  if (story.capabilities.length === 0) return null;
+
+  const layout = layoutCapabilityDag(story.capabilities);
+  const { nodeW, nodeH } = DAG_METRICS;
+
+  const frame = el('div', 'roam-dag');
+  const svg = svgEl('svg', 'roam-dag-svg');
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  // The whole graph, described once for anyone not seeing it. The counts are read from the picture
+  // rather than written down, so this cannot flatter the island it describes.
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', capabilityGraphLabel(layout.nodes.length, layout.edges.length));
+
+  // Arrowheads, defined once per graph. The marker inherits the edge's own colour so a future
+  // per-status edge tint would not need a second definition.
+  const markerId = `roam-dag-arrow-${story.id}`;
+  const defs = svgEl('defs', '');
+  const marker = svgEl('marker', 'roam-dag-arrow');
+  marker.setAttribute('id', markerId);
+  marker.setAttribute('viewBox', '0 0 8 8');
+  marker.setAttribute('refX', '7');
+  marker.setAttribute('refY', '4');
+  marker.setAttribute('markerWidth', '5');
+  marker.setAttribute('markerHeight', '5');
+  marker.setAttribute('orient', 'auto-start-reverse');
+  const head = svgEl('path', '');
+  head.setAttribute('d', 'M 0 0 L 8 4 L 0 8 z');
+  marker.append(head);
+  defs.append(marker);
+  svg.append(defs);
+
+  const edgeLayer = svgEl('g', 'roam-dag-edges');
+  for (const edge of layout.edges) {
+    const path = svgEl('path', 'roam-dag-edge');
+    path.setAttribute('d', edge.d);
+    path.setAttribute('marker-end', `url(#${markerId})`);
+    edgeLayer.append(path);
+  }
+  svg.append(edgeLayer);
+
+  const nodeLayer = svgEl('g', 'roam-dag-nodes');
+  const statusOf = new Map(story.capabilities.map((c) => [c.id, c] as const));
+  for (const node of layout.nodes) {
+    const capability = statusOf.get(node.id);
+    if (!capability) continue;
+    const group = svgEl('g', `roam-dag-node st-${capability.status}`);
+    group.setAttribute('transform', `translate(${node.x} ${node.y})`);
+
+    // The hover title carries the AUTHORED title, which the card itself has no room for. It is
+    // still our real corpus name — ADR-0453 D3 keeps these untranslated.
+    const label = svgEl('title', '');
+    label.textContent = `${capability.title} — ${STATUS_READING[capability.status].word}`;
+    group.append(label);
+
+    const card = svgEl('rect', 'roam-dag-card');
+    card.setAttribute('width', String(nodeW));
+    card.setAttribute('height', String(nodeH));
+    card.setAttribute('rx', '5');
+    group.append(card);
+
+    // The status strip — the one thing on this card that is meant to be readable at the resting
+    // fit, because it is the only thing on it that carries meaning to a stranger.
+    const strip = svgEl('rect', 'roam-dag-strip');
+    strip.setAttribute('width', String(nodeW));
+    strip.setAttribute('height', '4');
+    strip.setAttribute('rx', '2');
+    group.append(strip);
+
+    const lines = idLines(node.id);
+    lines.forEach((line, i) => {
+      const text = svgEl('text', 'roam-dag-label');
+      text.setAttribute('x', String(nodeW / 2));
+      text.setAttribute('y', String(nodeH / 2 + 4 + (i - (lines.length - 1) / 2) * 9));
+      text.setAttribute('text-anchor', 'middle');
+      text.textContent = line;
+      group.append(text);
+    });
+    nodeLayer.append(group);
+  }
+  svg.append(nodeLayer);
+  frame.append(svg);
+
+  // ── the camera ────────────────────────────────────────────────────────────
+  //
+  // ⚠ THE RESTING VIEW IS THE WHOLE GRAPH, AND IT NEEDS NO MEASUREMENT TO BE RIGHT. An earlier
+  // version fitted the viewBox to the frame's measured box so the two aspects matched and the pan
+  // arithmetic could use one ratio. That was fragile in a way worth recording: a one-shot fit ran
+  // before the panel had finished laying out (measured 317x232, resolving to 317x208), and moving it
+  // to a `ResizeObserver` traded that for a dependency on the page actually PAINTING — verified in a
+  // non-painting context, where the observer never fires at all and neither does `requestAnimationFrame`.
+  //
+  // So the aspects are simply allowed to differ. `preserveAspectRatio: xMidYMid meet` already
+  // guarantees the whole viewBox is visible, letterboxed, whatever the frame's shape — which is
+  // exactly the resting view this surface wants (`legible-at-the-resting-view`: at rest the reader
+  // sees the entire shape, and nothing is off-frame for a scrollbar to have hinted at). The gesture
+  // handlers below then do the letterbox arithmetic explicitly, so they are correct at any frame
+  // size, on first paint, and with no observer to keep alive.
+  const fitView = (): DagView => ({ x: 0, y: 0, w: layout.width, h: layout.height });
+
+  let view: DagView = fitView();
+  const apply = (): void => {
+    svg.setAttribute('viewBox', `${view.x.toFixed(2)} ${view.y.toFixed(2)} ${view.w.toFixed(2)} ${view.h.toFixed(2)}`);
+  };
+  apply();
+
+  /** CSS pixels per layout unit, under `meet` — the smaller of the two axis ratios, which is what
+   *  `preserveAspectRatio` itself picks. */
+  const scaleIn = (box: DOMRect): number => Math.min(box.width / view.w, box.height / view.h);
+
+  /** Where the viewBox's origin actually lands inside the frame, once `meet` has centred it. */
+  const letterbox = (box: DOMRect, scale: number, w: number, h: number): { ox: number; oy: number } => ({
+    ox: (box.width - w * scale) / 2,
+    oy: (box.height - h * scale) / 2,
+  });
+
+  const fitBtn = el('button', 'roam-dag-fit', 'fit');
+  fitBtn.type = 'button';
+  fitBtn.hidden = true;
+  fitBtn.setAttribute('aria-label', ROAM_DAG_FIT_LABEL);
+
+  // At rest the graph is already whole, so the control has nothing to offer and stays out of the
+  // picture. It appears the moment the reader leaves that view — which is the replacement for the
+  // one thing a scrollbar said that panning does not.
+  const markMoved = (isMoved: boolean): void => {
+    fitBtn.hidden = !isMoved;
+  };
+  const resetView = (): void => {
+    view = fitView();
+    apply();
+    markMoved(false);
+  };
+  fitBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    resetView();
+  });
+  frame.append(fitBtn);
+
+  // Pan. Pointer events cover mouse, touch and pen in one path; the capture keeps a drag alive when
+  // the pointer leaves the small frame, which it easily does.
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  frame.addEventListener('pointerdown', (ev) => {
+    if (ev.target instanceof Element && ev.target.closest('.roam-dag-fit') !== null) return;
+    dragging = true;
+    lastX = ev.clientX;
+    lastY = ev.clientY;
+    frame.setPointerCapture(ev.pointerId);
+    frame.classList.add('roam-dag-grabbing');
+  });
+  frame.addEventListener('pointermove', (ev) => {
+    if (!dragging) return;
+    const box = frame.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) return;
+    const scale = scaleIn(box);
+    if (!(scale > 0)) return;
+    view = {
+      ...view,
+      x: view.x - (ev.clientX - lastX) / scale,
+      y: view.y - (ev.clientY - lastY) / scale,
+    };
+    lastX = ev.clientX;
+    lastY = ev.clientY;
+    apply();
+    markMoved(true);
+  });
+  const endDrag = (ev: PointerEvent): void => {
+    if (!dragging) return;
+    dragging = false;
+    if (frame.hasPointerCapture(ev.pointerId)) frame.releasePointerCapture(ev.pointerId);
+    frame.classList.remove('roam-dag-grabbing');
+  };
+  frame.addEventListener('pointerup', endDrag);
+  frame.addEventListener('pointercancel', endDrag);
+
+  // Zoom about the cursor. `passive: false` because the default here is the PAGE scrolling, which is
+  // the one thing a gesture aimed at this box must not do.
+  frame.addEventListener(
+    'wheel',
+    (ev) => {
+      const box = frame.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) return;
+      ev.preventDefault();
+      const scale = scaleIn(box);
+      if (!(scale > 0)) return;
+
+      // Bounded both ways: never wider than the whole graph (there is nothing further out to see,
+      // and zooming out past the fit only shrinks it into the middle), and never closer than about
+      // three cards across.
+      const step = ev.deltaY > 0 ? 1.12 : 1 / 1.12;
+      const w = Math.min(layout.width, Math.max(DAG_METRICS.nodeW * 3, view.w * step));
+      const factor = w / view.w;
+      const h = view.h * factor;
+
+      // The layout unit currently under the cursor, then the origin that keeps it there.
+      const px = ev.clientX - box.left;
+      const py = ev.clientY - box.top;
+      const before = letterbox(box, scale, view.w, view.h);
+      const ux = view.x + (px - before.ox) / scale;
+      const uy = view.y + (py - before.oy) / scale;
+
+      const after = Math.min(box.width / w, box.height / h);
+      const offs = letterbox(box, after, w, h);
+      view = { x: ux - (px - offs.ox) / after, y: uy - (py - offs.oy) / after, w, h };
+      apply();
+      markMoved(w < layout.width - 0.5 || Math.abs(view.x) > 0.5 || Math.abs(view.y) > 0.5);
+    },
+    { passive: false },
+  );
+
+  return frame;
+}
+
 /**
  * Mount ROAM over the settled forest.
  *
@@ -1031,6 +1331,7 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     host.classList.add('roam-open');
   };
 
+
   // ── target 1 · an island, and targets 2 and 3 nested inside it ────────────
   const renderStory = (story: RoamStory): void => {
     body.replaceChildren();
@@ -1060,13 +1361,14 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     body.append(insideRow);
     if (openSection === 'inside') {
       body.append(noteBlock(ROAM_CAPABILITY_NOTE));
-      const list = el('ul', 'roam-caps');
-      for (const cap of story.capabilities) {
-        const item = el('li', 'roam-cap');
-        item.append(statusChip(cap.status), el('span', 'roam-cap-title', cap.title));
-        list.append(item);
-      }
-      if (story.capabilities.length > 0) body.append(list);
+      // ⚠ THE GRAPH REPLACED A TEXT LIST HERE, AND THAT IS THE WHOLE INCREMENT. The list named every
+      // component and its colour but drew no relation between them, so the one thing the section
+      // exists to show — what rests on what — was the one thing absent. The graph carries strictly
+      // more: the same node set, the same colours read from the same status, plus the edges.
+      // Nothing to settle and nothing to dispose: the resting view is the whole graph, which is
+      // right from the first paint, and every listener lives on the frame itself.
+      const graph = capabilityGraph(story);
+      if (graph) body.append(graph);
     }
 
     // target 6 · the proof — the acceptance journey. This is the level the owner opened the map to

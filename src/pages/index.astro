@@ -1509,59 +1509,152 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
      increment was filed against. The `background` on the base rule is the `unknown` reading: no
      `st-unknown` selector exists, on the map or here, so an island whose record did not load gets
      the same neutral grey in both places by falling through. */
+  /* ⚠ THE FIVE HUES ARE NAMED ONCE AND READ THREE TIMES. The dot, the key's chip and the capability
+     graph's cards are three renderings of ONE status value, and the rule above — that the panel and
+     the picture cannot disagree — only holds structurally if they cannot hold different numbers.
+     Written as three blocks of literals it would be fifteen hex codes, and the drift would surface
+     as a graph quietly disagreeing with the island it sits inside. The `st-unknown` reading has no
+     selector anywhere, here or on the map: an island whose record did not load falls through to the
+     neutral base in every one of the three places. */
+  .roam-panel,
+  .storm-land-key {
+    --st-healthy: #2f6b3f;
+    --st-proposed: #b06a24;
+    --st-mapped: #7d5f3b;
+    --st-building: #4a7d8c;
+    --st-unhealthy: #9f2d22;
+    --st-unknown: #9ca3af;
+  }
   .roam-chip { display: inline-flex; align-items: center; gap: 0.42rem; }
   .roam-dot,
   .legend-dot {
     width: 0.62rem;
     height: 0.62rem;
     border-radius: 50%;
-    background: #9ca3af;
+    background: var(--st-unknown, #9ca3af);
     flex: none;
   }
   .legend-dot { width: 0.55rem; height: 0.55rem; }
   .roam-dot.st-healthy,
-  .legend-dot.st-healthy { background: #2f6b3f; }
+  .legend-dot.st-healthy { background: var(--st-healthy); }
   .roam-dot.st-proposed,
-  .legend-dot.st-proposed { background: #b06a24; }
+  .legend-dot.st-proposed { background: var(--st-proposed); }
   .roam-dot.st-mapped,
-  .legend-dot.st-mapped { background: #7d5f3b; }
+  .legend-dot.st-mapped { background: var(--st-mapped); }
   .roam-dot.st-building,
-  .legend-dot.st-building { background: #4a7d8c; }
+  .legend-dot.st-building { background: var(--st-building); }
   .roam-dot.st-unhealthy,
-  .legend-dot.st-unhealthy { background: #9f2d22; }
+  .legend-dot.st-unhealthy { background: var(--st-unhealthy); }
   .roam-chip-word { font-weight: 550; }
+
+  /* ======================================================================
+     THE CAPABILITY GRAPH — the public depth floor ADR-0453 D6 named and
+     nothing ever drew. What was here was a text list: every component named
+     and coloured, and not one relation between them drawn.
+
+     ⚠ IT PANS. IT DOES NOT SCROLL (ADR-0502). The owner, on the studio's
+     version: *"also be nice if we could get rid of the ugly scroll bars and
+     instead have it a pannable surface."* The four properties below are the
+     ones `.world-viewport` already carries for the map itself, copied here
+     because they were written for the map and never generalised — which is
+     exactly why the studio's own graph still had bars.
+
+     ⚠ `touch-action: none` IS THE CLAUSE THAT GETS DROPPED. Without it the
+     PAGE scrolls under a reader's finger while they try to pan the graph, and
+     the gesture reads as broken on every phone.
+
+     ⚠ FLEX, NOT `max-height`. The list this replaces learned that the hard
+     way: a fixed height bounds the box without bounding what is above it, so
+     a long title still pushed the floor note and the snapshot stamp off the
+     panel — in the DOM, off the screen, and indistinguishable from working to
+     a check reading `textContent`. This box shrinks to whatever is left. */
+  .roam-dag {
+    position: relative;
+    /* ⚠ A DEFINITE HEIGHT, NOT `flex: 1 1 auto` — and the reason is measured. `.roam-body` above
+       already SCROLLS (it has its own `overflow-y: auto`, and the floor note and stamp sit outside
+       it as siblings, so neither can be pushed off by anything in here). Inside a scrolling box a
+       flexible child does not grow, it collapses to its minimum: measured at 136px on
+       `drive-machinery`, which put a 26-node graph in a strip two cards tall. The historical
+       overflow this file warns about was content escaping the PANEL; that failure mode is closed by
+       the body's own scroll, and a definite height here cannot reopen it. */
+    flex: none;
+    height: 13rem;
+    margin: 0 0 0.75rem;
+    border-radius: 8px;
+    background: rgba(255, 252, 246, 0.5);
+    border: 1px solid rgba(122, 98, 62, 0.18);
+    overflow: hidden; /* no scrollbar — the drag navigates */
+    touch-action: none; /* the gesture drives the camera, not the page */
+    cursor: grab;
+    user-select: none;
+  }
+  .roam-dag.roam-dag-grabbing { cursor: grabbing; }
+  .roam-dag-svg { display: block; width: 100%; height: 100%; }
+
+  .roam-dag-edge {
+    fill: none;
+    stroke: rgba(122, 98, 62, 0.45);
+    stroke-width: 1.4;
+  }
+  .roam-dag-arrow path { fill: rgba(122, 98, 62, 0.5); }
+
+  .roam-dag-card {
+    fill: #fffdf8;
+    stroke: rgba(122, 98, 62, 0.3);
+    stroke-width: 1;
+  }
+  /* The strip is the status, and it is the one thing on a card meant to read at the resting fit —
+     the labels are our real corpus names and stay illegible by design (ADR-0453 D3). */
+  .roam-dag-strip { fill: var(--st-unknown); }
+  .roam-dag-node.st-healthy .roam-dag-strip { fill: var(--st-healthy); }
+  .roam-dag-node.st-proposed .roam-dag-strip { fill: var(--st-proposed); }
+  .roam-dag-node.st-mapped .roam-dag-strip { fill: var(--st-mapped); }
+  .roam-dag-node.st-building .roam-dag-strip { fill: var(--st-building); }
+  .roam-dag-node.st-unhealthy .roam-dag-strip { fill: var(--st-unhealthy); }
+
+  .roam-dag-label {
+    font-size: 7.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    fill: rgba(60, 48, 32, 0.78);
+  }
+
+  /* ⚠ THE REPLACEMENT FOR WHAT A SCROLLBAR USED TO SAY. A bar carried two things pan does not:
+     that there IS more, and roughly how much. At rest the whole graph is fitted, so there is
+     nothing off-frame for a bar to have hinted at — and the instant the reader leaves that view
+     this appears, which is both the hint and the way back. Nothing is ever stranded. */
+  .roam-dag-fit {
+    position: absolute;
+    right: 0.4rem;
+    bottom: 0.4rem;
+    padding: 0.15rem 0.5rem;
+    font: inherit;
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    color: var(--ink-soft, #6b5b45);
+    background: rgba(255, 252, 246, 0.92);
+    border: 1px solid rgba(122, 98, 62, 0.3);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .roam-dag-fit:hover { border-color: rgba(122, 98, 62, 0.55); }
+  .roam-dag-fit:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 
   /* ⚠ THE LIST SCROLLS INSIDE ITSELF SO THE FLOOR STAYS ON SCREEN. The floor note sits BELOW this
      list and is the panel's conversion point — where the public map stops and what opens it. Left
      unbounded the list simply pushed it, and the snapshot stamp under it, past the panel's own
      max-height: both were in the DOM and neither was on screen, which a check reading textContent
-     cannot tell apart from working. The largest story on this map has 27 capabilities. */
+     cannot tell apart from working.
+
+     ⚠ THE CAPABILITY LIST THIS PARAGRAPH WAS WRITTEN ABOUT IS GONE — it is a GRAPH now
+     (`.roam-dag` below, ADR-0502). The rule it taught is not: the floor note and the snapshot stamp
+     are siblings of this box rather than children, so nothing rendered in here can push them off the
+     panel, and that is what lets the graph below take a definite height. */
   .roam-body {
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
-  }
-  /* The one part that gives. `min-height` keeps at least a couple of rows visible so the list never
-     collapses to nothing and reads as empty. */
-  .roam-caps {
-    margin: 0 0 0.75rem;
-    padding: 0 0.3rem 0 0;
-    list-style: none;
-    flex: 1 1 auto;
-    min-height: 4rem;
-    overflow-y: auto;
-    /* A VISIBLE scrollbar, not the overlay one the engine hides. The row above says how many
-       capabilities there are; without a track, a list showing two of nine looks like a list of
-       two, and the panel would understate the island it is describing. */
-    scrollbar-width: thin;
-    scrollbar-color: rgba(122, 98, 62, 0.45) transparent;
-  }
-  .roam-caps::-webkit-scrollbar { width: 7px; }
-  .roam-caps::-webkit-scrollbar-thumb {
-    background: rgba(122, 98, 62, 0.45);
-    border-radius: 4px;
   }
   /* ⚠ THE PROOF AND DECISION LISTS SCROLL INSIDE THEMSELVES FOR THE SAME REASON THE CAPABILITY
      LIST DOES, and they are why that rule had to be generalised. The owner asked for "the lot", so
@@ -1648,24 +1741,11 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     white-space: nowrap;
   }
 
-  /* ⚠ THE LIST IS THE ONLY THING THAT GIVES. Every note and every row is pinned, so whatever a
-     story's size, the panel spends its slack on the one part that can afford to scroll. This
-     generalises the floor-only rule that was here before: the story panel offers FIVE rows now
-     (colour, inside, proof, decisions, initiatives), and a shrinking row is a row whose label
-     stops being readable. */
+  /* ⚠ EVERY NOTE AND EVERY ROW IS PINNED, so the panel spends its slack on the parts that can
+     afford to scroll rather than on a row whose label would stop being readable. The story panel
+     offers FIVE rows (colour, inside, proof, decisions, initiatives). */
   .roam-note,
   .roam-row { flex: none; }
-  .roam-cap {
-    display: flex;
-    align-items: baseline;
-    gap: 0.45rem;
-    margin: 0 0 0.35rem;
-    font-size: 0.82rem;
-    line-height: 1.45;
-    color: var(--ink-soft);
-  }
-  .roam-cap .roam-dot { position: relative; top: 0.12rem; }
-  .roam-cap-title { flex: 1; }
 
   /* Target 5 — the arc drawer. It sits one level ABOVE the code, so it reads as a block of
      initiatives rather than as a list of parts: each arc gets its title, a state word, its

@@ -29,12 +29,14 @@ import { SELF_CLAUSE, SELF_STORY_ID, TELL_SCRIPT, renderLine, type ForestFacts }
 import { ASK_CTA, ASK_LINE } from './act2-ask';
 import {
   LIFECYCLE_READING,
+  ROAM_DAG_FIT_LABEL,
   ROAM_KIND_WORD,
   ROAM_NOTES,
   STATUS_READING,
   adrOverflow,
   adrTally,
   arcTally,
+  capabilityGraphLabel,
   capabilityTally,
   decisionTally,
   incrementTally,
@@ -84,6 +86,7 @@ function storyFixture(caps: number, arcs: number): RoamStory {
       id: `c${i}`,
       title: `c${i}`,
       status: 'healthy' as const,
+      dependsOn: [],
     })),
     uat: [],
     decisions: [],
@@ -150,6 +153,22 @@ function visitorProse(): Prose[] {
   // shape that escapes again.
   out.push({ where: 'TELL lineage figure (upper box)', text: LINEAGE_UPPER });
   out.push({ where: 'TELL lineage figure (lower box)', text: LINEAGE_LOWER });
+
+  // ⚠ THE CAPABILITY GRAPH'S OWN DESCRIPTION IS THE SAME SHAPE AGAIN — a sentence built inside a
+  // render function and set on an SVG attribute, which is invisible to a fence that stops at the
+  // sentences. Scanned at three sizes because the singular, plural and empty readings are three
+  // different sentences, and only one of them is exercised by any given island.
+  for (const [nodes, edges] of [
+    [0, 0],
+    [1, 0],
+    [26, 37],
+  ] as const) {
+    out.push({
+      where: `ROAM capability graph label(${nodes},${edges})`,
+      text: capabilityGraphLabel(nodes, edges),
+    });
+  }
+  out.push({ where: 'ROAM capability graph fit control', text: ROAM_DAG_FIT_LABEL });
 
   for (const note of ROAM_NOTES) {
     note.lines.forEach((text, i) => out.push({ where: `ROAM note ${note.id}[${i}]`, text }));

@@ -514,6 +514,22 @@ export interface RoamCapability {
   readonly id: string;
   readonly title: string;
   readonly status: SceneStatus;
+  /**
+   * WHAT THIS COMPONENT RESTS ON — the edges the island panel draws its capability graph from.
+   *
+   * ⚠ THE SNAPSHOT ALWAYS CARRIED THIS AND THIS FOLD USED TO DROP IT. ADR-0453 D6 named the public
+   * depth floor as "Forest → island → capability tree", and until ADR-0502 the panel rendered a
+   * COUNT that expanded to a text list — so the gap read as a rendering task with the data already
+   * in hand. It was not quite: `forest-snapshot.json` has carried `dependsOn` per capability all
+   * along, but this second fold published `id`/`title`/`status` alone, and the browser never saw an
+   * edge. Widening the fold is the whole export half of the work.
+   *
+   * Published UNFILTERED, and the layout drops any pointer whose other end is not in the same
+   * island — that is a decision about the PICTURE, not about the data, so it belongs there rather
+   * than here. Measured on this snapshot every edge is already in-story (186 of 186), so the drop
+   * is a guard against a future export rather than something that fires today.
+   */
+  readonly dependsOn: readonly string[];
 }
 
 /** The states a UAT leg's own signed verdict folds to. Narrowed on the way in, like a status. */
@@ -629,6 +645,9 @@ export function roamPayload(snap: ForestSnapshot): RoamPayload {
         id: cap.id,
         title: cap.title,
         status: toSceneStatus(cap.status),
+        // The edges, published because the panel now DRAWS them (ADR-0502). Measured on this
+        // snapshot: 203 capabilities, 126 of which carry at least one edge, 186 edges in all.
+        dependsOn: [...cap.dependsOn],
       })),
       // The acceptance journey, in the exporter's authored order — never re-sorted here, or the
       // panel would print the steps of a walk in an order nobody walks them in.
