@@ -1155,8 +1155,98 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     background: rgba(122, 98, 62, 0.45);
     border-radius: 4px;
   }
-  /* Never shrink the two that carry the meaning. */
-  .roam-note[data-roam-note='floor'] { flex: none; }
+  /* ⚠ THE PROOF AND DECISION LISTS SCROLL INSIDE THEMSELVES FOR THE SAME REASON THE CAPABILITY
+     LIST DOES, and they are why that rule had to be generalised. The owner asked for "the lot", so
+     neither list is capped: the busiest story on this map carries thirteen acceptance steps and
+     fifteen decisions. Left unbounded they push the floor note and the snapshot stamp past the
+     panel's own max-height — both still in the DOM, neither on screen, which is precisely the shape
+     a check reading `textContent` cannot tell apart from working. Flex, not `max-height`: the list
+     shrinks to whatever is left whatever the story's size, so the guard is content-independent. */
+  .roam-uat,
+  .roam-adrs {
+    margin: 0 0 0.75rem;
+    padding: 0 0.3rem 0 0;
+    list-style: none;
+    flex: 1 1 auto;
+    min-height: 4rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(122, 98, 62, 0.45) transparent;
+  }
+  .roam-uat::-webkit-scrollbar,
+  .roam-adrs::-webkit-scrollbar { width: 7px; }
+  .roam-uat::-webkit-scrollbar-thumb,
+  .roam-adrs::-webkit-scrollbar-thumb {
+    background: rgba(122, 98, 62, 0.45);
+    border-radius: 4px;
+  }
+
+  /* One acceptance step. The state is carried as a WORD as well as a colour — this is the section
+     whose whole job is to make "green is earned" checkable, and a hue alone leaves that unreadable
+     to anyone not seeing it. */
+  .roam-uat-leg {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.45rem;
+    margin: 0 0 0.5rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--ink-soft);
+  }
+  .roam-uat-dot {
+    width: 0.62rem;
+    height: 0.62rem;
+    margin-top: 0.32rem;
+    border-radius: 50%;
+    background: #b06a24;
+    flex: none;
+  }
+  /* The same three hues the island crowns use for the same three readings — one vocabulary, so a
+     step and an island cannot say different things with the same colour. */
+  .roam-uat-dot.uat-proven { background: #2f6b3f; }
+  .roam-uat-dot.uat-pending { background: #b06a24; }
+  .roam-uat-dot.uat-failing { background: #9f2d22; }
+  /* ⚠ THE FOURTH MARK IS A HOLLOW RING, NOT A FOURTH COLOUR. A step nothing can witness yet is not
+     a step in a worse state — it is a step OUTSIDE the proof ladder those three hues describe, and
+     giving it one of their colours would put it back on the ladder. Hollow reads as "no reading",
+     which is exactly what it is. */
+  .roam-uat-dot.uat-unprovable {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px rgba(122, 98, 62, 0.5);
+  }
+  .roam-uat-leg.uat-unprovable .roam-uat-title { color: var(--ink-faint); }
+  .roam-uat-title { grid-column: 2; }
+  .roam-uat-meta {
+    grid-column: 2;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+  }
+
+  /* One decision. The number is the identity the record is filed under; the title is all the page
+     may say about it, and the reasoning is what the app opens. */
+  .roam-adr {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.5rem;
+    margin: 0 0 0.45rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--ink-soft);
+  }
+  .roam-adr-no {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+
+  /* ⚠ THE LIST IS THE ONLY THING THAT GIVES. Every note and every row is pinned, so whatever a
+     story's size, the panel spends its slack on the one part that can afford to scroll. This
+     generalises the floor-only rule that was here before: the story panel offers FIVE rows now
+     (colour, inside, proof, decisions, initiatives), and a shrinking row is a row whose label
+     stops being readable. */
+  .roam-note,
+  .roam-row { flex: none; }
   .roam-cap {
     display: flex;
     align-items: baseline;
@@ -1234,6 +1324,13 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     line-height: 1.45;
     color: var(--ink);
   }
+
+  /* The floor's pinned slot — see act2-roam.ts for the measurement that moved it out of the
+     scrolling body. It sits between the body and the stamp and never gives up height, so the
+     conversion point is on the panel whatever the story's size. Empty for a trail panel, and an
+     empty div with no margin takes no room. */
+  .roam-floor { flex: none; }
+  .roam-floor .roam-note { margin-bottom: 0; }
 
   /* The date, once, at the bottom of every panel. Without it a present-tense
      sentence about a story's state reads as a live feed, which is the single

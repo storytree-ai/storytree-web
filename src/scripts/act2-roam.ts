@@ -89,18 +89,73 @@ export interface RoamCapability {
   readonly status: RoamStatus;
 }
 
+/** The states a UAT leg's own signed verdict folds to. */
+export type RoamUatState = 'proven' | 'pending' | 'failing';
+const UAT_STATES: readonly RoamUatState[] = ['proven', 'pending', 'failing'];
+
+/** Who witnesses a leg: a harness the spine owns, a person, or either. */
+export type RoamWitness = 'machine' | 'human' | 'either';
+const WITNESSES: readonly RoamWitness[] = ['machine', 'human', 'either'];
+
+/**
+ * ONE STEP OF THE STORY'S ACCEPTANCE JOURNEY — the public depth floor's new tier (ADR-0494 D1).
+ *
+ * The owner, 2026-09-01: *"it should show the capability tree and our uat tests, give them the
+ * lot."* This is the level at which the map stops being a diagram and becomes evidence: the panel
+ * above it says a story is proven, and this says what the proving consisted of.
+ *
+ * ⚠ NO ID AND NO BODY, AND NEITHER IS RETRIEVABLE FROM THIS REPO. The exporter publishes the
+ * authored one-line title alone; a criterion's own id is a random hash no line renders, measured
+ * and dropped upstream at 1.9 KB gzipped.
+ */
+export interface RoamUatCriterion {
+  readonly title: string;
+  readonly state: RoamUatState;
+  readonly witness: RoamWitness;
+  /**
+   * ⚠⚠ WHETHER ANYTHING CAN PROVE THIS STEP YET — the field that stops this panel contradicting the
+   * island it is drawn over.
+   *
+   * A step authored with nothing able to witness it does not hold its story's green (ADR-0443 D2),
+   * so a story is legitimately GREEN while such a step carries no verdict. Measured 2026-09-01 on
+   * the published snapshot: FIVE green islands have not one of their listed steps signed, and
+   * `website-experience` has eight. Reading `state` alone would print "8 acceptance tests, 0
+   * proven" under a green island, on the page whose whole pitch is that its signals are real — and
+   * a page that appears to contradict itself is worse than either fact on its own.
+   *
+   * `false` is a REAL AUTHORED STATE, never a defect and never a thing to hide: the corpus keeps
+   * `unsignableUatCriteria` precisely so a surface can say so rather than silently shrinking the
+   * checklist, and ADR-0443's honesty rests on the gap staying visible in each step's own text.
+   */
+  readonly signable: boolean;
+}
+
 export interface RoamStory {
   readonly id: string;
   readonly title: string;
   readonly status: RoamStatus;
   readonly capabilities: readonly RoamCapability[];
+  /** The acceptance journey, IN AUTHORED ORDER. Empty is a real, designed state — measured
+   *  2026-09-01, 11 of the 35 published stories declare no witnessable leg. */
+  readonly uat: readonly RoamUatCriterion[];
+  /** Decision numbers, keys into {@link RoamPayload.decisions}. Empty is a real state too. */
+  readonly decisions: readonly number[];
   /** Arc ids, keys into {@link RoamPayload.arcs}. Empty is a real, designed state — see
    *  {@link ROAM_ARC_EMPTY}. */
   readonly arcs: readonly string[];
 }
 
-/** A decision attached to an arc. */
-export interface RoamArcAdr {
+/**
+ * ONE DECISION, at title-and-identity depth and no deeper (ADR-0494 D2).
+ *
+ * ⚠ THE BODY IS THE PROTECTION AND IT IS ABSENT UPSTREAM, exactly as arc prose is. The owner priced
+ * this exposure himself — *"they can see adrs and other things is not line they can read them, even
+ * if they read one or two its not a big issue"* — and what he priced was a stranger reading a
+ * decision's NAME. A field added here would render blank; the fence lives in the exporter.
+ *
+ * Reached by NUMBER from both a story and an arc, so one decision has one record on the page.
+ */
+export interface RoamAdr {
   readonly number: number;
   readonly status: string;
   readonly title: string;
@@ -122,7 +177,8 @@ export interface RoamArc {
   readonly lifecycle: string;
   readonly incrementsClosed: number;
   readonly incrementsOpen: number;
-  readonly adrs: readonly RoamArcAdr[];
+  /** Decision numbers — the same keys a story's `decisions` uses, into the same registry. */
+  readonly adrs: readonly number[];
 }
 
 export interface RoamPayload {
@@ -131,6 +187,9 @@ export interface RoamPayload {
   readonly stories: readonly RoamStory[];
   /** Every arc a story reaches, id-sorted — normalised, so a hub arc appears once. */
   readonly arcs: readonly RoamArc[];
+  /** Every decision a story or an arc names, number-sorted — normalised for the same reason, and
+   *  more sharply: the 35 published stories make 211 citations over 117 distinct decisions. */
+  readonly decisions: readonly RoamAdr[];
 }
 
 /** Narrow an unknown status string, defaulting to `unknown`. A status this site has no reading for
@@ -140,6 +199,22 @@ export function toRoamStatus(raw: unknown): RoamStatus {
   return typeof raw === 'string' && (STATUSES as readonly string[]).includes(raw)
     ? (raw as RoamStatus)
     : 'unknown';
+}
+
+/** Narrow a leg's state, defaulting to `pending` — the reading that claims LEAST. A state this page
+ *  has no reading for must never borrow `proven`, on the surface whose pitch is that green is earned. */
+export function toRoamUatState(raw: unknown): RoamUatState {
+  return typeof raw === 'string' && (UAT_STATES as readonly string[]).includes(raw)
+    ? (raw as RoamUatState)
+    : 'pending';
+}
+
+/** Narrow a leg's witness, defaulting to `either` — the parser's own default for an untagged leg, so
+ *  an unreadable value reads as the weakest true claim rather than naming a person or a harness. */
+export function toRoamWitness(raw: unknown): RoamWitness {
+  return typeof raw === 'string' && (WITNESSES as readonly string[]).includes(raw)
+    ? (raw as RoamWitness)
+    : 'either';
 }
 
 /**
@@ -177,7 +252,33 @@ export function parseRoamPayload(raw: string | null): RoamPayload | null {
       capabilities.push({ id: cap.id, title: cap.title, status: toRoamStatus(cap.status) });
     }
     const storyArcs = Array.isArray(s.arcs) ? s.arcs.filter((a): a is string => typeof a === 'string') : [];
-    out.push({ id: s.id, title: s.title, status: toRoamStatus(s.status), capabilities, arcs: storyArcs });
+    // ⚠ THE JOURNEY'S ORDER IS THE EXPORTER'S AND IS NEVER RE-SORTED HERE. A leg with no title is
+    // skipped rather than rendered blank — the same asymmetry the arc tier draws below.
+    const uat: RoamUatCriterion[] = [];
+    for (const u of Array.isArray(s.uat) ? (s.uat as unknown[]) : []) {
+      if (typeof u !== 'object' || u === null) continue;
+      const leg = u as Record<string, unknown>;
+      if (typeof leg.title !== 'string' || leg.title.length === 0) continue;
+      uat.push({
+        title: leg.title,
+        state: toRoamUatState(leg.state),
+        witness: toRoamWitness(leg.witness),
+        // Defaults to signable — the majority shape, and the one that claims nothing extra.
+        signable: leg.signable !== false,
+      });
+    }
+    const decisions = Array.isArray(s.decisions)
+      ? s.decisions.filter((n): n is number => typeof n === 'number')
+      : [];
+    out.push({
+      id: s.id,
+      title: s.title,
+      status: toRoamStatus(s.status),
+      capabilities,
+      uat,
+      decisions,
+      arcs: storyArcs,
+    });
   }
 
   // ⚠ A MISSING ARC TIER IS TOLERATED, A MALFORMED ONE IS NOT — and the asymmetry is deliberate.
@@ -189,17 +290,9 @@ export function parseRoamPayload(raw: string | null): RoamPayload | null {
     if (typeof entry !== 'object' || entry === null) continue;
     const a = entry as Record<string, unknown>;
     if (typeof a.id !== 'string' || typeof a.title !== 'string') continue;
-    const adrs: RoamArcAdr[] = [];
-    for (const d of Array.isArray(a.adrs) ? a.adrs : []) {
-      if (typeof d !== 'object' || d === null) continue;
-      const adr = d as Record<string, unknown>;
-      if (typeof adr.number !== 'number' || typeof adr.title !== 'string') continue;
-      adrs.push({
-        number: adr.number,
-        status: typeof adr.status === 'string' ? adr.status : 'unknown',
-        title: adr.title,
-      });
-    }
+    const adrs = Array.isArray(a.adrs)
+      ? a.adrs.filter((n): n is number => typeof n === 'number')
+      : [];
     arcs.push({
       id: a.id,
       title: a.title,
@@ -209,7 +302,22 @@ export function parseRoamPayload(raw: string | null): RoamPayload | null {
       adrs,
     });
   }
-  return { asOf, stories: out, arcs };
+
+  // The decision registry. A malformed record is dropped for the same reason a malformed arc is:
+  // the number that names it simply resolves to nothing, and the panel says so rather than printing
+  // a numbered blank.
+  const decisions: RoamAdr[] = [];
+  for (const entry of Array.isArray(bag.decisions) ? (bag.decisions as unknown[]) : []) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const d = entry as Record<string, unknown>;
+    if (typeof d.number !== 'number' || typeof d.title !== 'string') continue;
+    decisions.push({
+      number: d.number,
+      status: typeof d.status === 'string' ? d.status : 'unknown',
+      title: d.title,
+    });
+  }
+  return { asOf, stories: out, arcs, decisions };
 }
 
 // ── the copy ────────────────────────────────────────────────────────────────
@@ -341,21 +449,80 @@ export function trailOverflow(edges: readonly RoamEdge[]): string | null {
 }
 
 /**
- * THE FLOOR — and it is a door, not a wall (ADR-0453 D6).
+ * TARGET 6 — THE PROOF: the acceptance journey, which is where the map stops being a diagram.
  *
- * The public map stops at the capability tree. Below it are the tests, the decisions and the code,
- * and those are the app's. The clause that matters is the second sentence: the floor is the
- * conversion point, arriving exactly when the visitor has demonstrated they want more depth, and
- * rendering it as a dead end would be the failure. It does not promise a download — there is no
- * product to hand anyone yet (D9), and the site's own ending is where that is said.
+ * ⚠ THIS IS THE POINT OF THE WHOLE SURFACE, not one more expandable row. Every sentence above it
+ * asserts that the green is earned; this is the only place a stranger can check the assertion,
+ * because it names the steps and shows the verdict signed against each one.
+ *
+ * ⚠ "ACCEPTANCE TEST", NOT "UAT CRITERION". The corpus's noun is a criterion and the reader's is an
+ * acceptance test; visitor-facing prose speaks the reader's (ADR-0494 D5), and the same pass that
+ * made an island a microservice and a capability a component names this one too. The map's own
+ * labels are untouched by that rule and stay our real, illegible ids.
+ */
+export const ROAM_UAT_NOTE: RoamNote = {
+  id: 'uat',
+  lines: [
+    'An acceptance test is one step of the journey this microservice has to complete end to end.',
+    'Each is signed off on its own, and a step nothing can witness yet says so rather than counting.',
+  ],
+  grounds: ['ADR-0082'],
+};
+
+/**
+ * THE EMPTY STATE, WHICH IS A REAL STATE AND NOT AN ERROR — the same rule the arc drawer follows.
+ *
+ * Measured on the published snapshot, eleven of the islands declare no witnessable step at all. A
+ * blank section there would read as a bug in the page, and a sentence inventing a cause ("it is too
+ * small to need one") would be a claim nothing in the snapshot supports.
+ */
+export const ROAM_UAT_EMPTY: RoamNote = {
+  id: 'uat-empty',
+  lines: ['No acceptance test is recorded against this one.'],
+};
+
+/**
+ * TARGET 7 — THE DECISIONS: why this piece is shaped the way it is.
+ *
+ * The owner, 2026-09-01, pricing the exposure himself: *"they can see adrs and other things is not
+ * line they can read them, even if they read one or two its not a big issue."* What is reachable is
+ * the NAME of a decision, never its reasoning — the bodies are not in the published file at all.
+ */
+export const ROAM_DECISION_NOTE: RoamNote = {
+  id: 'decision',
+  lines: [
+    'A decision record is one architectural choice, written down when it was made and never rewritten.',
+    'The map can name them. What each one argued is in the app.',
+  ],
+  grounds: ['ADR-0037'],
+};
+
+/** The honest empty for a piece that declares no deciding record. */
+export const ROAM_DECISION_EMPTY: RoamNote = {
+  id: 'decision-empty',
+  lines: ['No decision record is named against this one.'],
+};
+
+/**
+ * THE FLOOR — and it is a door, not a wall (ADR-0453 D6, moved down by ADR-0494 D1/D2).
+ *
+ * ⚠ THE FLOOR MOVED ON 2026-09-01 AND THIS COPY MOVED WITH IT. It used to read "under a capability
+ * sit its tests, the decisions behind it and the code" — which became FALSE in the same landing that
+ * put the tests and the decision names on this panel. A conversion point that describes as
+ * unreachable the thing the visitor is looking at is worse than none.
+ *
+ * What is genuinely past the floor is unchanged (ADR-0494 D3): the code, and the reasoning behind
+ * each decision. And the clause that matters is still the second sentence — the floor arrives
+ * exactly when the visitor has demonstrated they want depth, and rendering it as a dead end would be
+ * the failure. It does not promise a download; there is no product to hand anyone yet (ADR-0453 D9).
  */
 export const ROAM_FLOOR_NOTE: RoamNote = {
   id: 'floor',
   lines: [
     'This is as deep as the public map goes.',
-    'Under each component sit its tests, the decisions behind it and the code — that is what the app opens.',
+    'Below it are the code itself and the reasoning behind each decision — that is what the app opens.',
   ],
-  grounds: ['ADR-0453'],
+  grounds: ['ADR-0453', 'ADR-0494'],
 };
 
 /**
@@ -411,10 +578,90 @@ export const ROAM_NOTES: readonly RoamNote[] = [
   ROAM_COLOUR_NOTE,
   ROAM_CAPABILITY_NOTE,
   ROAM_TRAIL_NOTE,
+  ROAM_UAT_NOTE,
+  ROAM_UAT_EMPTY,
+  ROAM_DECISION_NOTE,
+  ROAM_DECISION_EMPTY,
   ROAM_FLOOR_NOTE,
   ROAM_ARC_NOTE,
   ROAM_ARC_EMPTY,
 ];
+
+/**
+ * WHAT A UAT STEP'S OWN VERDICT MEANS, in the visitor's words.
+ *
+ * ⚠ EVERY BRANCH SHIPS AND THE DATA PICKS ONE — the same rule `STATUS_READING` follows. `failing`
+ * has never occurred on this map and is written anyway, for the same reason `unhealthy` is: a
+ * vocabulary that can only say encouraging things is a brochure, and the sentence a failing step
+ * will need is the one written here rather than a kinder one written under pressure later.
+ *
+ * ⚠ AND `pending` DOES NOT APOLOGISE FOR ITSELF. Most steps on this map are unproven; a reading
+ * that hedged ("not proven YET, but…") would be the copy flattering the data.
+ */
+export const UAT_STATE_READING: Readonly<Record<RoamUatState, { word: string; sentence: string }>> = {
+  proven: { word: 'proven', sentence: 'A signed verdict passed this step.' },
+  pending: { word: 'not yet proven', sentence: 'Nothing has been signed against this step.' },
+  failing: { word: 'failing', sentence: 'A verdict was signed against this step and it did not pass.' },
+};
+
+/**
+ * WHO SIGNS A STEP — the short label beside it, never a sentence.
+ *
+ * ⚠ THIS IS THE PAGE'S OWN CLAIM MADE CHECKABLE. The stamp under the map says green is earned
+ * "because a signed test said so"; showing which steps a harness proves and which ones a person
+ * had to judge is what stops that from being a slogan. Most are the machine, and the exceptions
+ * are the interesting part rather than an embarrassment.
+ *
+ * `either` is the parser's default for an untagged step, so it is the weakest true claim rather
+ * than an assertion that nobody looked.
+ */
+export const WITNESS_LABEL: Readonly<Record<RoamWitness, string>> = {
+  machine: 'by test',
+  human: 'by a person',
+  either: 'by test or person',
+};
+
+/** How many of a story's acceptance steps are proven, counted from the payload, never stated. */
+export function provenUatCount(story: RoamStory): number {
+  return story.uat.filter((u) => u.state === 'proven').length;
+}
+
+/** How many are written down with nothing able to witness them yet — the state that does NOT hold
+ *  the island's colour, and the reason the tally below has three branches. */
+export function unprovableUatCount(story: RoamStory): number {
+  return story.uat.filter((u) => !u.signable).length;
+}
+
+/**
+ * "9 acceptance tests, 6 proven" — or the singular, or the honest empty.
+ *
+ * ⚠ THREE BRANCHES, AND ALL THREE OCCUR IN THE PUBLISHED CORPUS (measured 2026-09-01: 15 stories
+ * with every step provable, 8 with none, and one mixed). The middle branch is the load-bearing one:
+ * a story whose every step is waiting on a harness is GREEN on its other obligations, and reporting
+ * that as "eight acceptance tests, none proven" would read as the page contradicting the island it
+ * sits on. Every number is counted at render time; none is ever written into copy.
+ */
+export function uatTally(story: RoamStory): string {
+  const total = story.uat.length;
+  if (total === 0) return 'no acceptance test recorded';
+  const noun = total === 1 ? '1 acceptance test' : `${total} acceptance tests`;
+  const unprovable = unprovableUatCount(story);
+  if (unprovable === total) return `${noun}, none provable yet`;
+  const proven = `${noun}, ${provenUatCount(story)} proven`;
+  return unprovable === 0 ? proven : `${proven}, ${unprovable} not yet provable`;
+}
+
+/**
+ * The small line beside one step: what its verdict says, and who signs it.
+ *
+ * ⚠ AN UNPROVABLE STEP IS NOT "NOT YET PROVEN", and collapsing the two is the failure this whole
+ * field exists to prevent. Nobody has neglected it; nothing the proof spine owns reaches it yet, so
+ * naming a witness for it would name one that does not exist.
+ */
+export function uatLegLabel(leg: RoamUatCriterion): string {
+  if (!leg.signable) return 'nothing can witness this yet';
+  return `${UAT_STATE_READING[leg.state].word} · ${WITNESS_LABEL[leg.witness]}`;
+}
 
 /**
  * WHAT AN ARC'S LIFECYCLE MEANS, in the visitor's words and in the picture's tense.
@@ -460,21 +707,30 @@ export function incrementTally(arc: RoamArc): string {
   return `${done} closed, ${open} still open`;
 }
 
-/** How many decisions an arc panel lists before it stops and says how many are left. ROAM is a
- *  short journey; the busiest arc in the published snapshot carries seven. */
+/** How many decisions an ARC row lists before it stops and says how many are left. An arc sits
+ *  inside a list of arcs, so it has no column of its own to scroll — the story's own decision
+ *  section does, and is deliberately uncapped (the owner: *"give them the lot"*). */
 export const ADR_LIST_CAP = 3;
 
 /** The honest tail of a truncated decision list, or null when nothing was left out. The count is
  *  what keeps the truncation from reading as completeness — the same rule the trail list follows. */
-export function adrOverflow(adrs: readonly RoamArcAdr[]): string | null {
-  const hidden = adrs.length - ADR_LIST_CAP;
+export function adrOverflow(count: number): string | null {
+  const hidden = count - ADR_LIST_CAP;
   return hidden <= 0 ? null : `…and ${hidden} more.`;
 }
 
-/** "5 decisions" / "1 decision" / null when an arc has none — counted, never written. */
-export function adrTally(adrs: readonly RoamArcAdr[]): string | null {
-  if (adrs.length === 0) return null;
-  return adrs.length === 1 ? '1 decision behind it' : `${adrs.length} decisions behind it`;
+/** "5 decisions behind it" / "1 decision behind it" / null when there are none — counted, never
+ *  written. Shared by the arc drawer and the story's own decision row, so the two cannot phrase
+ *  the same fact two ways. */
+export function adrTally(count: number): string | null {
+  if (count === 0) return null;
+  return count === 1 ? '1 decision behind it' : `${count} decisions behind it`;
+}
+
+/** The row label for a story's decisions — the tally, or the honest empty. Unlike the arc drawer's,
+ *  this row is always offered: an island that names no decision is a fact worth being able to see. */
+export function decisionTally(story: RoamStory): string {
+  return adrTally(story.decisions.length) ?? 'no decision record named';
 }
 
 /** "N initiatives" for the row that opens the drawer — or the singular, or the honest empty. */
@@ -681,11 +937,24 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
   // The snapshot's own date, on every panel, once. Without it a sentence in the present tense about
   // a story's state reads as a live feed — the single way a stamped export backfires.
   const stamp = el('p', 'roam-stamp', `read from the snapshot of ${payload.asOf}`);
-  panel.append(close, body, stamp);
+  // ⚠ THE FLOOR IS PINNED OUTSIDE THE SCROLLING BODY, BESIDE THE STAMP — measured, not styled by
+  // feel. Inside the body it was the last child of a column that scrolls, so on the busiest island
+  // (`desktop`, fifteen decisions) it was clipped 14 px short of the panel's own edge at 1440x900:
+  // in the DOM, off the panel, and indistinguishable from working to any check reading
+  // `textContent`. The two things that must never be scrolled away are the conversion point and the
+  // date the picture was taken, so both now belong to the panel rather than to its body.
+  const floorSlot = el('div', 'roam-floor');
+  panel.append(close, body, floorSlot, stamp);
 
   const arcById = new Map(payload.arcs.map((a) => [a.id, a]));
+  const adrByNumber = new Map(payload.decisions.map((d) => [d.number, d]));
+  /** Resolve decision numbers to records, dropping any the registry does not carry. A number with
+   *  no record is not renderable — the tally below counts what RESOLVED, so the row and the list
+   *  cannot disagree about how many there are. */
+  const adrsOf = (numbers: readonly number[]): RoamAdr[] =>
+    numbers.map((n) => adrByNumber.get(n)).filter((d): d is RoamAdr => d !== undefined);
 
-  let openSection: 'colour' | 'inside' | 'arcs' | null = null;
+  let openSection: 'colour' | 'inside' | 'proof' | 'decisions' | 'arcs' | null = null;
   let openStoryId: string | null = null;
 
   /** The witness hook. It reports WHICH panel is open, never what it says — a probe that read its
@@ -702,6 +971,7 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
   const shut = (): void => {
     panel.hidden = true;
     body.replaceChildren();
+    floorSlot.replaceChildren();
     openSection = null;
     openStoryId = null;
     host.classList.remove('roam-open');
@@ -726,6 +996,7 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
   // ── target 1 · an island, and targets 2 and 3 nested inside it ────────────
   const renderStory = (story: RoamStory): void => {
     body.replaceChildren();
+    floorSlot.replaceChildren();
     body.append(el('p', 'roam-kind', ROAM_KIND_WORD.story));
     body.append(el('h3', 'roam-title', story.title));
     body.append(el('p', 'roam-id', story.id));
@@ -764,9 +1035,69 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
         list.append(item);
       }
       if (story.capabilities.length > 0) body.append(list);
-      // the floor — a door rather than a wall, and it arrives exactly here, at the moment the
-      // visitor has clicked their way to the bottom of what the public map holds.
-      body.append(noteBlock(ROAM_FLOOR_NOTE));
+    }
+
+    // target 6 · the proof — the acceptance journey. This is the level the owner opened the map to
+    // on 2026-09-01, and it is where the picture stops being a diagram: everything above claims the
+    // green is earned, and this is where a stranger can check the claim step by step.
+    const proofRow = el('button', 'roam-row');
+    proofRow.type = 'button';
+    proofRow.setAttribute('data-roam-row', 'proof');
+    proofRow.setAttribute('aria-expanded', String(openSection === 'proof'));
+    proofRow.append(el('span', 'roam-row-word', uatTally(story)));
+    body.append(proofRow);
+    if (openSection === 'proof') {
+      if (story.uat.length === 0) {
+        body.append(noteBlock(ROAM_UAT_EMPTY));
+      } else {
+        body.append(noteBlock(ROAM_UAT_NOTE));
+        // ⚠ UNCAPPED, AND IT SCROLLS INSIDE ITSELF. The owner asked for "the lot"; a list that
+        // stopped at three of thirteen would be the panel deciding which of a journey's steps
+        // matter. The column below it is flex, so this list shrinks to what is left rather than
+        // pushing the floor and the stamp off the panel.
+        const list = el('ul', 'roam-uat');
+        for (const leg of story.uat) {
+          // An unprovable step gets its OWN mark rather than the pending one — it is not a step
+          // anyone has neglected, and painting it the same amber would say it was.
+          const mark = leg.signable ? `uat-${leg.state}` : 'uat-unprovable';
+          const item = el('li', `roam-uat-leg ${mark}`);
+          const dot = el('span', `roam-uat-dot ${mark}`);
+          dot.setAttribute('aria-hidden', 'true');
+          // The state is on the row as TEXT as well as colour — the dot alone would make the one
+          // fact this section exists to carry unreadable to anyone not seeing the hue.
+          item.append(dot, el('span', 'roam-uat-title', leg.title), el('span', 'roam-uat-meta', uatLegLabel(leg)));
+          list.append(item);
+        }
+        body.append(list);
+      }
+    }
+
+    // target 7 · the decisions behind it — reachable at their NAME, never their reasoning.
+    const decisionRow = el('button', 'roam-row');
+    decisionRow.type = 'button';
+    decisionRow.setAttribute('data-roam-row', 'decisions');
+    decisionRow.setAttribute('aria-expanded', String(openSection === 'decisions'));
+    decisionRow.append(el('span', 'roam-row-word', decisionTally(story)));
+    body.append(decisionRow);
+    if (openSection === 'decisions') {
+      const decisions = adrsOf(story.decisions);
+      if (decisions.length === 0) {
+        // Either the story names none, or a number did not resolve. Both are "the record is empty
+        // here", and neither licenses a sentence about why — the same rule the arc drawer follows.
+        body.append(noteBlock(ROAM_DECISION_EMPTY));
+      } else {
+        body.append(noteBlock(ROAM_DECISION_NOTE));
+        const list = el('ul', 'roam-adrs');
+        for (const adr of decisions) {
+          const item = el('li', 'roam-adr');
+          item.append(
+            el('span', 'roam-adr-no', `ADR-${String(adr.number).padStart(4, '0')}`),
+            el('span', 'roam-adr-title', adr.title),
+          );
+          list.append(item);
+        }
+        body.append(list);
+      }
     }
 
     // target 5 · the arc drawer — the initiative layer ABOVE the code, which is why it sits below
@@ -798,21 +1129,31 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
           );
           item.append(shape);
           item.append(el('p', 'roam-arc-line', reading.sentence));
-          const tally = adrTally(arc.adrs);
+          const adrs = adrsOf(arc.adrs);
+          const tally = adrTally(adrs.length);
           if (tally !== null) {
             item.append(el('p', 'roam-arc-adr-head', tally));
             const decisions = el('ul', 'roam-arc-adrs');
-            for (const adr of arc.adrs.slice(0, ADR_LIST_CAP)) {
+            for (const adr of adrs.slice(0, ADR_LIST_CAP)) {
               decisions.append(el('li', 'roam-arc-adr', adr.title));
             }
             item.append(decisions);
-            const more = adrOverflow(arc.adrs);
+            const more = adrOverflow(adrs.length);
             if (more !== null) item.append(el('p', 'roam-more', more));
           }
           list.append(item);
         }
         body.append(list);
       }
+    }
+
+    // ⚠ THE FLOOR IS A PROPERTY OF THE BOTTOM OF THE PANEL, NOT OF ONE SECTION — and it belongs to
+    // the three rows that go DOWN. `colour` is not depth, and `arcs` is the one direction that is
+    // UP (the initiative above the code), so neither earns it. Rendering it unconditionally would
+    // put the conversion point in front of a visitor who has not yet asked for depth, which is the
+    // clause ADR-0453 D6 is actually about.
+    if (openSection === 'inside' || openSection === 'proof' || openSection === 'decisions') {
+      floorSlot.append(noteBlock(ROAM_FLOOR_NOTE));
     }
     openPanel();
     witness('story', story.id);
@@ -837,6 +1178,8 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     // than a hairline inside it.
     select(`[data-id="${CSS.escape(segmentId)}"]`);
     body.replaceChildren();
+    // A trail is not a descent into an island, so it reaches no floor.
+    floorSlot.replaceChildren();
     body.append(el('p', 'roam-kind', ROAM_KIND_WORD.trail));
     body.append(el('h3', 'roam-title', trailHeading(edges)));
     body.append(noteBlock(trailNote(edges)));
@@ -934,7 +1277,15 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     }
     const row = target.closest('[data-roam-row]');
     const which = row?.getAttribute('data-roam-row') ?? null;
-    if (which !== 'colour' && which !== 'inside' && which !== 'arcs') return;
+    if (
+      which !== 'colour' &&
+      which !== 'inside' &&
+      which !== 'proof' &&
+      which !== 'decisions' &&
+      which !== 'arcs'
+    ) {
+      return;
+    }
     openSection = openSection === which ? null : which;
     if (openStoryId !== null) {
       const story = byId.get(openStoryId);

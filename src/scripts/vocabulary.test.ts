@@ -34,7 +34,9 @@ import {
   adrTally,
   arcTally,
   capabilityTally,
+  decisionTally,
   incrementTally,
+  uatTally,
   type RoamStory,
 } from './act2-roam';
 
@@ -72,8 +74,33 @@ function storyFixture(caps: number, arcs: number): RoamStory {
       title: `c${i}`,
       status: 'healthy' as const,
     })),
+    uat: [],
+    decisions: [],
     arcs: Array.from({ length: arcs }, (_, i) => `a${i}`),
   };
+}
+
+/** A story carrying `provable` acceptance steps and `unprovable` ones — the three branches of
+ *  `uatTally`, which are three different sentences and therefore three chances to leak a noun. */
+function uatFixture(provable: number, unprovable: number): RoamStory {
+  const leg = (i: number, signable: boolean) => ({
+    title: `step ${i}`,
+    state: 'proven' as const,
+    witness: 'machine' as const,
+    signable,
+  });
+  return {
+    ...storyFixture(0, 0),
+    uat: [
+      ...Array.from({ length: provable }, (_, i) => leg(i, true)),
+      ...Array.from({ length: unprovable }, (_, i) => leg(provable + i, false)),
+    ],
+  };
+}
+
+/** A story naming `n` decisions — the singular, the plural and the honest empty. */
+function decisionFixture(n: number): RoamStory {
+  return { ...storyFixture(0, 0), decisions: Array.from({ length: n }, (_, i) => i) };
 }
 
 function arcFixture(closed: number, open: number, adrs: number) {
@@ -83,11 +110,8 @@ function arcFixture(closed: number, open: number, adrs: number) {
     lifecycle: 'closed',
     incrementsClosed: closed,
     incrementsOpen: open,
-    adrs: Array.from({ length: adrs }, (_, i) => ({
-      number: i,
-      status: 'accepted',
-      title: `d${i}`,
-    })),
+    // Decision NUMBERS since schema 3 — the records live once, in the payload's own registry.
+    adrs: Array.from({ length: adrs }, (_, i) => i),
   };
 }
 
@@ -128,10 +152,14 @@ function visitorProse(): Prose[] {
     out.push({ where: `ROAM capabilityTally(${n})`, text: capabilityTally(storyFixture(n, 0)) });
     out.push({ where: `ROAM arcTally(${n})`, text: arcTally(storyFixture(0, n)) });
     out.push({ where: `ROAM incrementTally(${n})`, text: incrementTally(arcFixture(n, 0, 0)) });
-    const tally = adrTally(arcFixture(0, 0, n).adrs);
+    const tally = adrTally(n);
     if (tally !== null) out.push({ where: `ROAM adrTally(${n})`, text: tally });
-    const more = adrOverflow(arcFixture(0, 0, n).adrs);
+    const more = adrOverflow(n);
     if (more !== null) out.push({ where: `ROAM adrOverflow(${n})`, text: more });
+    // The two rows this tier added, in the same three shapes and for the same reason.
+    out.push({ where: `ROAM uatTally(${n})`, text: uatTally(uatFixture(n, 0)) });
+    out.push({ where: `ROAM uatTally(${n}, all unprovable)`, text: uatTally(uatFixture(0, n)) });
+    out.push({ where: `ROAM decisionTally(${n})`, text: decisionTally(decisionFixture(n)) });
   }
 
   // The page's own two act-2 strings. Read out of the source the same way `act2-tell.test.ts` reads
