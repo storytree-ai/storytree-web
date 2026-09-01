@@ -39,6 +39,16 @@ import {
 import { TELL_SCRIPT, beatStarts } from './act2-tell';
 
 const page = (): string => readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
+/**
+ * The stylesheet with its comments removed.
+ *
+ * ⚠ EVERY SELECTOR SCAN BELOW MUST USE THIS. A rule is matched as "anything up to a `{`", and this
+ * file's comments sit directly above their rules and quote the very class names being searched for
+ * — so the un-stripped text hands a scan a "selector" made of prose. Found by seeding the fault
+ * these scans exist for: the `.is-drawing` check read a comment mentioning `.tw-trail-fill` as if
+ * it were a selector, and reported on that instead of on the rule.
+ */
+const styleRules = (): string => page().replace(/\/\*[\s\S]*?\*\//g, '');
 const emitter = (): string => readFileSync(new URL('../lib/worldSvg.ts', import.meta.url), 'utf8');
 
 // ── graph fixtures ──────────────────────────────────────────────────────────
@@ -405,7 +415,7 @@ test('TEETH: the parked state never escapes the armed class — no-script keeps 
   // Selector lists span lines (several layers share one rule), so the selector half of the match
   // deliberately allows newlines — an earlier line-bound version silently matched nothing and
   // reported a confident pass, which is the same blindness this file is here to prevent.
-  const rules = [...css.matchAll(/([^{}]*\.tw-(?:isle|ground|terr|trails|trail-fill|trail-shadow|trail-casing|trail-ghost)\b[^{}]*)\{([^}]*)\}/g)];
+  const rules = [...styleRules().matchAll(/([^{}]*\.tw-(?:isle|ground|terr|trails|trail-fill|trail-shadow|trail-casing|trail-ghost)\b[^{}]*)\{([^}]*)\}/g)];
   const growthRules = rules.filter(([, , body]) =>
     // A FULL hide (`opacity: 0`), not a dim — TELL's lenses legitimately set 0.62 on the same
     // selectors, and matching those would make this test fail for a reason it is not about. The
@@ -428,16 +438,27 @@ test('TEETH: a segment the schedule never named keeps painting — the parked st
   // would be parked at `stroke-dashoffset: 1` and never revealed. The road would simply be gone,
   // and the page would look finished.
   const css = page();
-  const parked = [...css.matchAll(/([^{}]*\.tw-trail-(?:fill|shadow|casing|ghost)\b[^{}]*)\{([^}]*)\}/g)].filter(
+  const parked = [...styleRules().matchAll(/([^{}]*\.tw-trail-(?:fill|shadow|casing|ghost)\b[^{}]*)\{([^}]*)\}/g)].filter(
     ([, , body]) => /stroke-dasharray:\s*1 1|animation:\s*act2-trail-draw/.test(body ?? ''),
   );
   assert.ok(parked.length >= 1, 'the trail draw-on is not in index.astro at all');
-  for (const [, selector] of parked) {
-    assert.ok(
-      (selector ?? '').includes(`.${DRAWING_CLASS}`),
-      `a trail park rule matches every segment, not only scheduled ones:\n  ${selector?.trim()}`,
-    );
+  // ⚠ PER SELECTOR IN THE LIST, NOT PER RULE. These rules carry one selector per pass, comma
+  // separated. An earlier version of this check asked whether the whole LIST mentioned
+  // `.is-drawing` — which stays true when a single pass loses it, so the one fault that matters
+  // survived the check. Seeded and confirmed: dropping `.is-drawing` from just `.tw-trail-fill`
+  // passed. Split first.
+  let checked = 0;
+  for (const [, selectorList] of parked) {
+    for (const selector of (selectorList ?? '').split(',')) {
+      if (!/\.tw-trail-(?:fill|shadow|casing|ghost)\b/.test(selector)) continue;
+      checked += 1;
+      assert.ok(
+        selector.includes(`.${DRAWING_CLASS}`),
+        `a trail park rule matches every segment, not only scheduled ones:\n  ${selector.trim()}`,
+      );
+    }
   }
+  assert.ok(checked >= TRAIL_PASSES.length, `only ${checked} trail selectors examined — the extractor has gone blind`);
   assert.ok(
     css.includes(DRAW_REVERSED_CLASS),
     'the stylesheet has no rule for a segment drawn from its far end — half the network draws backwards',
