@@ -905,6 +905,46 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   .tell-skip:hover { background: rgba(251, 243, 234, 0.95); border-color: rgba(74, 58, 38, 0.5); }
   .tell-skip:focus-visible { outline: 2px solid #4a3a26; outline-offset: 2px; }
 
+  /* ---- the controls lock (ADR-0494's arc: website-refresh-arc-controls-lock) ----
+
+     The owner, 2026-09-01: "we should disable controls while the prose plays
+     out, if i zoom in the prose disappears, only give them control when the
+     slides are done." Zooming mid-sequence used to END the sequence and there
+     was no way back to the copy, so the page handed the visitor a control that
+     silently discarded what it was in the middle of saying.
+
+     ⚠⚠ EVERY RULE HERE IS SCOPED UNDER `.tell-locked`, WHICH act2-tell ADDS AT
+     RUNTIME, AND THAT IS A SAFETY PROPERTY RATHER THAN TIDINESS. A visitor
+     whose script never runs gets the whole forest as a static dated picture —
+     the guarantee the arrival increment bought, and the reason the map is in
+     the markup at all. Hoisting `pointer-events: none` onto
+     `.forest-arrival-svg` itself, which is the obvious simplification, hands
+     precisely those people a permanently dead map while every scripted browser
+     looks perfect. `act2-tell.test.ts` reds if a lock rule escapes the class,
+     the same way forest-growth.test.ts guards the parked growth state.
+
+     ⚠ CSS IS HALF THE LOCK. It cannot reach a KEYBOARD, and ROAM answers Enter
+     and Space on the map's hit rects — so act2-tell also sets `inert` on the
+     svg for the same window. The two overlap on purpose. */
+  #storm-land.tell-locked .forest-arrival-svg { pointer-events: none; }
+  /* The islands stop LOOKING clickable too. `pointer-events: none` already
+     stops the cursor changing, but the hit rects carry their own cursor from
+     the shared stylesheet and a grab cursor over a map that will not move is
+     the same broken promise one step earlier. */
+  #storm-land.tell-locked .forest-arrival-svg .tw-hit,
+  #storm-land.tell-locked .forest-arrival-svg { cursor: default; }
+
+  /* A locked gesture points at the way out rather than doing nothing at all.
+     `is-wanted` is added by act2-tell for MS_SKIP_NUDGE when the reader
+     reaches for the locked map — the one moment they are actually looking for
+     an exit, which is the moment a bottom-corner pill is worth pointing at. */
+  .tell-skip.is-wanted {
+    background: rgba(251, 243, 234, 0.98);
+    border-color: rgba(74, 58, 38, 0.62);
+    color: #2c2318;
+    box-shadow: 0 0 0 4px rgba(251, 243, 234, 0.55);
+  }
+
   /* ---- the lenses: what a beat asks the REAL map to do while it speaks ----
          Every one of these changes how the already-rendered forest is
          displayed. None of them draws anything: `proven` reads the status
