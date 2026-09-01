@@ -922,7 +922,7 @@ test('the panel offers the two new rows, and the floor belongs to the three that
   // caught here rather than by eye.
   const code = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   for (const row of ['proof', 'decisions']) {
-    assert.ok(code.includes(`'data-roam-row', '${row}'`), `no ${row} row is rendered`);
+    assert.ok(code.includes(`expandRow('${row}'`), `no ${row} row is rendered`);
     assert.ok(code.includes(`which !== '${row}'`), `the click router does not accept the ${row} row`);
   }
   assert.match(
@@ -930,6 +930,93 @@ test('the panel offers the two new rows, and the floor belongs to the three that
     /openSection === 'inside' \|\| openSection === 'proof' \|\| openSection === 'decisions'/,
     'the floor is not gated on the three sections that go down',
   );
+});
+
+// ── an expandable row LOOKS expandable ──────────────────────────────────────
+//
+// ⚠ WHAT THIS COST, so the next person to trim it knows. Every one of these rows has always been a
+// `<button>` carrying `aria-expanded`, so a screen reader was told they disclosed something. A
+// sighted reader was shown a bordered chip with a count in it. The owner clicked an island, read
+// `26 components, 26 proven`, and reported that the thing behind it had not been built — the
+// morning after it shipped. Disclosure without an affordance is indistinguishable from absence,
+// and the person who could not find it is the one who commissioned it.
+//
+// ⚠ IT DOES NOT MAKE A CAPABILITY GRAPH DISCOVERABLE, and no assertion here should be read as
+// saying so. What the rows reveal is a named, colour-coded LIST. The dependency-drawn capability
+// tree the app renders is not on this surface at any depth.
+
+test('EVERY row that opens carries a visible mark saying so — all five, or the signal is noise', () => {
+  const code = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  // ⚠ THE COUNT IS THE ASSERTION, not the presence. A mark on four rows out of five teaches the
+  // reader that an unmarked row is a dead end, which is a worse page than one with no marks at
+  // all — so this fails on a sixth row added without one just as it fails on one removed.
+  const sections = [...code.matchAll(/expandRow\('([a-z]+)'/g)].map((m) => m[1]);
+  assert.deepEqual(
+    sections,
+    ['colour', 'inside', 'proof', 'decisions', 'arcs'],
+    'the set of rows that open has changed — every one of them needs the mark',
+  );
+  // `, rowMark())` rather than `rowMark()`: the bare form also matches the function's own
+  // declaration, which would let the count come out right with one call site missing.
+  const appended = (code.match(/,\s*rowMark\(\)\)/g) ?? []).length;
+  assert.equal(
+    appended,
+    sections.length,
+    `${sections.length} rows open but the mark is appended to ${appended} of them`,
+  );
+
+  // And there is exactly ONE place a row is built, so a sixth row cannot be written without it.
+  assert.ok(
+    !/el\('button', 'roam-row'\)/.test(code.replace(/function expandRow[\s\S]*?\n\}/, '')),
+    'a roam-row is still built by hand somewhere, bypassing the affordance',
+  );
+});
+
+test('the mark is drawn from aria-expanded, never from a second copy of the row state', () => {
+  // ⚠ TWO COPIES OF ONE FACT FAIL AS A CHEVRON POINTING THE WRONG WAY — a signal that lies, which
+  // is strictly worse than the one that was missing. `aria-expanded` is already the truth of
+  // whether a row is open; the stylesheet reads it rather than a class the renderer would have to
+  // remember to keep in step.
+  const source = readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
+  assert.match(source, /\.roam-row-mark\s*\{/, 'the mark has no style rule, so it draws nothing');
+  assert.match(
+    source,
+    /\.roam-row\[aria-expanded='true'\]\s+\.roam-row-mark\s*\{[^}]*rotate:/,
+    'the open state does not turn the mark — it points the same way whether the row is open or shut',
+  );
+  const base = /\.roam-row-mark\s*\{([^}]*)\}/.exec(source);
+  assert.ok(base !== null);
+  assert.match(base[1] ?? '', /rotate:\s*-45deg/, 'the closed mark does not point along the row');
+  // The renderer sets no state class of its own on the mark — the attribute is the only source.
+  const code = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(
+    !/roam-row-mark[^']*is-open/.test(code) && !/mark\.classList/.test(code),
+    'the renderer keeps a second copy of the open state on the mark',
+  );
+});
+
+test('the mark is hidden from assistive tech — aria-expanded already says it, once', () => {
+  const code = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const fn = /function rowMark\(\)[\s\S]*?\n\}/.exec(code);
+  assert.ok(fn !== null, 'rowMark has gone');
+  assert.match(fn[0], /setAttribute\('aria-hidden', 'true'\)/, 'the mark is announced twice');
+});
+
+test('the row itself reads as pressable at rest, not only once the pointer is on it', () => {
+  // A hover-only signal is no signal on a touch frame, and the resting state is what the owner
+  // was looking at when he concluded there was nothing behind the count. The mark is present at
+  // rest (`opacity` on the base rule, not on `:hover`), and the hover moves the FILL as well as
+  // the 1px border it used to move alone.
+  const source = readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
+  const base = /\.roam-row-mark\s*\{([^}]*)\}/.exec(source);
+  const opacity = /opacity:\s*([0-9.]+)/.exec(base?.[1] ?? '');
+  assert.ok(opacity !== null, 'the mark declares no resting opacity');
+  assert.ok(Number(opacity[1]) > 0.25, `the resting mark is ${opacity[1]} opaque — it is not visible at rest`);
+  const hover = /\.roam-row:hover\s*\{([^}]*)\}/.exec(source);
+  assert.ok(hover !== null, 'the row has no hover state at all');
+  assert.match(hover[1] ?? '', /background:/, 'the hover still moves only the border');
+  assert.match(source, /\.roam-row\s*\{[^}]*cursor:\s*pointer/, 'the row does not take a pointer cursor');
 });
 
 test('A GREEN ISLAND NEVER READS AS CONTRADICTING ITS OWN STEPS — the measured failure', () => {

@@ -19,7 +19,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { ASK_AVAILABILITY_PHRASINGS, ASK_CTA, ASK_FORBIDDEN, ASK_HREF, ASK_LINE } from './act2-ask';
+import {
+  ASK_AVAILABILITY_PHRASINGS,
+  ASK_CTA,
+  ASK_FORBIDDEN,
+  ASK_HREF,
+  ASK_LINE,
+  ASK_SLOT_SELECTOR,
+} from './act2-ask';
 
 const page = (): string => readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
 const module_ = (): string => readFileSync(new URL('./act2-ask.ts', import.meta.url), 'utf8');
@@ -198,4 +205,110 @@ test('the ending is out of the tab order until it is shown', () => {
   const code = module_();
   assert.match(code, /link\.tabIndex = -1/, 'the hidden link is tabbable');
   assert.match(code, /link\.tabIndex = 0/, 'the revealed link is not tabbable');
+});
+
+// ── 4. it does not overlap the snapshot caption ─────────────────────────────
+//
+// ⚠ THE DEFECT: at the bottom of the map the ending and the stamp were drawn OVER each other, and
+// the live site read *"25 of 3One person, building this in the open."* Measured on the built site
+// at 1280x720 before the fix — stamp x 272–1008 / y 631–702, ending x 716–1232 / y 644–699, a
+// 292x55 collision. Both were absolutely positioned boxes reaching for the same corner: the stamp
+// centred at `max-width: min(46rem, 100%)`, the ending pinned `right`/`bottom`.
+//
+// ⚠⚠ AND THE ASSERTION IS STRUCTURAL RATHER THAN SAMPLED, WHICH IS THE STRONGER TEST, NOT THE
+// WEAKER ONE. `bun test` has no DOM, so a rect is not reachable here — but a rect would be the
+// wrong instrument anyway. The panel one surface along has a MEASURED history of exactly this
+// class: content was pushed off it, and the check meant to catch it PASSED because it read
+// `textContent` while the screenshot beside it disagreed. A geometric sample would answer for ONE
+// viewport and one corpus; the stamp's height depends on how far a snapshot reading wraps, so the
+// next republish moves it. What these tests assert instead is the MECHANISM that makes overlap
+// impossible: two boxes that are flex children of the same column cannot be drawn over each other
+// at ANY width, for ANY copy. That is a guarantee, where a rect is an observation.
+//
+// The rects above were still taken, in a real engine, before and after — 292x55 collision → 0 at
+// 1920x1080, 1280x720, 1024x768 and 390x844. They are recorded here because a number nobody wrote
+// down is a number the next reader has to re-measure.
+
+/** Every CSS rule in `index.astro` whose selector mentions `.ask-layer`, media queries included. */
+const askLayerRules = (source: string): readonly string[] =>
+  [...source.matchAll(/(^|[\s,{}])(\.ask-layer[^{;]*)\{([^}]*)\}/g)].map((m) => `${m[2]}{${m[3]}}`);
+
+/** Whether a rule takes its element OUT of normal flow — the property that let the ending be drawn
+ *  on top of a sibling instead of beside it. */
+const takesOutOfFlow = (rule: string): boolean =>
+  /position:\s*(absolute|fixed)/.test(rule) || /(^|[;{\s])(top|right|bottom|left)\s*:/.test(rule);
+
+test('the ending is a FLEX CHILD of the bottom-furniture column, not a box pinned over it', () => {
+  const source = page();
+
+  // 1. The column exists, is a column, and holds the stamp — so "same parent" means "cannot overlap".
+  const footer = /\.storm-land-footer\s*\{([^}]*)\}/.exec(source);
+  assert.ok(footer !== null, 'the bottom-furniture column has gone');
+  assert.match(footer[1] ?? '', /display:\s*flex/, 'the footer is not a flex container');
+  assert.match(footer[1] ?? '', /flex-direction:\s*column/, 'the footer is not a column');
+
+  // 2. The slot the ending mounts into IS that column, and the stamp is inside it too. Asserted on
+  //    the markup rather than on a class name, because a `data-ask-slot` moved onto a new absolute
+  //    wrapper would satisfy every other check here and re-create the bug exactly.
+  const openTag = /<div class="storm-land-footer"[^>]*>/.exec(source);
+  assert.ok(openTag !== null, 'the footer element has been renamed or restructured');
+  assert.match(openTag[0], /data-ask-slot/, 'the ending no longer mounts into the furniture column');
+  const column = source.slice(source.indexOf(openTag[0]), source.indexOf('</section>', source.indexOf(openTag[0])));
+  assert.ok(column.includes('storm-land-stamp'), 'the stamp is not inside the column the ending joins');
+
+  // 3. And nothing puts the ending back out of flow — every `.ask-layer` rule, media queries too.
+  const rules = askLayerRules(source);
+  assert.ok(rules.length >= 2, `expected the base rule and its narrow-width override, found ${rules.length}`);
+  for (const rule of rules) {
+    assert.ok(!takesOutOfFlow(rule), `an .ask-layer rule pins the ending out of flow again: ${rule.trim()}`);
+  }
+});
+
+test('TEETH: the guard rejects the exact rule that shipped the collision', () => {
+  // The declaration block the ending carried until 2026-09-01. It satisfies every other assertion
+  // in this file — it promises nothing, sells nothing, captures nothing, links correctly — which is
+  // precisely why the suite passed over it while the live site rendered two sentences on top of
+  // each other. A guard this rule survives is not a guard.
+  const shipped = `.ask-layer{
+    position: absolute;
+    right: clamp(1.2rem, 4vw, 3rem);
+    bottom: clamp(1.2rem, 4vh, 2.6rem);
+    z-index: 9;
+    display: flex;
+  }`;
+  assert.ok(takesOutOfFlow(shipped), 'the guard would pass the rule that caused the overlap');
+  // And it does not fire on the rule that replaced it — a guard that refuses everything is not one
+  // either. `margin-right` is an inset in normal flow and must stay allowed.
+  assert.ok(
+    !takesOutOfFlow('.ask-layer{ align-self: flex-end; margin-right: clamp(0rem, 2.5vw, 2rem); display: flex; }'),
+    'the guard refuses the in-flow rule as well, so it is not measuring what it claims',
+  );
+});
+
+test('the ending still mounts when there is no column — a missing attribute must not cost the link', () => {
+  // The site's one outbound link is not something to lose to a restructured page. `mountAsk` falls
+  // back to the host, so the ending degrades to "somewhere on the land layer" rather than to
+  // nowhere. Read off the source because it is a branch no happy-path render exercises.
+  const code = module_();
+  assert.match(
+    code,
+    /querySelector<HTMLElement>\(ASK_SLOT_SELECTOR\)\s*\?\?\s*host/,
+    'mountAsk no longer falls back to the host when the slot is absent',
+  );
+  assert.equal(ASK_SLOT_SELECTOR, '[data-ask-slot]');
+  assert.ok(page().includes(ASK_SLOT_SELECTOR.slice(1, -1)), 'nothing in the page carries the slot attribute');
+});
+
+test('moving where the ending is DRAWN did not move it back inside the timed sequence (ADR-0493)', () => {
+  // ⚠ THE ONE THING THIS FIX WAS NOT ALLOWED TO COST. The ending sits outside the sequence so it
+  // charges the reading clock nothing and stays on screen while the visitor explores. A fix that
+  // solved the collision by making it a tenth beat would have re-spent a budget the owner has an
+  // open question about. It is still mounted before TELL, still hidden until `onDone`, and still
+  // built by act2-ask rather than by the script that owns the beats.
+  const tell = readFileSync(new URL('./act2-tell.ts', import.meta.url), 'utf8');
+  assert.ok(!tell.includes('ask-layer'), 'TELL now builds the ending, so it is inside the sequence');
+  assert.ok(!tell.includes(ASK_LINE), 'the ending copy has been pulled into the beat script');
+  const code = module_();
+  assert.match(code, /layer\.classList\.add\('is-on'\)/, 'the ending is no longer revealed by a class');
+  assert.match(code, /let shown = false/, 'the ending reveal is no longer once-only');
 });
