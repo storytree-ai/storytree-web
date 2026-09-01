@@ -107,6 +107,22 @@ export interface RoamUatCriterion {
   readonly title: string;
   readonly state: RoamUatState;
   readonly witness: RoamWitness;
+  /**
+   * ⚠⚠ WHETHER ANYTHING CAN PROVE THIS STEP YET — the field that stops this panel contradicting the
+   * island it is drawn over.
+   *
+   * A step authored with nothing able to witness it does not hold its story's green (ADR-0443 D2),
+   * so a story is legitimately GREEN while such a step carries no verdict. Measured 2026-09-01 on
+   * the published snapshot: FIVE green islands have not one of their listed steps signed, and
+   * `website-experience` has eight. Reading `state` alone would print "8 acceptance tests, 0
+   * proven" under a green island, on the page whose whole pitch is that its signals are real — and
+   * a page that appears to contradict itself is worse than either fact on its own.
+   *
+   * `false` is a REAL AUTHORED STATE, never a defect and never a thing to hide: the corpus keeps
+   * `unsignableUatCriteria` precisely so a surface can say so rather than silently shrinking the
+   * checklist, and ADR-0443's honesty rests on the gap staying visible in each step's own text.
+   */
+  readonly signable: boolean;
 }
 
 export interface RoamStory {
@@ -242,6 +258,8 @@ export function parseRoamPayload(raw: string | null): RoamPayload | null {
         title: leg.title,
         state: toRoamUatState(leg.state),
         witness: toRoamWitness(leg.witness),
+        // Defaults to signable — the majority shape, and the one that claims nothing extra.
+        signable: leg.signable !== false,
       });
     }
     const decisions = Array.isArray(s.decisions)
@@ -434,7 +452,7 @@ export const ROAM_UAT_NOTE: RoamNote = {
   id: 'uat',
   lines: [
     'An acceptance test is one step of the journey this piece has to complete end to end.',
-    'Each one is signed off on its own, so a part-proven journey shows exactly which steps stand.',
+    'Each is signed off on its own, and a step nothing can witness yet says so rather than counting.',
   ],
   grounds: ['ADR-0082'],
 };
@@ -582,13 +600,41 @@ export function provenUatCount(story: RoamStory): number {
   return story.uat.filter((u) => u.state === 'proven').length;
 }
 
-/** "9 acceptance tests, 6 proven" — or the singular, or the honest empty. Every number is counted
- *  at render time; none is ever written into copy. */
+/** How many are written down with nothing able to witness them yet — the state that does NOT hold
+ *  the island's colour, and the reason the tally below has three branches. */
+export function unprovableUatCount(story: RoamStory): number {
+  return story.uat.filter((u) => !u.signable).length;
+}
+
+/**
+ * "9 acceptance tests, 6 proven" — or the singular, or the honest empty.
+ *
+ * ⚠ THREE BRANCHES, AND ALL THREE OCCUR IN THE PUBLISHED CORPUS (measured 2026-09-01: 15 stories
+ * with every step provable, 8 with none, and one mixed). The middle branch is the load-bearing one:
+ * a story whose every step is waiting on a harness is GREEN on its other obligations, and reporting
+ * that as "eight acceptance tests, none proven" would read as the page contradicting the island it
+ * sits on. Every number is counted at render time; none is ever written into copy.
+ */
 export function uatTally(story: RoamStory): string {
   const total = story.uat.length;
   if (total === 0) return 'no acceptance test recorded';
   const noun = total === 1 ? '1 acceptance test' : `${total} acceptance tests`;
-  return `${noun}, ${provenUatCount(story)} proven`;
+  const unprovable = unprovableUatCount(story);
+  if (unprovable === total) return `${noun}, none provable yet`;
+  const proven = `${noun}, ${provenUatCount(story)} proven`;
+  return unprovable === 0 ? proven : `${proven}, ${unprovable} not yet provable`;
+}
+
+/**
+ * The small line beside one step: what its verdict says, and who signs it.
+ *
+ * ⚠ AN UNPROVABLE STEP IS NOT "NOT YET PROVEN", and collapsing the two is the failure this whole
+ * field exists to prevent. Nobody has neglected it; nothing the proof spine owns reaches it yet, so
+ * naming a witness for it would name one that does not exist.
+ */
+export function uatLegLabel(leg: RoamUatCriterion): string {
+  if (!leg.signable) return 'nothing can witness this yet';
+  return `${UAT_STATE_READING[leg.state].word} · ${WITNESS_LABEL[leg.witness]}`;
 }
 
 /**
@@ -865,7 +911,14 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
   // The snapshot's own date, on every panel, once. Without it a sentence in the present tense about
   // a story's state reads as a live feed — the single way a stamped export backfires.
   const stamp = el('p', 'roam-stamp', `read from the snapshot of ${payload.asOf}`);
-  panel.append(close, body, stamp);
+  // ⚠ THE FLOOR IS PINNED OUTSIDE THE SCROLLING BODY, BESIDE THE STAMP — measured, not styled by
+  // feel. Inside the body it was the last child of a column that scrolls, so on the busiest island
+  // (`desktop`, fifteen decisions) it was clipped 14 px short of the panel's own edge at 1440x900:
+  // in the DOM, off the panel, and indistinguishable from working to any check reading
+  // `textContent`. The two things that must never be scrolled away are the conversion point and the
+  // date the picture was taken, so both now belong to the panel rather than to its body.
+  const floorSlot = el('div', 'roam-floor');
+  panel.append(close, body, floorSlot, stamp);
 
   const arcById = new Map(payload.arcs.map((a) => [a.id, a]));
   const adrByNumber = new Map(payload.decisions.map((d) => [d.number, d]));
@@ -892,6 +945,7 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
   const shut = (): void => {
     panel.hidden = true;
     body.replaceChildren();
+    floorSlot.replaceChildren();
     openSection = null;
     openStoryId = null;
     host.classList.remove('roam-open');
@@ -916,6 +970,7 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
   // ── target 1 · an island, and targets 2 and 3 nested inside it ────────────
   const renderStory = (story: RoamStory): void => {
     body.replaceChildren();
+    floorSlot.replaceChildren();
     body.append(el('p', 'roam-kind', 'story'));
     body.append(el('h3', 'roam-title', story.title));
     body.append(el('p', 'roam-id', story.id));
@@ -976,16 +1031,15 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
         // pushing the floor and the stamp off the panel.
         const list = el('ul', 'roam-uat');
         for (const leg of story.uat) {
-          const item = el('li', `roam-uat-leg uat-${leg.state}`);
-          const dot = el('span', `roam-uat-dot uat-${leg.state}`);
+          // An unprovable step gets its OWN mark rather than the pending one — it is not a step
+          // anyone has neglected, and painting it the same amber would say it was.
+          const mark = leg.signable ? `uat-${leg.state}` : 'uat-unprovable';
+          const item = el('li', `roam-uat-leg ${mark}`);
+          const dot = el('span', `roam-uat-dot ${mark}`);
           dot.setAttribute('aria-hidden', 'true');
           // The state is on the row as TEXT as well as colour — the dot alone would make the one
           // fact this section exists to carry unreadable to anyone not seeing the hue.
-          item.append(
-            dot,
-            el('span', 'roam-uat-title', leg.title),
-            el('span', 'roam-uat-meta', `${UAT_STATE_READING[leg.state].word} · ${WITNESS_LABEL[leg.witness]}`),
-          );
+          item.append(dot, el('span', 'roam-uat-title', leg.title), el('span', 'roam-uat-meta', uatLegLabel(leg)));
           list.append(item);
         }
         body.append(list);
@@ -1073,7 +1127,7 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     // put the conversion point in front of a visitor who has not yet asked for depth, which is the
     // clause ADR-0453 D6 is actually about.
     if (openSection === 'inside' || openSection === 'proof' || openSection === 'decisions') {
-      body.append(noteBlock(ROAM_FLOOR_NOTE));
+      floorSlot.append(noteBlock(ROAM_FLOOR_NOTE));
     }
     openPanel();
     witness('story', story.id);
@@ -1098,6 +1152,8 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     // than a hairline inside it.
     select(`[data-id="${CSS.escape(segmentId)}"]`);
     body.replaceChildren();
+    // A trail is not a descent into an island, so it reaches no floor.
+    floorSlot.replaceChildren();
     body.append(el('p', 'roam-kind', 'trail'));
     body.append(el('h3', 'roam-title', trailHeading(edges)));
     body.append(noteBlock(trailNote(edges)));

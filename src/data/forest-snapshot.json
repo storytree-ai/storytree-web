@@ -1,6 +1,6 @@
 {
   "schemaVersion": 3,
-  "generatedAt": "2026-09-01T06:53:55.749Z",
+  "generatedAt": "2026-09-01T07:12:50.564Z",
   "source": "studio /api/tree + presentStories (ADR-0453 D7)",
   "storyCount": 35,
   "provenStoryCount": 25,
@@ -40,7 +40,8 @@
         {
           "title": "The selected live runtime authors a real slice.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -111,7 +112,8 @@
         {
           "title": "(OPTIONAL / STRETCH) A wedged backend session recovers without a restart.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         }
       ],
       "decisions": [
@@ -203,7 +205,8 @@
         {
           "title": "The hosted witness is viewable within its recorded browser budget.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         }
       ],
       "decisions": [
@@ -454,32 +457,38 @@
         {
           "title": "Prove the merge candidate.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "The local/CI delta is explicit.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Auto-merge on green.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Merged coordination claims retire.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "The Studio deployment handoff is complete.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "The repository-owned path has no unproven merge door.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -554,7 +563,8 @@
         {
           "title": "Credential hydration + live pull",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         }
       ],
       "decisions": [
@@ -645,32 +655,38 @@
         {
           "title": "A real spawned read command writes a replayable visit.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Two invocations join into one session with distinct visits.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "A write command leaves no owner prose on disk.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "The captured session replays from the command line.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Capture is additive and opt-out-clean.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "A real `agents` render writes a depth, not a flat column.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -762,27 +778,32 @@
         {
           "title": "Cross the real factory boundary through the story-owned adapter.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Record search/list coverage without claiming a follow.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Expose the adapter's honest coverage.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Refuse inferred causality.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Prove future parent/child shapes without inventing live wiring.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -848,32 +869,38 @@
         {
           "title": "A real spawned ingest writes a falling occupancy series.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Occupancy is the resident total, not the billing total.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Two windows in one session stay two windows.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "A foreign session's transcript is never correlated.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Re-ingesting the same transcripts appends nothing.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "No transcript content reaches the trace.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -1002,32 +1029,38 @@
         {
           "title": "Launch — the native shell renders the COMPILED studio, no Vite, no source.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "The credentials surface is one-way — nothing reads back, the renderer stores nothing.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "A credential survives a real restart in the OS keychain, then removes cleanly.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "The local backend is live (no 503).",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "The owner's in-app `builder` grant opens the brokered write path.",
           "state": "pending",
-          "witness": "human"
+          "witness": "human",
+          "signable": true
         },
         {
           "title": "Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -1300,17 +1333,20 @@
         {
           "title": "The REAL build",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Land it",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "An agent actually USES it end to end (the dogfood acceptance)",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -1366,27 +1402,32 @@
         {
           "title": "A terminal sits in the dock.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "A REAL pty hosts a real interactive shell in the member's checkout.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Real Claude Code runs interactively in the embedded terminal.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Scrollback, reflow and keys behave like a real terminal.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "The existing observability seams watch a session started in the terminal — a wisp lights.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -1419,22 +1460,26 @@
         {
           "title": "Cite (reinforce)",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Link across artifacts (the derived edge)",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Archive",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Synthesis",
           "state": "pending",
-          "witness": "human"
+          "witness": "human",
+          "signable": true
         }
       ],
       "decisions": [
@@ -1698,27 +1743,32 @@
         {
           "title": "Open an open-question in Review.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Comment in the document flow.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Track a change in the prose.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "The annotated edit is never silently lost.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Live refresh, no reload.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -1874,7 +1924,8 @@
         {
           "title": "Open the selected artifact over the map.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         }
       ],
       "decisions": [
@@ -1935,42 +1986,50 @@
         {
           "title": "Forced claim at workspace creation.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "See the neighbour on the ledger.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Upgrade to work; a second work-claimant queues.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Atomic promotion on release.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Overlap deltas arrive once.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Liveness + departure.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "A build leaves session presence untouched (ADR-0199).",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Offline degrade + the gate wall.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -2020,7 +2079,8 @@
         {
           "title": "A reader inspects a machine claim and gets a chain or a refusal — never a verdict.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         }
       ],
       "decisions": [
@@ -2250,67 +2310,80 @@
         {
           "title": "Boot the current offline studio on the forest.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Open a decision through the forest's Library chrome.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Follow an in-corpus cross-link between decisions.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Find the artifact that grounds the question.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Reload and recover the same grounding.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Read the decision behind it, then come back.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Browse the knowledge-derived Library.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Narrow the Library deterministically.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Follow an artifact source back to the decision tier.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Author a structured Library artifact.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Edit, relock, and delete the artifact.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Survive a cold process restart.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Leave both offline stores byte-for-byte as found.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -2413,27 +2486,32 @@
         {
           "title": "Grant.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "Sign in.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "Browse.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "Revoke.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "Broker a build (ADR-0117).",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         }
       ],
       "decisions": [
@@ -2500,17 +2578,20 @@
         {
           "title": "Invite",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Activate",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Mark a builder (ADR-0117)",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -2558,22 +2639,26 @@
         {
           "title": "The embedded terminal spawns in the picked repo.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The fail-closed gate holds end-to-end.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The selection survives an app relaunch.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The native OS directory dialog opens and is usable.",
           "state": "pending",
-          "witness": "human"
+          "witness": "human",
+          "signable": true
         }
       ],
       "decisions": [
@@ -2615,12 +2700,14 @@
         {
           "title": "The session panel creates, switches and closes REAL sessions in the native shell.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "Per-tab scrollback, colour, resize and focus survive switching and closing.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -2736,22 +2823,26 @@
         {
           "title": "The detail kind validates through the public port.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "The criterion points; the story title stays display-canonical.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "A substantive detail change invalidates the prior hash.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         },
         {
           "title": "story-author's fence admits the hierarchy and denies every other path.",
           "state": "proven",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": true
         }
       ],
       "decisions": [
@@ -2915,42 +3006,50 @@
         {
           "title": "One prompt breeds the storm — the choreography.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "Act 1 ships no WebGL bytes — the static-import-closure wall.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The exits actually work.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "One tap transforms — IN PLACE.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The same request, done right — the website-first walk's MECHANICS (increment G).",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The ONE continuous walk grows upstream — the BaaS dependency layers, MECHANICALLY.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The artifact edge is live.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The surrounding pages' disposition is EXECUTED.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         }
       ],
       "decisions": [
@@ -3040,27 +3139,32 @@
         {
           "title": "One wisp per claimed story, anchored on the STORY's territory.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The claim GRADE is the position channel.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The active subagent's colour state is STAMPED, and it SHIFTS.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The CI merge releases the branch's claims — every grade, audited, waiter promoted.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         },
         {
           "title": "The departure window: fades by age, then gone — no zombie.",
           "state": "pending",
-          "witness": "machine"
+          "witness": "machine",
+          "signable": false
         }
       ],
       "decisions": [

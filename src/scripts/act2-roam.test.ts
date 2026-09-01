@@ -56,6 +56,8 @@ import {
   parseTrailEdges,
   provenCount,
   provenUatCount,
+  uatLegLabel,
+  unprovableUatCount,
   toRoamStatus,
   toRoamUatState,
   toRoamWitness,
@@ -70,6 +72,7 @@ import {
   type RoamNote,
   type RoamStatus,
   type RoamStory,
+  type RoamUatCriterion,
 } from './act2-roam';
 import { assertSnapshot, roamPayload, toSceneStatus } from './forest-snapshot-map';
 import snapshotJson from '../data/forest-snapshot.json';
@@ -749,16 +752,16 @@ test('the proof tally is COUNTED from the payload, never written into copy', () 
   assert.equal(uatTally(none), 'no acceptance test recorded');
   const one: RoamStory = {
     ...none,
-    uat: [{ title: 'it launches', state: 'proven', witness: 'machine' }],
+    uat: [{ title: 'it launches', state: 'proven', witness: 'machine', signable: true }],
   };
   assert.equal(uatTally(one), '1 acceptance test, 1 proven');
   assert.equal(provenUatCount(one), 1);
   const mixed: RoamStory = {
     ...none,
     uat: [
-      { title: 'it launches', state: 'proven', witness: 'machine' },
-      { title: 'a person signs the look', state: 'pending', witness: 'human' },
-      { title: 'it blooms in the forest', state: 'failing', witness: 'machine' },
+      { title: 'it launches', state: 'proven', witness: 'machine', signable: true },
+      { title: 'a person signs the look', state: 'pending', witness: 'human', signable: true },
+      { title: 'it blooms in the forest', state: 'failing', witness: 'machine', signable: true },
     ],
   };
   assert.equal(uatTally(mixed), '3 acceptance tests, 1 proven');
@@ -771,6 +774,7 @@ test('the proof tally is COUNTED from the payload, never written into copy', () 
           title: u.title,
           state: toRoamUatState(u.state),
           witness: toRoamWitness(u.witness),
+          signable: u.signable !== false,
         })),
       }),
     ),
@@ -828,7 +832,7 @@ test('NO DECISION BODY AND NO CRITERION ID reaches the browser — the two absen
   const parsed = parseRoamPayload(text);
   for (const s of parsed?.stories ?? []) {
     for (const leg of s.uat) {
-      assert.deepEqual(Object.keys(leg).sort(), ['state', 'title', 'witness']);
+      assert.deepEqual(Object.keys(leg).sort(), ['signable', 'state', 'title', 'witness']);
     }
   }
 });
@@ -851,7 +855,7 @@ test('the new tiers survive the round trip, and a MALFORMED one never kills the 
   // Present but unreadable is dropped, never half-drawn.
   const junk = parseRoamPayload(
     '{"asOf":"1 January 2026","stories":[{"id":"a","title":"A","capabilities":[],' +
-      '"uat":[{"title":"ok","state":"proven","witness":"machine"},{"state":"proven"},null,7],' +
+      '"uat":[{"title":"ok","state":"proven","witness":"machine","signable":true},{"state":"proven"},null,7],' +
       '"decisions":[453,"nope",null]}],' +
       '"decisions":[{"number":453,"status":"accepted","title":"a real one"},{"title":"no number"},null]}',
   );
@@ -924,4 +928,106 @@ test('the panel offers the two new rows, and the floor belongs to the three that
     /openSection === 'inside' \|\| openSection === 'proof' \|\| openSection === 'decisions'/,
     'the floor is not gated on the three sections that go down',
   );
+});
+
+test('A GREEN ISLAND NEVER READS AS CONTRADICTING ITS OWN STEPS — the measured failure', () => {
+  // ⚠ THE ONE THIS TIER NEARLY SHIPPED. ADR-0443 D2 drops an UNSIGNABLE step from a story's crown
+  // obligations, so a story is legitimately green while such a step carries no verdict. Reading
+  // `state` alone put "8 acceptance tests, 0 proven" under a green island. This asserts against the
+  // REAL published corpus, because the whole finding was a property of the real corpus.
+  const p = roamPayload(SNAP);
+  const green = p.stories.filter((s) => s.status === 'healthy' && s.uat.length > 0);
+  assert.ok(green.length > 3, `only ${green.length} green islands carry steps — the control is thin`);
+  for (const s of green) {
+    const provable = s.uat.filter((u) => u.signable);
+    const unproven = provable.filter((u) => u.state !== 'proven');
+    // Either every step that CAN be proven is proven, or the ones that are not say why in their own
+    // text. A green island whose row says "0 proven" with nothing explaining it is the failure.
+    if (unproven.length > 0) {
+      assert.ok(
+        provable.length > 0,
+        `"${s.id}" is green and every listed step is unprovable, yet the tally counts them as proven`,
+      );
+    }
+    if (provable.length === 0) {
+      assert.equal(
+        uatTally(s),
+        `${s.uat.length === 1 ? '1 acceptance test' : `${s.uat.length} acceptance tests`}, none provable yet`,
+        `"${s.id}" is green with no provable step and must say so, not report zero proven`,
+      );
+    }
+  }
+  // The control: this SHAPE actually exists in the published corpus, so the branch is not theoretical.
+  assert.ok(
+    green.some((s) => s.uat.every((u) => !u.signable)),
+    'no green island has an all-unprovable journey — the branch this test exists for is untested',
+  );
+});
+
+test('an UNPROVABLE step is never collapsed into "not yet proven"', () => {
+  const base = story('a', 'proposed', []);
+  const waiting: RoamUatCriterion = {
+    title: 'nothing can witness this yet',
+    state: 'pending',
+    witness: 'machine',
+    signable: false,
+  };
+  const neglected: RoamUatCriterion = {
+    title: 'nobody has proved this yet',
+    state: 'pending',
+    witness: 'human',
+    signable: true,
+  };
+  // The two read identically on `state` — the label is the only thing that tells them apart.
+  assert.equal(waiting.state, neglected.state);
+  assert.notEqual(uatLegLabel(waiting), uatLegLabel(neglected));
+  assert.match(uatLegLabel(waiting), /witness/i);
+  assert.doesNotMatch(uatLegLabel(waiting), /not yet proven/i, 'the two states were collapsed');
+  assert.match(uatLegLabel(neglected), /not yet proven/i);
+  assert.match(uatLegLabel(neglected), /person/i, 'a provable step must still name who signs it');
+  // …and it never names a witness for a step nothing can witness.
+  for (const label of Object.values(WITNESS_LABEL)) {
+    assert.doesNotMatch(uatLegLabel(waiting), new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.equal(unprovableUatCount({ ...base, uat: [waiting, neglected] }), 1);
+});
+
+test('the tally has three branches and the real corpus exercises all three', () => {
+  const base = story('a', 'proposed', []);
+  const ok = (title: string, state: 'proven' | 'pending', signable: boolean): RoamUatCriterion => ({
+    title,
+    state,
+    witness: 'machine',
+    signable,
+  });
+  assert.equal(uatTally({ ...base, uat: [ok('x', 'proven', true), ok('y', 'pending', true)] }), '2 acceptance tests, 1 proven');
+  assert.equal(uatTally({ ...base, uat: [ok('x', 'pending', false)] }), '1 acceptance test, none provable yet');
+  assert.equal(
+    uatTally({ ...base, uat: [ok('x', 'proven', true), ok('y', 'pending', false)] }),
+    '2 acceptance tests, 1 proven, 1 not yet provable',
+  );
+  // Measured 2026-09-01 on the published corpus: 15 stories all-provable, 8 none, 1 mixed.
+  const p = roamPayload(SNAP);
+  const withSteps = p.stories.filter((s) => s.uat.length > 0);
+  const kinds = new Set(
+    withSteps.map((s) => {
+      const un = s.uat.filter((u) => !u.signable).length;
+      return un === 0 ? 'all-provable' : un === s.uat.length ? 'none-provable' : 'mixed';
+    }),
+  );
+  assert.equal(kinds.size, 3, `the published corpus exercises ${kinds.size} of the three tally branches`);
+});
+
+test('signability survives the round trip, and defaults to PROVABLE when absent', () => {
+  const parsed = parseRoamPayload(JSON.stringify(roamPayload(SNAP)));
+  const published = SNAP.stories.flatMap((s) => s.uat).filter((u) => !u.signable).length;
+  const arrived = (parsed?.stories ?? []).flatMap((s) => s.uat).filter((u) => !u.signable).length;
+  assert.ok(published > 20, `only ${published} unprovable steps are published — the control is thin`);
+  assert.equal(arrived, published, 'an unprovable step lost its mark between the build and the panel');
+  // Absent reads as provable: the majority shape, and the one that claims nothing extra.
+  const bare = parseRoamPayload(
+    '{"asOf":"1 January 2026","stories":[{"id":"a","title":"A","capabilities":[],' +
+      '"uat":[{"title":"x","state":"pending","witness":"machine"}]}]}',
+  );
+  assert.equal(bare?.stories[0]?.uat[0]?.signable, true);
 });

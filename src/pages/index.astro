@@ -1198,6 +1198,15 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   .roam-uat-dot.uat-proven { background: #2f6b3f; }
   .roam-uat-dot.uat-pending { background: #b06a24; }
   .roam-uat-dot.uat-failing { background: #9f2d22; }
+  /* ⚠ THE FOURTH MARK IS A HOLLOW RING, NOT A FOURTH COLOUR. A step nothing can witness yet is not
+     a step in a worse state — it is a step OUTSIDE the proof ladder those three hues describe, and
+     giving it one of their colours would put it back on the ladder. Hollow reads as "no reading",
+     which is exactly what it is. */
+  .roam-uat-dot.uat-unprovable {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px rgba(122, 98, 62, 0.5);
+  }
+  .roam-uat-leg.uat-unprovable .roam-uat-title { color: var(--ink-faint); }
   .roam-uat-title { grid-column: 2; }
   .roam-uat-meta {
     grid-column: 2;
@@ -1307,6 +1316,13 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     line-height: 1.45;
     color: var(--ink);
   }
+
+  /* The floor's pinned slot — see act2-roam.ts for the measurement that moved it out of the
+     scrolling body. It sits between the body and the stamp and never gives up height, so the
+     conversion point is on the panel whatever the story's size. Empty for a trail panel, and an
+     empty div with no margin takes no room. */
+  .roam-floor { flex: none; }
+  .roam-floor .roam-note { margin-bottom: 0; }
 
   /* The date, once, at the bottom of every panel. Without it a present-tense
      sentence about a story's state reads as a live feed, which is the single

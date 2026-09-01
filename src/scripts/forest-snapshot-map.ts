@@ -103,6 +103,8 @@ export interface SnapshotUatCriterion {
   readonly title: string;
   readonly state: string;
   readonly witness: string;
+  /** Whether anything CAN sign this step as authored — see {@link RoamUatCriterion.signable}. */
+  readonly signable: boolean;
 }
 
 /**
@@ -492,11 +494,22 @@ export function toRoamWitness(raw: unknown): RoamWitness {
     : 'either';
 }
 
-/** One UAT leg, as ROAM needs it — the authored step, and the verdict signed against it. */
+/**
+ * One UAT leg, as ROAM needs it — the authored step, and the verdict signed against it.
+ *
+ * ⚠⚠ `signable` IS WHAT STOPS THE PANEL CONTRADICTING THE ISLAND IT IS DRAWN OVER. An acceptance
+ * step deliberately authored with nothing able to witness it does not hold its story's green
+ * (ADR-0443 D2), so a story is legitimately GREEN while such a step carries no verdict. Measured
+ * 2026-09-01 on this snapshot: five green islands have not one of their listed steps signed, and
+ * `website-experience` has eight. Reading `state` alone would put "8 acceptance tests, 0 proven"
+ * under a green island, and a page that appears to contradict itself is worse than either fact.
+ */
 export interface RoamUatCriterion {
   readonly title: string;
   readonly state: RoamUatState;
   readonly witness: RoamWitness;
+  /** `false` = an authored step nothing can witness yet. A real state, never a defect. */
+  readonly signable: boolean;
 }
 
 /** One story, as ROAM needs it. `status` is the SAME value the island is painted with — folded
@@ -577,6 +590,9 @@ export function roamPayload(snap: ForestSnapshot): RoamPayload {
         title: u.title,
         state: toRoamUatState(u.state),
         witness: toRoamWitness(u.witness),
+        // Defaults to signable — the majority shape, and the one that claims nothing extra: an
+        // unreadable value reads as "not yet proven", never as an authored gap.
+        signable: u.signable !== false,
       })),
       // Numbers, resolved against the registry below at render time.
       decisions: [...(story.decisions ?? [])],
