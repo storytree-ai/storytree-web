@@ -764,9 +764,15 @@ export interface TellStage {
   focusIsland(id: string): boolean;
   /** Return to the composition GROW settled on. */
   resetView(): void;
-  /** Fires the first time the READER pans or zooms — never for a move TELL itself made. */
-  onReaderTakeOver(cb: () => void): void;
 }
+// ⚠ THIS SEAM USED TO CARRY A THIRD VERB — `onReaderTakeOver`, which TELL subscribed to in order to
+// STOP the moment the visitor touched the map. It is gone on purpose, and its absence is the type
+// system carrying the owner's correction: *"we should disable controls while the prose plays out, if
+// i zoom in the prose disappears, only give them control when the slides are done."* (2026-09-01).
+// A reader gesture can no longer end the sequence because it can no longer REACH the map — see
+// LOCKED_CLASS — and leaving the subscription in place would have kept a second, invisible route to
+// the exact behaviour the lock exists to remove. `ArrivalHandle` still has the verb; it uses it for
+// its own resize guard, which is a different question.
 
 export interface TellOptions {
   /** The land layer TELL mounts its overlay into (`#storm-land`). */
@@ -809,6 +815,44 @@ export function readForestFacts(map: Element): ForestFacts | null {
   };
 }
 
+/**
+ * The class every rule of the controls lock hangs off, added at runtime and removed the moment the
+ * sequence ends.
+ *
+ * ⚠⚠ THE SCOPING IS THE WHOLE SAFETY PROPERTY, AND GETTING IT WRONG IS INVISIBLE IN A BROWSER. A
+ * visitor whose script never runs already gets the entire forest as a static, dated picture — the
+ * guarantee `…-arc-arrival` bought and the reason the map is serialised into the markup at build
+ * time. Writing `pointer-events: none` against `.forest-arrival-svg` directly, which is the obvious
+ * "simplify the selector" edit, would hand exactly those people a permanently dead map while every
+ * scripted browser looked perfect. `forest-growth` met this trap first and solved it the same way;
+ * `act2-tell.test.ts` reds if a lock rule escapes this class, the way `forest-growth.test.ts` does
+ * for the parked growth state.
+ *
+ * ⚠ THE CLASS IS HALF OF IT. CSS cannot lock a KEYBOARD: ROAM answers Enter and Space on the map's
+ * 35 hit rects, which the scene ships with `tabindex="0"` and `role="button"`, and
+ * `pointer-events: none` does nothing about that — a visitor tabbing through the islands
+ * mid-sequence would still open panels behind the prose. So the keyboard half is done separately,
+ * by parking each rect's tabindex and swallowing Enter/Space in the capture phase.
+ *
+ * ⚠⚠ `inert` DOES NOT WORK HERE AND THE FIRST VERSION OF THIS LOCK USED IT. Measured in a browser
+ * against the built site: with `inert` on the `<svg>`, `hit.focus()` still moved focus and an Enter
+ * still opened a panel; with `inert` on the containing `<div>` instead, BOTH still happened —
+ * `'inert' in HTMLElement.prototype` was true the whole time, so it is supported and simply does not
+ * reach this subtree. It is a global attribute of HTML elements, and these are SVG ones. Nothing
+ * threw, nothing warned, and the pointer half worked perfectly, so the lock would have shipped
+ * looking complete with its keyboard half doing nothing at all. Do not put it back without
+ * re-measuring the two cases above.
+ *
+ * ⚠ AND IT IS ADDED ONLY ON THE TIMED PATH. Under reduced motion there is no sequence, so there is
+ * nothing to protect and — the part that actually bites — no `finish()` to ever take the lock off
+ * again. A lock applied there would be permanent.
+ */
+export const LOCKED_CLASS = 'tell-locked';
+
+/** How long the skip control is highlighted after a locked gesture. Long enough to be seen, short
+ *  enough that a reader who ignores it is not left with a blinking button for the whole sequence. */
+export const MS_SKIP_NUDGE = 1400;
+
 const LENS_CLASS: Readonly<Record<TellLens, string>> = {
   none: '',
   islands: 'tell-lens-islands',
@@ -831,11 +875,22 @@ function el<K extends keyof HTMLElementTagNameMap>(
 /**
  * Mount TELL over the settled forest.
  *
- * ⚠ THE MAP STAYS LIVE THE WHOLE TIME, and the overlay is `pointer-events: none` except for its
- * skip control. TELL is something the visitor is being shown, never something they are held inside:
- * the moment they touch the map it stops (`onReaderTakeOver`), because `the-reader-chooses-the-
- * thread-and-the-depth` outranks finishing the sentence. That is also what stops this becoming the
- * thing the narrator was — a sequence you can only get out of by agreeing with it.
+ * ⚠ THE MAP IS LOCKED WHILE THE SEQUENCE RUNS, AND THAT REVERSES WHAT THIS FILE USED TO DO. The
+ * owner, walking the built site on 2026-09-01: *"we should disable controls while the prose plays
+ * out, if i zoom in the prose disappears, only give them control when the slides are done."*
+ *
+ * The old design was the opposite and it was defensible on paper — the map stayed live, and touching
+ * it ENDED the sequence, so `the-reader-chooses-the-thread-and-the-depth` outranked finishing the
+ * sentence. What that ignored is that the two gestures a visitor reaches for on a map, pan and zoom,
+ * are not "I am done reading". They are "I am looking at the thing you are telling me about" — and
+ * the page answered by silently discarding the sentence, with no way back to it. A control that
+ * destroys the content it is offered alongside is not a choice, it is a trap.
+ *
+ * So the map is inert for the length of the sequence and live the moment it ends. What replaces the
+ * escape is a DELIBERATE one rather than an accidental one: the skip control, which is visible from
+ * the first frame, is the only pointer-live thing on the overlay, and now says where it goes. The
+ * reader still owns the thread — they just have to mean it. See LOCKED_CLASS for the mechanics and
+ * for the no-script trap the scoping avoids.
  *
  * ⚠ UNDER REDUCED MOTION THERE IS NO SEQUENCE AT ALL. Every beat's prose renders at once as a
  * static column, no timers, no lens changes, no camera move. Auto-advancing text is itself a motion
@@ -861,7 +916,11 @@ export function mountTell(opts: TellOptions): TellHandle {
   const column = el('div', 'tell-column');
   column.setAttribute('aria-live', 'polite');
   const figureSlot = el('div', 'tell-figure');
-  const skip = el('button', 'tell-skip', 'skip →');
+  // ⚠ THE LABEL NAMES ITS DESTINATION NOW, BECAUSE IT IS NO LONGER ONE EXIT AMONG SEVERAL. It read
+  // "skip →" while dragging the map was also a way out; with the map locked this is the only one,
+  // and a bare "skip" asks the reader to guess what they would be skipping TO. It is also the answer
+  // to the question the lock puts in their head the first time a drag does nothing.
+  const skip = el('button', 'tell-skip', 'skip to the map →');
   skip.type = 'button';
   skip.setAttribute('data-act2-tell-skip', '');
   layer.append(column, figureSlot, skip);
@@ -978,10 +1037,88 @@ export function mountTell(opts: TellOptions): TellHandle {
     };
   };
 
+  /** Highlight the skip control for a moment — the way out, pointed at when a reader reaches for
+   *  the locked map. Shared by the pointer reach and the swallowed keypress: both are the same
+   *  event from the visitor's side, which is "I would like the map now". */
+  const nudgeSkip = (): void => {
+    skip.classList.add('is-wanted');
+    timers.push(
+      window.setTimeout(() => {
+        skip.classList.remove('is-wanted');
+      }, MS_SKIP_NUDGE),
+    );
+  };
+
+  /**
+   * Each focusable element inside the map and the `tabindex` it had before the lock.
+   *
+   * ⚠ RECORDED RATHER THAN ASSUMED. All 35 hit rects carry `tabindex="0"` on today's map, so
+   * restoring a hard-coded "0" would work — right up until a scene ships one that does not, at
+   * which point the lock would silently rewrite the map's own keyboard order and nothing would
+   * report it. The list is rebuilt on every lock, so a map that re-renders is not a problem either.
+   */
+  let parkedTabIndex: Array<readonly [Element, string | null]> = [];
+
+  /**
+   * Swallow the two keys ROAM answers, while the lock is on.
+   *
+   * ⚠ CAPTURE PHASE, ON THE HOST. ROAM binds `keydown` on the map (target phase) and on the host
+   * (bubble). A capture listener on the host runs before the event has descended to either, so
+   * `stopPropagation` here reaches both — a bubble-phase guard would fire after the panel had
+   * already opened.
+   *
+   * It is belt to the tabindex braces: parking the tabindex stops focus ARRIVING, and this stops a
+   * key from an element that was ALREADY focused when the lock went on.
+   */
+  const swallowMapKeys = (e: Event): void => {
+    if (!host.classList.contains(LOCKED_CLASS)) return;
+    const ke = e as KeyboardEvent;
+    if (ke.key !== 'Enter' && ke.key !== ' ') return;
+    const target = e.target;
+    if (!(target instanceof Element) || !map.contains(target)) return;
+    ke.preventDefault();
+    ke.stopPropagation();
+    nudgeSkip();
+  };
+
+  const lock = (): void => {
+    host.classList.add(LOCKED_CLASS);
+    parkedTabIndex = [...map.querySelectorAll('[tabindex]')].map(
+      (node) => [node, node.getAttribute('tabindex')] as const,
+    );
+    for (const [node] of parkedTabIndex) node.setAttribute('tabindex', '-1');
+    // Focus already inside the map does not leave on its own when its tabindex changes.
+    const active: unknown = document.activeElement;
+    if (active instanceof Element && map.contains(active) && 'blur' in active) {
+      (active as { blur(): void }).blur();
+    }
+    host.addEventListener('keydown', swallowMapKeys, true);
+  };
+
+  /**
+   * Hand the map back.
+   *
+   * ⚠ IT IS CALLED FROM THREE PLACES AND MISSING ONE LEAVES A DEAD MAP. The sequence ending, the
+   * skip control, and `unmount` — which is the storm's disarm path (Escape, or chapter 1's skip)
+   * and therefore the one that is easy to forget, because it is reached from another file. A lock
+   * that survives its own overlay is worse than no lock: nothing on screen would explain it.
+   * Idempotent, so calling it twice is free.
+   */
+  const unlock = (): void => {
+    host.classList.remove(LOCKED_CLASS);
+    host.removeEventListener('keydown', swallowMapKeys, true);
+    for (const [node, was] of parkedTabIndex) {
+      if (was === null) node.removeAttribute('tabindex');
+      else node.setAttribute('tabindex', was);
+    }
+    parkedTabIndex = [];
+  };
+
   const finish = (): void => {
     if (torn) return;
     layer.classList.add('is-over');
     clearLens();
+    unlock();
     stage.resetView();
     timers.push(
       window.setTimeout(() => {
@@ -996,8 +1133,27 @@ export function mountTell(opts: TellOptions): TellHandle {
     finish();
   };
 
+  /**
+   * A locked gesture points at the way out instead of doing nothing.
+   *
+   * ⚠ THE LISTENER IS ON THE HOST, NOT THE MAP, AND IT HAS TO BE. The map is `pointer-events: none`
+   * for the duration, so it receives no events at all — a listener there would be the "the check
+   * that cannot fire" shape, silently. `#storm-land` is its parent and still sees the gesture pass
+   * through, which is exactly what makes the reach detectable.
+   *
+   * Events from inside the overlay are ignored: clicking the skip control is not a locked gesture,
+   * and highlighting the button the reader is already pressing would be noise.
+   */
+  const onLockedReach = (e: Event): void => {
+    if (!host.classList.contains(LOCKED_CLASS)) return;
+    const target = e.target;
+    if (target instanceof Element && target.closest('.tell-layer') !== null) return;
+    nudgeSkip();
+  };
+
   skip.addEventListener('click', stop);
-  stage.onReaderTakeOver(stop);
+  host.addEventListener('pointerdown', onLockedReach);
+  host.addEventListener('wheel', onLockedReach, { passive: true });
 
   if (reducedMotion) {
     // No clock at all: every beat's prose at once, and the map exactly as GROW left it.
@@ -1009,7 +1165,14 @@ export function mountTell(opts: TellOptions): TellHandle {
     }
     column.replaceChildren(all);
     layer.classList.add('is-static');
+    // ⚠ AND NO LOCK. There is no sequence to protect here and, decisively, no `finish()` will ever
+    // run to take one off — a lock on this branch would be permanent. The static column is
+    // `pointer-events: none` like the rest of the overlay, so the map underneath stays fully live,
+    // which is the right answer for a visitor who asked for less motion rather than less map.
   } else {
+    // The lock goes on with the schedule, not at mount: these two lines and the timers below are
+    // one act, and separating them is how a lock ends up outliving the thing it was protecting.
+    lock();
     const starts = beatStarts(script, facts);
     for (let i = 0; i < script.length; i += 1) {
       timers.push(window.setTimeout(() => applyBeat(i), starts[i] ?? 0));
@@ -1025,7 +1188,13 @@ export function mountTell(opts: TellOptions): TellHandle {
       for (const t of timers) window.clearTimeout(t);
       timers.length = 0;
       clearLens();
+      // Before the listeners go, and unconditionally: `unmount` is the storm's disarm path, so this
+      // is the branch a mid-sequence Escape takes. Leaving the lock on here would strand the visitor
+      // with a map they cannot touch and no overlay left to explain why.
+      unlock();
       skip.removeEventListener('click', stop);
+      host.removeEventListener('pointerdown', onLockedReach);
+      host.removeEventListener('wheel', onLockedReach);
       layer.remove();
       delete (window as unknown as Record<string, unknown>).__act2tell;
     },
