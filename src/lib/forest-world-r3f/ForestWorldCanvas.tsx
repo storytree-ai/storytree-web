@@ -31,21 +31,37 @@
 // nothing focused, nothing shown; opting in draws the whole network. Ghost
 // (under-island) strips are never drawn here — the cave props carry that story.
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Instance, Instances, Line, MapControls } from '@react-three/drei';
-import { Color, OrthographicCamera } from 'three';
+import { Color, OrthographicCamera, type Mesh } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d';
 import { frameWorld, orthographicZoomFor } from './camera-framing';
-import { cellGroundGeometry, type LinearRgb } from './cell-ground-geometry';
-import { LAND_RELIEF_AMPLITUDE, landRelief } from './land-relief';
-import { buildGroundOcclusion } from './contact-shade';
+import {
+  cellGroundGeometry,
+  type CellGroundGeometryInput,
+  type LinearRgb,
+} from './cell-ground-geometry';
+import { SHIPPED_COAST, clipToCoast } from './coast-clip';
+import { LAND_RELIEF_AMPLITUDE } from './land-relief';
+import { SHIPPED_SHORE, shoreRelief } from './shore-fall';
+import {
+  atlasOriginResolver,
+  buildAtlasOcclusion,
+  type AtlasField,
+} from './shadow-atlas';
 import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from './ground-casters';
 import type { ShadowCaster } from './land-shadow';
+import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './kit-mesh';
+import { dressMapFromKit } from './map-dressing';
+import { LIGHT_DIRECTION } from './shade-ladder';
+import { EXACT_COLOUR_CANVAS_PROPS } from './exact-colour';
+import { calibrateLights, intensitiesFor } from './light-calibration';
 import {
+  GROUND_ATLAS_ATTRIBUTE,
   GROUND_STATUS_ATTRIBUTE,
   createBandedGroundMaterial,
-  groundShadowTexture,
+  groundAtlasTexture,
   type BandedGroundMaterialOptions,
 } from './banded-ground-material';
 
@@ -239,20 +255,40 @@ const groundRowOf = (material: string | undefined): number =>
  * headroom is 3.0 weighted channel units and it is the PALETTE's tightness, not the shadow's
  * greed — the same wall the grain's colour half met.
  */
-function buildGroundMaterial(cells: readonly InstanceDescriptor[], casters: readonly ShadowCaster[]) {
+function buildGroundMaterial(field: AtlasField | null) {
   const opts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS, grain: 'normal' };
-  const bounds = groundBounds(cells);
-  // A parcel set that bounds nothing gets no field rather than a one-texel one every fragment
-  // then samples. `groundBounds` returns null rather than a degenerate rect precisely so this
-  // branch has to be written down.
-  const shadow =
-    bounds === null
-      ? null
-      : groundShadowTexture(
-          buildGroundOcclusion({ bounds, relief: LAND_RELIEF_AMPLITUDE, casters }),
-        );
-  if (shadow !== null) opts.shadow = shadow;
+  const shadow = field === null ? null : groundAtlasTexture(field);
+  if (shadow !== null) opts.shadowAtlas = shadow;
   return { material: createBandedGroundMaterial(opts), shadow };
+}
+
+/**
+ * THE OCCLUSION FIELD, PACKED OVER THE ISLANDS — adopted 2026-08-31, unconditionally and with no
+ * flag, like the relief, the ladder, the grain and the shadow itself before it.
+ *
+ * ⚠⚠ IT REPLACED A FIELD ALLOCATED OVER THE GROUND'S RECT, and the reason is a measurement
+ * rather than a preference. `occlusionGres` is `min(SHADOW_GRES, SHADOW_TEXTURE_MAX / widestSpan)`,
+ * so ONE island (234 ground units) got the authored 3.000 samples per ground unit and a real
+ * thirty-five-island forest (~3,500) got 0.585 — 5.1x coarser, against parcels whose mean
+ * diameter is 16.57. The contact pool under a story tree lost 5.5% of its area and 15.3% of its
+ * pixels moved: a soft round shadow became a lumpy one, precisely when the map became the real
+ * map. Packed over the islands themselves it is the authored resolution at every map size, and a
+ * SINGLE island is byte-identical to what it was (measured: 0.000% of the frame moved).
+ *
+ * ⚠ A PARCEL SET THAT BOUNDS NOTHING GETS NO FIELD, rather than a one-texel one every fragment
+ * then samples. `groundBounds` returns null rather than a degenerate rect precisely so this branch
+ * has to be written down.
+ *
+ * The costing of all three remedies — raising the texture cap (26x the memory, a 10,498-texel
+ * edge), a field and a material PER ISLAND (35 draw calls with the whole forest on screen), and
+ * this one — is `docs/research/chapter2-shipped-shadow-2026-08-31/`.
+ */
+function buildGroundOcclusionField(
+  cells: readonly InstanceDescriptor[],
+  casters: readonly ShadowCaster[],
+): AtlasField | null {
+  if (groundBounds(cells) === null) return null;
+  return buildAtlasOcclusion({ cells, relief: LAND_RELIEF_AMPLITUDE, casters });
 }
 
 /** The RELAXED-MESH ground: every parcel on the island in ONE merged, flat-shaded buffer.
@@ -285,6 +321,21 @@ function buildGroundMaterial(cells: readonly InstanceDescriptor[], casters: read
  *  ⚠ AND IT WEARS THE GRAIN'S NORMAL HALF, ALSO UNCONDITIONALLY AND FOR THE SAME REASON
  *  (2026-08-30). See {@link BANDED_GROUND} for why only that half of the grain ships.
  *
+ *  ⚠ AND IT IS CLIPPED TO ITS COAST, ALSO UNCONDITIONALLY AND FOR THE SAME REASON (2026-09-01).
+ *  The relaxed substrate pins its outer vertices to the hexes it was built from, so an island used
+ *  to end in 120° corners and read as a cluster of tiles. It now ends on the story-seeded,
+ *  Chaikin-rounded coast the studio's 2D map has drawn all along — the same `smoothCoast` machinery,
+ *  imported rather than transcribed, so the two renderers agree about where an island ends.
+ *  {@link SHIPPED_COAST} names which of the three shapes ships and why; `src/coast-clip.ts` carries
+ *  the fork, and `docs/research/chapter2-shipped-coast-2026-09-01/` carries the pictures.
+ *
+ *  ⚠⚠ WHAT IT COSTS THE MAP'S HONESTY IS NOTHING, AND THAT IS A MEASURED CLAIM RATHER THAN AN
+ *  ASSUMPTION. Every parcel keeps its own capability, its own island and its own status colour; the
+ *  only thing that moves is where the outermost ones end. And the clip is CAPPED so that no parcel
+ *  crosses itself — which it would otherwise do, because the coast the 2D panel draws
+ *  self-intersects twice on this very island and an SVG fill hides what a triangulated ground
+ *  cannot.
+ *
  *  ⚠ SO THE COLOUR ATTRIBUTE IS GONE FROM THE UPLOAD, and `statusIndex` is what replaces it. The
  *  buffer still CARRIES `colors` — the comparison instrument builds the pre-adoption arms out of
  *  it — but uploading an attribute no material reads would be payload the map draws nothing
@@ -297,13 +348,44 @@ function CellGround({
   casters: readonly ShadowCaster[];
 }) {
   const built = useMemo(() => {
-    const geo = cellGroundGeometry({
-      cells,
+    // ⚠⚠ THE COAST IS CLIPPED FIRST, AND EVERYTHING DOWNSTREAM READS THE CLIPPED PARCELS.
+    // The occlusion atlas is packed over the ground's own bounds, so packing it over the PRE-clip
+    // island would leave the new shore outside every tile: the beach would read the atlas's edge
+    // texel and wear whatever shadow happened to sit there. Ordering it here makes that
+    // impossible rather than merely unlikely.
+    //
+    // ⚠ AND IT IS THE GROUND ALONE. `dressMapFromKit` (below) still reads the mapper's own
+    // descriptors, so a tree stands where its parcel put it and the beach grows underneath it.
+    // Moving the props with the shore would have been a second change wearing this one's name.
+    const clipped = clipToCoast(cells, SHIPPED_COAST);
+    // ⚠ THE FIELD IS BUILT FIRST AND THE GEOMETRY READS ITS PACKING, which is what makes "the
+    // mesh and the material agree about where each island's tile is" true by construction rather
+    // than by two calls happening to pack the same way. They disagree silently: every island would
+    // read some other island's corner of the atlas, and the map would wear a perfectly ordinary
+    // set of shadows belonging to the wrong land.
+    const field = buildGroundOcclusionField(clipped, casters);
+    const input: CellGroundGeometryInput = {
+      cells: clipped,
       resolve: linearColourOf,
       index: groundRowOf,
-      relief: landRelief,
-    });
-    return { geo, ...buildGroundMaterial(cells, casters) };
+      // ⚠⚠ THE SHORE FALL READS THE CLIPPED PARCELS, AND THAT ORDERING IS THE COMPONENT.
+      // After `clipToCoast` the boundary of this mesh IS the coast, so the distance to the
+      // mesh's own rim is the distance to the shore — one coastline, not two to keep in step.
+      // Handed the pre-clip descriptors it would measure to the hex silhouette and put the
+      // waterline a beach's width inland of the water.
+      //
+      // ⚠ IT IS A STRICT EXTENSION OF `landRelief`, WHICH IS WHY THIS LINE REPLACES IT RATHER
+      // THAN JOINING IT. Inland of the band the field returns `landHeight` to the last bit, so
+      // the whole interior of every island draws exactly what it drew before; only the beach
+      // the coast clip added is new ground, and only there does the land move.
+      relief: shoreRelief(clipped, SHIPPED_SHORE),
+    };
+    // By statement rather than a conditional spread: under `exactOptionalPropertyTypes` an absent
+    // `atlasOrigin` and an `atlasOrigin: undefined` are different inputs, and only the first
+    // leaves the emitted buffer the one every pre-adoption figure was taken on.
+    if (field !== null) input.atlasOrigin = atlasOriginResolver(field);
+    const geo = cellGroundGeometry(input);
+    return { geo, ...buildGroundMaterial(field) };
   }, [cells, casters]);
   // ⚠ THE MATERIAL AND ITS TEXTURE ARE DISPOSED, WHICH THE MODULE-SCOPE SINGLETON NEVER NEEDED
   // TO BE. The occlusion field is about 107 KB of GPU memory for one island, and a canvas that
@@ -326,8 +408,107 @@ function CellGround({
           attach={`attributes-${GROUND_STATUS_ATTRIBUTE}`}
           args={[built.geo.statuses, 1]}
         />
+        {/* The island's tile corner in the packed occlusion atlas. Absent when the parcel set
+            bounds nothing and therefore wears no field — the shader declares no attribute in that
+            case either, so an empty buffer here would be one nothing reads. */}
+        {built.geo.atlasOrigins.length > 0 && (
+          <bufferAttribute
+            attach={`attributes-${GROUND_ATLAS_ATTRIBUTE}`}
+            args={[built.geo.atlasOrigins, 2]}
+          />
+        )}
       </bufferGeometry>
     </mesh>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// THE BOUGHT KIT — one object per capability (ADR-0475)
+// ---------------------------------------------------------------------------
+
+/**
+ * THE KIT, PARSED ONCE FOR THE WHOLE PAGE.
+ *
+ * ⚠ A MODULE-SCOPE PROMISE RATHER THAN PER-MOUNT STATE, and it is the right singleton here for
+ * the reason the ground material is NOT one: the kit is a constant — the same asset, the same
+ * geometry, the same three materials, whatever island is on screen — where the occlusion field is
+ * built from THIS island's own casters. Parsing it per mount would decode the same textures again
+ * on every navigation and hold a second copy of them on the GPU.
+ */
+let kitPromise: Promise<LoadedKit> | null = null;
+const kit = (): Promise<LoadedKit> => (kitPromise ??= loadEmbeddedKit());
+
+/**
+ * ONE BOUGHT OBJECT PER CAPABILITY, ITS SPECIES AND LEAF TINT CARRYING THAT CAPABILITY'S STATE.
+ *
+ * The owner settled this vocabulary on 2026-08-29 (ADR-0475) and authorised the crossing the same
+ * day. Until now the shipped map drew ONE of the 1,089 things the semantic scene puts on its
+ * ground: the story tree, and nothing else.
+ *
+ * ⚠⚠ THE BLOOMS ARE DRAWN PER ISLAND, AND THE WHOLE-MAP CALL THAT PRECEDED IT WAS THE HAZARD. The
+ * vocabulary's sixth entry is one flower per UAT criterion the owner has signed (ADR-0226 D4), and
+ * it is a claim about a STORY rather than about a capability. This component used to hand every
+ * `cell-ground` descriptor on the map to `dressIslandFromKit` in ONE call — correct while the map
+ * held one island, and a misreport the moment it held two, because a bloom is scattered over every
+ * cell it is given. So the count was pinned at zero until `worldTo3D` learned the island id.
+ * `dressMapFromKit` now spends each story's signatures on that story's own ground; a cell the
+ * substrate cannot attribute still grows its capabilities' trees and never a bloom.
+ *
+ * ⚠ IT TAKES THE WHOLE DESCRIPTOR STREAM rather than the ground slice, because the signatures are
+ * IN it: one `uat-bloom` per signed criterion. Counting them anywhere else would be a second
+ * opinion about proof state, and two sources is how a map comes to disagree with itself.
+ *
+ * ⚠ THE FOOTPRINTS ARE READ OFF THE LOADED KIT, never declared here. A pine's canopy is as wide
+ * as its own geometry says once scaled to 18 ground units, and a number restated in the canvas
+ * would drift the first time the asset is re-exported.
+ */
+function KitProps({ descriptors }: { descriptors: readonly Descriptor3D[] }) {
+  const [loaded, setLoaded] = useState<LoadedKit | null>(null);
+  useEffect(() => {
+    let live = true;
+    // A kit that fails to parse must not take the MAP down with it: the ground is the thing that
+    // reports proof state, and it reports it correctly with no props on it. The refusal is loud
+    // in the console and the island simply stands bare.
+    kit().then(
+      (k) => {
+        if (live) setLoaded(k);
+      },
+      (err: unknown) => {
+        console.error('ForestWorldCanvas: the bought kit did not load, so no props are drawn', err);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const meshes = useMemo(() => {
+    if (!loaded) return [];
+    return kitMeshes(
+      loaded,
+      dressMapFromKit(descriptors, {
+        relief: LAND_RELIEF_AMPLITUDE,
+        footprint: roleFootprints(loaded),
+      }),
+    );
+  }, [loaded, descriptors]);
+
+  // ⚠ THE MERGED GEOMETRY IS DISPOSED, THE KIT'S OWN IS NOT. `kitMeshes` clones every part and
+  // bakes its transform in, so each mesh here owns geometry nothing else refers to; the kit's
+  // source geometry and its materials are the module singleton's and outlive every mount.
+  useEffect(
+    () => () => {
+      for (const m of meshes) m.geometry.dispose();
+    },
+    [meshes],
+  );
+
+  return (
+    <>
+      {meshes.map((m: Mesh, i: number) => (
+        <primitive key={i} object={m} />
+      ))}
+    </>
   );
 }
 
@@ -430,6 +611,59 @@ function FitOrthographicFraming({ halfHeight }: { halfHeight: number }) {
 }
 
 /**
+ * THE MAP'S TWO LIGHTS, at the strengths a probe of this renderer says they should be.
+ *
+ * ⚠⚠ THE INTENSITIES ARE READ OFF THE LADDER, and they were `0.7` / `1.1` until 2026-08-30. That
+ * pair was chosen when every lit object here was a flat placeholder cone or cylinder whose own
+ * colour WAS the picture; for those, 1.8 of total intensity is merely bright. The bought kit is
+ * the first thing on this map with a TEXTURE, and 1.8 saturates it — the first dressed frame
+ * delivered pale grey needles on PINK trunks, which reads as a broken asset and is an overexposed
+ * one. So a fully lit white face lands on the ladder's TOP rung and an unlit one on its FLOOR: the
+ * same range the ground beside it is quantised into, by derivation rather than by eye.
+ *
+ * ⚠⚠ AND SINCE 2026-08-31 THE PAIR IS MEASURED RATHER THAN MERELY DERIVED. `calibrateLights`
+ * renders a white, fully rough, fully lit standard face in THIS context, reads it back, and scales
+ * both intensities by `target / probe` — the specular term a real `MeshStandardMaterial` carries is
+ * not something the arithmetic on this side can predict. Until then the canvas ran no probe and
+ * hung the authored intent, which is the smaller half of why its crowns did not match
+ * `docs/research/chapter2-vocabulary-2026-08-29/island-kit-8px.png`. The larger half is the
+ * transfer function itself and lives in `exact-colour.ts`.
+ *
+ * ⚠ IT DELIBERATELY DOES NOT RE-CONFIGURE THE RENDERER, IT ASSERTS. `calibrateLights` REFUSES a
+ * renderer that is not in exact-colour mode, because `target / probe` is a one-shot solve that is
+ * exact only where the delivered value is linear in intensity. @react-three/fiber's `configure`
+ * pass runs before children render — `render(children)` awaits it — so by here the `<Canvas>`
+ * spread has already taken. Re-applying it would paper over an ordering change instead of failing
+ * on one.
+ *
+ * ⚠⚠ THE KEY LIGHT IS AIMED ALONG THE LAND'S OWN AUTHORED SUN, and it was not until 2026-08-30.
+ * It sat at `[120, 300, 80]`, which normalises to (+0.36, +0.90, +0.24) — the OPPOSITE SIDE IN X
+ * from `LIGHT_DIRECTION`'s (-0.45, +0.83, +0.35). So every lit object on this map was lit from the
+ * east while the ground beside it was banded, and — once the shadow crossing landed — CAST ITS
+ * SHADOWS from the west. A prop lit from one side and throwing its shadow toward the same side is
+ * the incoherence that reads as "wrong" before anyone can say why, and the bought kit is what made
+ * it matter: the story tree could carry it alone, a stand of trees cannot. It is DERIVED rather
+ * than chosen — the same constant `banded-ground-material.ts` shades with and `land-shadow.ts`
+ * casts along, so the three cannot drift apart. The distance is arbitrary (a directional light has
+ * a direction, not a position) and is large enough to sit outside any world.
+ */
+function CalibratedLights() {
+  const gl = useThree((s) => s.gl);
+  // The probe renders one 8x8 frame and restores the canvas size. Memoised on the renderer, so it
+  // runs once per mount rather than once per frame.
+  const lit = useMemo(() => intensitiesFor(calibrateLights(gl)), [gl]);
+  return (
+    <>
+      <ambientLight intensity={lit.ambient} />
+      <directionalLight
+        position={[LIGHT_DIRECTION.x * 400, LIGHT_DIRECTION.y * 400, LIGHT_DIRECTION.z * 400]}
+        intensity={lit.directional}
+      />
+    </>
+  );
+}
+
+/**
  * The minimal R3F canvas of the spike: descriptors → placeholder meshes under drei
  * `MapControls` (pan / zoom a top-down-ish world map — NOT rotate; the projection is fixed
  * 2.5D isometric per ADR-0380 D6 fence 4). Client-only
@@ -464,12 +698,16 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
        beside `orthographic` is the one way to write this that silently keeps the old projection.
        `near`/`far` now clip along the view direction rather than radially, and the eye sits
        `back * √2` away, so the same 1/4000 range still contains the whole world. */
-    <Canvas orthographic camera={{ position: frame.position, near: 1, far: 4000 }}>
+    <Canvas
+      orthographic
+      {...EXACT_COLOUR_CANVAS_PROPS}
+      camera={{ position: frame.position, near: 1, far: 4000 }}
+    >
       <color attach="background" args={['#101418']} />
-      <ambientLight intensity={0.7} />
-      <directionalLight position={[120, 300, 80]} intensity={1.1} />
+      <CalibratedLights />
       <HexGround tiles={grounds} />
       <CellGround cells={cells} casters={casters} />
+      <KitProps descriptors={descriptors} />
       {trees.map((t, i) => (
         <StoryTree key={i} tree={t} />
       ))}
