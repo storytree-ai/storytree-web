@@ -26,17 +26,25 @@
 //
 // So the fence moved from COMPOSITION (every ground colour must report) to OUTCOME (the island's
 // state must still be readable), and the judgement is the SESSION'S to apply on the final render
-// rather than the owner's to re-issue per surface. That is why this module adds a token without a
-// second question, and why the evidence page beside it
-// (`docs/research/chapter2-shipped-skirt-2026-09-01/`) is a picture of the four arms rather than a
-// request for a verdict.
+// rather than the owner's to re-issue per surface. That is why this module adds tokens without a
+// second question, and why the evidence pages beside it are pictures of the arms rather than
+// requests for a verdict.
+//
+// ⚠⚠ AND THERE ARE TWO ROCKS NOW, NOT ONE — corrected in place on 2026-09-01, the same day the
+// single one landed. The cliff that shipped first is `chapter2-shipped-skirt-2026-09-01/`; the pair
+// that ships now is `chapter2-skirt-tonal-range-2026-09-01/`, and {@link SKIRT_ROCK_LIT} carries
+// the arithmetic that forced it. The median rock is KEPT — it is still drawn, as the comparison
+// page's `rock` arm and therefore as the denominator the pair is measured against.
 //
 // ⚠ WHAT DOES NOT MOVE. The delivered pixel is still an authored `(token x level)` closure entry —
-// the rock is one more ROW on the same ramp, quantised onto the same ladder, with no free shading,
-// no gradient, no texture and no exception in the checker (ADR-0380 D6 fence 3). And no STATUS
-// token moves: {@link SKIRT_ROCK} is a new family-less entry beside them, exactly as the harness's
-// prop materials are (ADR-0406 D4), and `stepped-skirt.test.ts` holds it to the same obligation —
-// no rock ledge may ever deliver a colour a status family delivers.
+// each rock is one more ROW on the same ramp, quantised onto the same ladder, with no free shading,
+// no gradient, no texture and no exception in the checker (ADR-0380 D6 fence 3). A SECOND token is
+// not a second mechanism: `harness/palette-band.ts` already gives every prop material with a lit
+// top and a shaded flank two tokens for exactly this reason, and the shadow rung already grew this
+// closure without opening it. And no STATUS token moves: the rocks are family-less entries beside
+// them, exactly as the harness's prop materials are (ADR-0406 D4), and
+// `harness/skirt-rock-separation.test.ts` holds all three to the same obligation — no rock ledge
+// may ever deliver a colour a status family delivers.
 //
 // ────────────────────────────────────────────────────────────────────────────────────────────
 // THE PROFILE IS TRANSCRIBED, NOT INVENTED. Every constant below is read off the approved render's
