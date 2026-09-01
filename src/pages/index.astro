@@ -770,31 +770,52 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
      and this must not quietly spend. Hoisting `opacity: 0` out of this scope
      would hide the map from exactly the people who cannot tell you.
 
-     The order is the build's own placement order, which is dependency rank
-     from the foundation row up; `--grow-delay` is stamped per island from
-     the wave schedule. See forest-growth.ts for why it is waves and not one
-     step per island (35 islands at the retired walk's 0.22s law took 7.5s).
+     THE ORDER FOLLOWS THE DEPENDENCY EDGE (ADR-0491). Base islands form from
+     nothing; a settled island releases its outgoing pathways; a pathway
+     arriving is what starts the island it reaches. Every window — island,
+     flora, and each trail segment's own draw-on — is stamped as a custom
+     property by `mountForestGrowth`, so this stylesheet holds the LOOK and
+     the schedule holds the ORDER. There are no wave constants here any more.
      ====================================================================== */
   @keyframes act2-forest-grow {
-    from { opacity: 0; transform: scale(0.62); }
-    to   { opacity: 1; transform: scale(1); }
+    from { opacity: 0; transform: scale(0.46); translate: 0 7px; }
+    to   { opacity: 1; transform: scale(1);    translate: 0 0; }
   }
   @keyframes act2-forest-rise {
     from { opacity: 0; translate: 0 9px; }
     to   { opacity: 1; translate: 0 0; }
   }
-  @keyframes act2-forest-trails {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+  /* THE ROAD DRAWS FROM THE ISLAND IT LEAVES. `pathLength="1"` is stamped by
+     the script, so one keyframe reveals a segment of any real length; the
+     reversed variant is for a chain that walks a segment against the
+     direction it was drawn in, and grows from the far end instead. */
+  @keyframes act2-trail-draw {
+    from { stroke-dashoffset: 1; }
+    to   { stroke-dashoffset: 0; }
+  }
+  @keyframes act2-trail-draw-rev {
+    from { stroke-dashoffset: -1; }
+    to   { stroke-dashoffset: 0; }
   }
   /* THE LAND. `tw-isle` (the shore) and `tw-ground` (the disc) share a bounding
-     box, so a 50%/50% fill-box origin scales both about the island's real
-     centre — it grows in place rather than sliding in from the map's origin. */
+     box — their centres agree within three user units — so a 50%/50% fill-box
+     origin scales both about the island's real centre and they stay registered
+     to each other for the whole growth. ⚠ A BOTTOM-EDGE ORIGIN IS THE OBVIOUS
+     WAY TO WRITE "grows from its base" AND IT IS THE ONE THAT BREAKS: the two
+     boxes share a centre, not a bottom (the shore extends past the disc), so
+     100% would scale them about points tens of units apart and slide the land
+     around inside its own coastline mid-arrival. The rise is a TRANSLATE,
+     which is bounding-box independent and therefore exact for both.
+
+     ⚠ AND THE EASING NO LONGER OVERSHOOTS. The previous curve ended at 1.32
+     before settling, which is what the owner was describing as islands
+     "poping up" — an overshoot reads as something landing, not as something
+     growing. This one is monotone. */
   .forest-arrival-svg.is-growing .tw-isle,
   .forest-arrival-svg.is-growing .tw-ground {
     transform-box: fill-box;
     transform-origin: 50% 50%;
-    animation: act2-forest-grow 620ms cubic-bezier(0.34, 1.32, 0.44, 1) both;
+    animation: act2-forest-grow var(--grow-dur, 760ms) cubic-bezier(0.16, 0.72, 0.28, 1) both;
     animation-delay: var(--grow-delay, 0ms);
   }
   /* THE TREES. ⚠ DELIBERATELY NOT SCALED — see forest-growth.ts. `tw-terr`
@@ -803,12 +824,28 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
      fixed origin slides the trees off their own ground, worst on the tall
      islands. A translate is bounding-box independent and therefore exact. */
   .forest-arrival-svg.is-growing .tw-terr {
-    animation: act2-forest-rise 620ms cubic-bezier(0.34, 1.32, 0.44, 1) both;
-    animation-delay: calc(var(--grow-delay, 0ms) + 300ms);
+    animation: act2-forest-rise var(--grow-dur, 760ms) cubic-bezier(0.16, 0.72, 0.28, 1) both;
+    animation-delay: var(--flora-delay, 0ms);
   }
-  .forest-arrival-svg.is-growing .tw-trails {
-    animation: act2-forest-trails 700ms ease-out both;
-    animation-delay: var(--grow-delay, 0ms);
+  /* ⚠ THE PARKED STATE FOR A SEGMENT HANGS OFF `.is-drawing`, WHICH THE SCRIPT
+     STAMPS PER SEGMENT — NOT OFF `.tw-trail-fill`. A segment the schedule
+     never reached would be parked by `stroke-dashoffset` FOREVER, which is a
+     road missing from a map whose whole pitch is that the map is complete. An
+     unscheduled segment keeps painting instead: the failure direction is a
+     road that appears too early, never one that never appears. */
+  .forest-arrival-svg.is-growing .tw-trail-shadow.is-drawing,
+  .forest-arrival-svg.is-growing .tw-trail-casing.is-drawing,
+  .forest-arrival-svg.is-growing .tw-trail-fill.is-drawing,
+  .forest-arrival-svg.is-growing .tw-trail-ghost.is-drawing {
+    stroke-dasharray: 1 1;
+    animation: act2-trail-draw var(--draw-dur, 400ms) linear both;
+    animation-delay: var(--draw-delay, 0ms);
+  }
+  .forest-arrival-svg.is-growing .tw-trail-shadow.is-drawing.is-drawing-rev,
+  .forest-arrival-svg.is-growing .tw-trail-casing.is-drawing.is-drawing-rev,
+  .forest-arrival-svg.is-growing .tw-trail-fill.is-drawing.is-drawing-rev,
+  .forest-arrival-svg.is-growing .tw-trail-ghost.is-drawing.is-drawing-rev {
+    animation-name: act2-trail-draw-rev;
   }
 
   /* ⚠ THE FADE IS ACQUISITION — TIME THE READER CANNOT READ THROUGH — AND act2-tell BUDGETS FOR
@@ -1229,6 +1266,15 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     .forest-arrival-svg.is-growing .tw-terr,
     .forest-arrival-svg.is-growing .tw-trails {
       animation: none; opacity: 1; transform: none; translate: 0 0;
+    }
+    /* The trail draw-on, unwound the same way. `mountForestGrowth` already
+       arms nothing under reduced motion, so nothing should ever match this —
+       it is the belt to that braces, for a preference turned on mid-run. */
+    .forest-arrival-svg.is-growing .tw-trail-shadow.is-drawing,
+    .forest-arrival-svg.is-growing .tw-trail-casing.is-drawing,
+    .forest-arrival-svg.is-growing .tw-trail-fill.is-drawing,
+    .forest-arrival-svg.is-growing .tw-trail-ghost.is-drawing {
+      animation: none; stroke-dasharray: none; stroke-dashoffset: 0;
     }
     .tell-layer, .tell-block, .tell-line, .tell-figure { transition: none; }
     .tell-block, .tell-line, .tell-figure { opacity: 1; translate: 0 0; }
