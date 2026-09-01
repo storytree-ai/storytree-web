@@ -37,6 +37,11 @@
 //
 // 3. **IT EXPLAINS ONLY WHAT THE MAP ALREADY ASSERTS.** Islands are stories, trails are
 //    `depends_on` edges, the colour is the folded status, and inside a story are its capabilities.
+//    ⚠ THAT SENTENCE IS THE CORPUS'S NAMES FOR THESE THINGS, AND THE PANEL DOES NOT USE THEM: since
+//    ADR-0494 D5 the prose says MICROSERVICE, COMPONENT, DEPENDS-ON and INITIATIVE, which is the
+//    reader's language for the same four objects. Translating a noun is not inventing one — what
+//    this rule forbids is a panel asserting something the snapshot does not carry, and that is
+//    unchanged. `vocabulary.ts` holds the mapping; `vocabulary.test.ts` enforces it.
 //    Nothing here invents a vocabulary the map does not carry. There is deliberately no explanation
 //    of terrain or props on this surface, because the published snapshot draws neither: the
 //    territories go out with `plants: []` and no wisps, so a sentence about them would be a
@@ -270,9 +275,15 @@ export interface RoamNote {
   readonly grounds?: readonly string[];
 }
 
+// ⚠ EVERY LINE FROM HERE DOWN SPEAKS THE READER'S VOCABULARY, NOT OURS (ADR-0494 D5). An island is
+// a MICROSERVICE, the parts inside it are COMPONENTS, an edge is a DEPENDS-ON. The note IDS below
+// are still `story` / `capability` / `arc` because they are internal handles the visitor never sees
+// — the fence is on the prose, not on the code. `vocabulary.test.ts` holds this file and TELL to the
+// same list, because the visitor meets both within seconds of each other and a page that calls the
+// same shape two different things is worse than one that used our word throughout.
 export const ROAM_STORY_NOTE: RoamNote = {
   id: 'story',
-  lines: ['An island is one story — one thing this system does.'],
+  lines: ['An island is one microservice — one thing this system does.'],
   grounds: ['ADR-0002'],
 };
 
@@ -284,13 +295,13 @@ export const ROAM_COLOUR_NOTE: RoamNote = {
 
 export const ROAM_CAPABILITY_NOTE: RoamNote = {
   id: 'capability',
-  lines: ['A capability is one organ of that story, proven on its own.'],
+  lines: ['Each component inside is proven on its own.'],
   grounds: ['ADR-0010'],
 };
 
 export const ROAM_TRAIL_NOTE: RoamNote = {
   id: 'trail',
-  lines: ['A trail is a dependency. It runs from the thing that is needed to the thing that needs it.'],
+  lines: ['A trail is a depends-on. It runs from the thing that is needed to the thing that needs it.'],
   grounds: ['ADR-0010'],
 };
 
@@ -342,7 +353,7 @@ export const ROAM_FLOOR_NOTE: RoamNote = {
   id: 'floor',
   lines: [
     'This is as deep as the public map goes.',
-    'Under a capability sit its tests, the decisions behind it and the code — that is what the app opens.',
+    'Under each component sit its tests, the decisions behind it and the code — that is what the app opens.',
   ],
   grounds: ['ADR-0453'],
 };
@@ -362,7 +373,7 @@ export const ROAM_FLOOR_NOTE: RoamNote = {
  */
 export const ROAM_ARC_NOTE: RoamNote = {
   id: 'arc',
-  lines: ['An arc is one initiative — a named piece of work, tracked from its intent to its end.'],
+  lines: ['An initiative is a named piece of work, tracked from its intent to its end.'],
   grounds: ['ADR-0183'],
 };
 
@@ -381,6 +392,20 @@ export const ROAM_ARC_EMPTY: RoamNote = {
 
 /** Every line of prose this module can put on the page. The test holds the "one or two sentences"
  *  bar against this list, so a note added later is covered without anyone remembering to add it. */
+/**
+ * The kind word above a panel's title — the one-word answer to "what did I just click?".
+ *
+ * ⚠ EXPORTED SO THE VOCABULARY FENCE CAN SEE IT. It used to be two string literals inline in the
+ * DOM half, which meant `vocabulary.test.ts` could hold every NOTE on this surface to the reader's
+ * language while the single most prominent word on the panel — the one in the largest position,
+ * directly above the title — said `story` unchecked. A word a test cannot import is a word the
+ * fence does not cover.
+ */
+export const ROAM_KIND_WORD = {
+  story: 'microservice',
+  trail: 'trail',
+} as const;
+
 export const ROAM_NOTES: readonly RoamNote[] = [
   ROAM_STORY_NOTE,
   ROAM_COLOUR_NOTE,
@@ -470,8 +495,8 @@ export function provenCount(story: RoamStory): number {
  *  is counted from the payload at render time; none is ever written into copy. */
 export function capabilityTally(story: RoamStory): string {
   const total = story.capabilities.length;
-  if (total === 0) return 'no capabilities recorded';
-  const noun = total === 1 ? '1 capability' : `${total} capabilities`;
+  if (total === 0) return 'no components recorded';
+  const noun = total === 1 ? '1 component' : `${total} components`;
   return `${noun}, ${provenCount(story)} proven`;
 }
 
@@ -701,7 +726,7 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
   // ── target 1 · an island, and targets 2 and 3 nested inside it ────────────
   const renderStory = (story: RoamStory): void => {
     body.replaceChildren();
-    body.append(el('p', 'roam-kind', 'story'));
+    body.append(el('p', 'roam-kind', ROAM_KIND_WORD.story));
     body.append(el('h3', 'roam-title', story.title));
     body.append(el('p', 'roam-id', story.id));
     body.append(noteBlock(ROAM_STORY_NOTE));
@@ -812,7 +837,7 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     // than a hairline inside it.
     select(`[data-id="${CSS.escape(segmentId)}"]`);
     body.replaceChildren();
-    body.append(el('p', 'roam-kind', 'trail'));
+    body.append(el('p', 'roam-kind', ROAM_KIND_WORD.trail));
     body.append(el('h3', 'roam-title', trailHeading(edges)));
     body.append(noteBlock(trailNote(edges)));
     const list = el('ul', 'roam-edges');

@@ -32,9 +32,29 @@ const MUTATIONS = [
   {
     name: 'a number is written into the copy',
     file: SRC,
-    from: "lines: ['An island is one story — one thing this system does.'],",
-    to: "lines: ['An island is one of 35 stories — one thing this system does.'],",
+    from: "lines: ['An island is one microservice — one thing this system does.'],",
+    to: "lines: ['An island is one of 35 microservices — one thing this system does.'],",
     expect: 'no number is written into ROAM copy',
+  },
+  {
+    // ADR-0494 D5. The drift this catches is the cheapest one on the page: someone editing this note
+    // reaches for the noun the CODE uses, because every identifier around the string still says
+    // `story`. One sentence in our vocabulary is all it takes for the panel and the prose over it to
+    // stop agreeing, and each sentence reads fine on its own.
+    name: 'our own noun creeps back into the panel copy',
+    file: SRC,
+    from: "lines: ['An island is one microservice — one thing this system does.'],",
+    to: "lines: ['An island is one story — one thing this system does.'],",
+    expect: 'no visitor-facing sentence in chapter 2 uses one of our internal nouns',
+  },
+  {
+    // The same rule, on the string that is BUILT rather than written — the row a visitor clicks to
+    // open the component list. A scan of the copy constants alone cannot see it.
+    name: 'a BUILT tally says capabilities, which no visitor has a word for',
+    file: SRC,
+    from: "  const noun = total === 1 ? '1 component' : `${total} components`;",
+    to: "  const noun = total === 1 ? '1 capability' : `${total} capabilities`;",
+    expect: 'no visitor-facing sentence in chapter 2 uses one of our internal nouns',
   },
   {
     name: 'a failing island is softened into "not yet proven"',
@@ -109,9 +129,9 @@ const MUTATIONS = [
   {
     name: 'a note grows past two sentences',
     file: SRC,
-    from: "  lines: ['A capability is one organ of that story, proven on its own.'],",
+    from: "  lines: ['Each component inside is proven on its own.'],",
     to:
-      "  lines: ['A capability is one organ of that story, proven on its own.', " +
+      "  lines: ['Each component inside is proven on its own.', " +
       "'It has its own tests.', 'And its own colour.'],",
     expect: 'every note is one or two sentences',
   },

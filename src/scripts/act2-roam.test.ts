@@ -125,10 +125,12 @@ test('the tally is COUNTED from the payload, and moves when the corpus moves', (
   );
   assert.equal(provenCount(small), 1);
   assert.equal(provenCount(large), 3);
-  // The singular is real prose, not "1 capabilitys".
-  assert.match(capabilityTally(story('c', 'healthy', [['c1', 'healthy']])), /^1 capability,/);
+  // The singular is real prose, not "1 components". (The noun is the READER'S — ADR-0494 D5 — so
+  // this reads `component`, not the corpus's `capability`; `vocabulary.test.ts` is what holds it
+  // there.)
+  assert.match(capabilityTally(story('c', 'healthy', [['c1', 'healthy']])), /^1 component,/);
   // And a story with nothing recorded says so rather than claiming zero of zero proven.
-  assert.equal(capabilityTally(story('d', 'proposed', [])), 'no capabilities recorded');
+  assert.equal(capabilityTally(story('d', 'proposed', [])), 'no components recorded');
 });
 
 // ── the panel reads the value that painted the island ───────────────────────

@@ -421,6 +421,19 @@ test('SHORT AND LIGHT is measured, not asserted (ADR-0453 D1)', () => {
   // sentence can survive future edits, and the number is deliberately generous: this fails when
   // someone adds a paragraph, not when they add a word.
   //
+  // ⚠ 2026-09-01, THE VOCABULARY REWRITE (ADR-0494 D5): 71.9s → 64.8s, 773 characters → 681, on the
+  // SAME ten beats and the SAME 13 cps. Speaking the reader's language is what made it shorter, not
+  // a pace change: `Every island is one story — one thing the system does.` needed a gloss because
+  // `story` is our word, and `Every island is a microservice.` does not because `microservice` is
+  // theirs. The rest came from one compression — the binary beat's second line now names "the
+  // middle" and lets the NEXT beat show it rather than describing it twice.
+  //
+  // The 7.1s bought here is deliberately spent, not banked: it pays for the edges beat and the
+  // ending parked alongside this increment on `website-refresh-arc`, so the sequence ends up at or
+  // under where it started rather than growing. The owner has a live open question about the site's
+  // length; a lane that adds two beats and reports a shorter total is the only honest way to answer
+  // it. If a future edit needs room, CUT COPY — the ceiling is here to make the other move visible.
+  //
   // ⚠ THE CEILING MOVED FROM 65s TO 85s ON 2026-08-29, AND THE COPY DID NOT GROW BY A WORD. The
   // pace repair raised the sequence from 54s to 72s on the SAME 779 characters, because the old
   // 54s was not a length — it was 779 characters delivered too fast to read. Roughly 135 words of
