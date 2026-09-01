@@ -330,14 +330,25 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
              one place and mistyped in the other is a defect nothing else on this page can detect.
              Register is collaboration, never notification (D4): we hold no list, so the copy must
              not imply one exists. Nothing is captured (D2/D3) — an outbound hyperlink, no form, no
-             endpoint, no third-party script. -->
+             endpoint, no third-party script.
+
+             ⚠ THE COPY IS ASSERTED AGAINST act2-ask's CONSTANTS, not merely eyeballed against them.
+             `act2-ask.test.ts` reads this paragraph and requires it to contain ASK_LINE and ASK_CTA
+             verbatim. The href was already held that way; the WORDS were not, and a substantive
+             claim that is right in one copy and stale in the other is exactly the defect nothing
+             else on this page can detect — the no-script route being the one nobody looks at.
+
+             ⚠ "Still under construction" IS LOAD-BEARING, NOT A FLOURISH (ADR-0453 D9, discharged
+             here). It is the site's only statement that nobody can use storytree yet, and this is
+             one of the two places it appears. Owner-directed 2026-09-01: "yeah just tell them its
+             still under construction, and the invite is to get involved not to buy a product." -->
         <p class="fallback__ask">
-          One person, building this in the open.
+          One person, building this in the open. Still under construction.
           <a
             class="ask-link"
             href="https://www.linkedin.com/in/mick-hua-353353a/"
             target="_blank"
-            rel="noopener noreferrer">Want in? Say hello on LinkedIn →</a>
+            rel="noopener noreferrer">Want to get involved? Say hello on LinkedIn →</a>
         </p>
       </div>
     </section>

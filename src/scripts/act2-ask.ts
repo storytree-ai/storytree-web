@@ -62,22 +62,82 @@ export const ASK_HREF = 'https://www.linkedin.com/in/mick-hua-353353a/';
  * `act2-ask.test.ts` holds it to ADR-0493 D4's register: it may not promise a follow-up, which in
  * practice means it may not contain the vocabulary of a mailing list.
  *
- * "One person, building in the open" is a fact about the project rather than a pitch, and it is what
- * makes the invitation legible: the reader has just been shown a system that proves its own work,
- * and the honest next sentence is how small the thing behind it is.
+ * "One person, building this in the open" is a fact about the project rather than a pitch, and it is
+ * what makes the invitation legible: the reader has just been shown a system that proves its own
+ * work, and the honest next sentence is how small the thing behind it is.
+ *
+ * ── THE SECOND SENTENCE, AND WHY IT IS NOT REDUNDANT WITH THE FIRST ─────────────────────────────
+ *
+ * ⚠ IT DISCHARGES ADR-0453 D9, WHICH STOOD UNMET FOR SIX DAYS AFTER THE REST OF THIS ENDING SHIPPED.
+ * That clause asks the site to say plainly that storytree is *"being built in the open and is not
+ * available yet"*. ADR-0493 replaced only the capture half of D9 (the waitlist became this link) and
+ * left the availability half standing; the ending then shipped carrying the first half in four words
+ * and the second not at all.
+ *
+ * The gap was not merely a silence, which is why one sentence was worth spending. ROAM names "the
+ * app" TWICE as the thing that opens the depth below the public map — `ROAM_FLOOR_NOTE` and
+ * `ROAM_DECISION_NOTE` — so the page positively asserts a product exists, and then asked "Want in?".
+ * Read in order, the honest inference was that there is an app and that saying hello is how you get
+ * it. Two people have it. On the one page whose whole argument is that its signals are real, that
+ * was the last dishonest corner.
+ *
+ * ⚠ "IN THE OPEN" AND "UNDER CONSTRUCTION" ARE NOT THE SAME CLAIM, so neither sentence carries the
+ * other. The first says you may WATCH this; the second says you may not USE it. A reader can believe
+ * the first and still reasonably expect a download.
+ *
+ * The owner, 2026-09-01, deciding both lines: *"yeah just tell them its still under construction,
+ * and the invite is to get involved not to buy a product."* Both halves are his — "under
+ * construction" is his phrase, not a drafted alternative, and the CTA changed because the second
+ * half of that sentence is about the CTA.
+ *
+ * ⚠ "Want in?" WAS THE AMBIGUITY, AND REPLACING IT IS THE POINT rather than a tidy-up. "In" to what
+ * — the product, or the work? It read as the product, which is precisely the reading the owner
+ * ruled out. "Get involved" is unambiguous, it is the register ADR-0493 D4 already names in those
+ * exact words, and it is what he called it himself. Both `ASK_FORBIDDEN` and the register assertion
+ * in `act2-ask.test.ts` now fence the drift back toward a purchase.
  */
-export const ASK_LINE = 'One person, building this in the open.';
-export const ASK_CTA = 'Want in? Say hello on LinkedIn';
+export const ASK_LINE = 'One person, building this in the open. Still under construction.';
+export const ASK_CTA = 'Want to get involved? Say hello on LinkedIn';
 
 /**
- * Phrases that would turn this from an invitation into a promise (ADR-0493 D4/D5).
+ * The ways this ending is allowed to say "you cannot use it yet" (ADR-0453 D9).
+ *
+ * ⚠ AN ALLOW-LIST OF PHRASINGS, NOT A PIN ON THE BYTES. The PROPERTY D9 asks for is that the site
+ * states its unavailability; the exact wording is the owner's and may change without the property
+ * changing. Asserting `ASK_LINE === '…'` would fence the sentence and not the claim, and would red
+ * on a re-word that still said it. Asserting nothing would let a later trim quietly drop the whole
+ * second sentence — which is the failure that actually happened once already, when the ending
+ * shipped with D9's second half missing and nothing noticed for six days.
+ */
+export const ASK_AVAILABILITY_PHRASINGS = [
+  'under construction',
+  'not available',
+  'nothing to download',
+  'not ready',
+  'invite-only',
+] as const;
+
+/**
+ * Phrases that would turn this from an invitation into a promise, or into a sale (ADR-0493 D4/D5).
  *
  * ⚠ THE POINT IS NOT THAT THESE WORDS ARE UGLY. It is that we hold no list, so a page that says
  * "we'll let you know" is describing a system that does not exist and that nobody is on the hook to
  * build. The open question this ending settles was FRAMED as a waitlist and the owner declined all
  * four capture routes; the drift back is a single word away, and it would read perfectly.
+ *
+ * ⚠ THE SECOND GROUP FENCES A DRIFT THE OWNER NAMED HIMSELF, and it is a different one. 2026-09-01:
+ * *"the invite is to get involved not to buy a product."* A mailing-list word makes the page promise
+ * a follow-up; a COMMERCIAL word makes it promise a product, on a site that has none to sell and is
+ * built for a reader with a sharp nose for vapour (ADR-0453 D2). Both drifts read perfectly and
+ * neither is caught by the other's phrases, so both are listed. The ROAM panel already refuses the
+ * same class one surface along (`act2-roam.test.ts` matches /download|install|sign up|get started/),
+ * so this is the house convention rather than a new idea.
+ *
+ * ⚠ "under construction" IS NOT AND MUST NOT BE HERE — see `ASK_AVAILABILITY_PHRASINGS`, which
+ * REQUIRES one of those phrasings. The two lists pull in opposite directions on purpose.
  */
 export const ASK_FORBIDDEN = [
+  // it must not promise a follow-up
   'waitlist',
   'wait list',
   'sign up',
@@ -88,6 +148,13 @@ export const ASK_FORBIDDEN = [
   'early access',
   'join the list',
   'subscribe',
+  // it must not read as a sale
+  'buy',
+  'pricing',
+  'purchase',
+  'free trial',
+  'get started',
+  'try it free',
 ] as const;
 
 export interface AskOptions {
