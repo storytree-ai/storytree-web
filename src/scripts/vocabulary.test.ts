@@ -26,8 +26,6 @@ import { readFileSync } from 'node:fs';
 import { INTERNAL_NOUNS, findInternalNouns, speaksReaderVocabulary } from './vocabulary';
 import { SELF_CLAUSE, SELF_STORY_ID, TELL_SCRIPT, renderLine, type ForestFacts } from './act2-tell';
 import { ASK_CTA, ASK_LINE } from './act2-ask';
-import { assertSnapshot, renderStamp } from './forest-snapshot-map';
-import snapshotJson from '../data/forest-snapshot.json';
 import {
   LIFECYCLE_READING,
   ROAM_KIND_WORD,
@@ -42,6 +40,15 @@ import {
   uatTally,
   type RoamStory,
 } from './act2-roam';
+import { legendProse } from './forest-legend';
+import {
+  arrivalLabel,
+  assertSnapshot,
+  nameplateTally,
+  provenTally,
+  renderStamp,
+} from './forest-snapshot-map';
+import snapshotJson from '../data/forest-snapshot.json';
 
 /** One labelled string, so a failure names the surface as well as the sentence. */
 interface Prose {
@@ -170,12 +177,36 @@ function visitorProse(): Prose[] {
   out.push({ where: 'ASK line', text: ASK_LINE });
   out.push({ where: 'ASK cta', text: ASK_CTA });
 
-  // THE MAP'S STAMP — the fifth surface, and the one this fence originally missed. It is generated
-  // by `renderStamp` rather than written anywhere, so no scan of copy constants could see it, and it
-  // is the FIRST prose a visitor reads: it sat under the map saying "stories" while TELL said
-  // "microservice" ten seconds later. Rendered against the REAL published snapshot, because that is
-  // the string the live site serves.
-  out.push({ where: 'MAP stamp', text: renderStamp(assertSnapshot(snapshotJson)) });
+  // THE MAP'S OWN BUILT STRINGS — the fifth surface, and the one this fence originally missed. They
+  // are generated in `forest-snapshot-map.ts` rather than written anywhere, so no scan of copy
+  // constants could see them. The STAMP is the FIRST prose a visitor reads and sat under the map
+  // saying "stories" while TELL said "microservice" ten seconds later. The other three went the same
+  // way and were found the same way, by reading the built page: every island's NAMEPLATE said
+  // "9 capabilities", its hover TITLE said "of 9 capabilities proven", and the map's accessible
+  // DESCRIPTION said "35 story islands" — a day after every copy constant had been rewritten. They
+  // are named exports now for exactly that reason: a word a test cannot import is a word this fence
+  // does not cover. Rendered against the REAL published snapshot, because that is the string the
+  // live site serves, and both plural branches are exercised because they carry two different words.
+  //
+  // ⚠ AN ISLAND'S TITLE IS DELIBERATELY NOT HERE. It is `${story.title} — ${provenTally(…)}`, and
+  // the title half is our real corpus name, which the fence must never read (ADR-0453 D3). Only the
+  // built half is exported, which is why only the built half can be scanned.
+  const snap = assertSnapshot(snapshotJson);
+  out.push({ where: 'MAP stamp', text: renderStamp(snap) });
+  out.push({ where: 'MAP arrival label', text: arrivalLabel(snap) });
+  for (const n of [0, 1, 6]) {
+    out.push({ where: `MAP nameplateTally(${n})`, text: nameplateTally(n) });
+    out.push({ where: `MAP provenTally(${n})`, text: provenTally(n, n + 1) });
+  }
+
+  // The KEY, which is the one surface on this page a visitor reads without asking for it and
+  // without clicking anything — so a noun that slipped in here would be met by everyone. Its strings
+  // are enumerated by the module itself rather than listed here, which is what keeps this covered
+  // when a row is added later. The status WORDS in it are `STATUS_READING`'s, already scanned above;
+  // they come through again because the key renders them and the double cost is nil.
+  for (const text of legendProse()) {
+    out.push({ where: `KEY ${text.slice(0, 24)}`, text });
+  }
 
   // The page's own two act-2 strings. Read out of the source the same way `act2-tell.test.ts` reads
   // the stylesheet — they are markup this module cannot import, and leaving them unscanned would
@@ -211,7 +242,7 @@ test('the surface is scanned WIDE — a fence over three sentences would pass va
   const prose = visitorProse();
   assert.ok(prose.length >= 40, `only ${prose.length} strings are being scanned`);
   const surfaces = new Set(prose.map((p) => p.where.split(' ')[0]));
-  assert.deepEqual([...surfaces].sort(), ['ASK', 'MAP', 'ROAM', 'TELL', 'index.astro']);
+  assert.deepEqual([...surfaces].sort(), ['ASK', 'KEY', 'MAP', 'ROAM', 'TELL', 'index.astro']);
 });
 
 test('TEETH: the fence catches each internal noun — it is not vacuous', () => {

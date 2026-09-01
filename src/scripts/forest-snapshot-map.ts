@@ -239,6 +239,45 @@ export function renderStamp(snap: ForestSnapshot): string {
   );
 }
 
+// ── the strings the map BUILDS, which are the ones a fence forgets ──────────
+//
+// ⚠ EVERY STRING BELOW IS VISITOR-FACING AND NONE OF THEM IS A CONSTANT. A nameplate's second line,
+// an island's hover title and the map's own accessible description are assembled from counts at
+// render time, which is exactly the shape `vocabulary.test.ts` cannot see by reading copy: there is
+// no literal to scan. They are pulled out as named functions for that reason and no other — a word
+// a test cannot import is a word the fence does not cover, and all three of these said `capability`
+// or `story` for a day after the pass that was supposed to have retired both (ADR-0494 D5).
+//
+// ⚠ AND NONE OF THEM CARRIES A CORPUS NAME. `islandTitle` composes a story's real title with
+// {@link provenTally}; only the tally half is exported for scanning, because the map's own labels
+// are our untranslated ids ON PURPOSE (ADR-0453 D3) and a fence that read one would report the
+// substrate as a violation.
+
+/** A nameplate's second line: how many components the island holds. */
+export function nameplateTally(capCount: number): string {
+  return capCount === 1 ? '1 component' : `${capCount} components`;
+}
+
+/** An island's hover title, minus its name: how much of it is proven. */
+export function provenTally(proven: number, total: number): string {
+  return `${proven} of ${total} components proven`;
+}
+
+/**
+ * The whole map's accessible description — what a screen reader is told the picture IS.
+ *
+ * It carries the same three claims the stamp does (whose system, when, not live) plus the two
+ * gestures, because a reader who cannot see the map still has to know it can be moved.
+ */
+export function arrivalLabel(snap: ForestSnapshot): string {
+  return (
+    `A map of storytree's own system as of ${formatStampDate(snap.generatedAt)}: ` +
+    `${snap.storyCount} islands, one microservice each, ${snap.provenStoryCount} of them green ` +
+    `because a signed test proved them, connected by trails where one depends on another. ` +
+    `Not live. Drag to move around it; scroll to zoom.`
+  );
+}
+
 // ── layout ──────────────────────────────────────────────────────────────────
 
 /** Margin around the laid-out forest. The top clears a story tree's crown, the bottom its
@@ -415,7 +454,7 @@ export function forestSceneInput(snap: ForestSnapshot): SceneInput & { width: nu
       coastPaths: disc.coastPaths,
       decor: disc.decor,
       plants: [],
-      treeTitle: `${story.title} — ${proven} of ${capCount} capabilities proven`,
+      treeTitle: `${story.title} — ${provenTally(proven, capCount)}`,
       // no wisps: a snapshot has no live session (see the file header)
       wisps: [],
       plate: {
@@ -425,7 +464,7 @@ export function forestSceneInput(snap: ForestSnapshot): SceneInput & { width: nu
         idY: 14,
         subY: 26,
         idText: story.id,
-        subText: capCount === 1 ? '1 capability' : `${capCount} capabilities`,
+        subText: nameplateTally(capCount),
         title: story.title,
       },
     });
@@ -655,11 +694,7 @@ export function roamPayload(snap: ForestSnapshot): RoamPayload {
  */
 export function forestArrivalSvg(snap: ForestSnapshot): string {
   const input = forestSceneInput(snap);
-  const label =
-    `A map of storytree's own system as of ${formatStampDate(snap.generatedAt)}: ` +
-    `${snap.storyCount} story islands, ${snap.provenStoryCount} of them green because a signed ` +
-    `test proved them, connected by trails where one depends on another. Not live. ` +
-    `Drag to move around it; scroll to zoom.`;
+  const label = arrivalLabel(snap);
   const frame = JSON.stringify({
     width: input.width,
     height: input.height,

@@ -54,9 +54,21 @@ import '../styles/tree-world-map.css';
 // but it is nobody's incidental cleanup, and it must not be written down again as something the
 // next increment will absorb.
 import { assertSnapshot, forestArrivalSvg, renderStamp } from '../scripts/forest-snapshot-map';
+// THE KEY (ADR-0299 D3): the half of "map and legend" that never shipped. Build-time markup out of
+// a pure data module, exactly as the stamp above is — no client JS, no clock, nothing to press, and
+// present on the page even when the script never runs. `forest-legend.ts` carries the reasoning and
+// the four signals it decodes; `forest-legend.test.ts` holds it to the exporter's own status union.
+import {
+  LEGEND_COLOUR_TERM,
+  LEGEND_ISLAND_ROW,
+  LEGEND_SHAPE_ROWS,
+  LEGEND_TITLE,
+  legendSwatches,
+} from '../scripts/forest-legend';
 const forestSnapshot = assertSnapshot(snapshotJson);
 const forestArrival = forestArrivalSvg(forestSnapshot);
 const forestStamp = renderStamp(forestSnapshot);
+const forestKeyChips = legendSwatches(forestSnapshot);
 // ---------------------------------------------------------------------------
 // THE HOME FLIP (ADR-0134 Act 1): the page ships two top-level branches.
 //   1. The storm  — [data-experience-entry] — a diegetic AI-agent terminal
@@ -243,11 +255,52 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
       hidden
     >
       <div class="storm-land-canvas" id="storm-land-canvas" set:html={forestArrival}></div>
-      <!-- The stamp is load-bearing copy, not a caption: it is what stops a snapshot reading as a
-           live view, and the site's own `signals-must-be-real` principle is the reason. Rendered
-           in the markup rather than by script so it is present even if the framing script never
-           runs — an undated map is the one way this backfires. -->
-      <p class="storm-land-stamp">{forestStamp}</p>
+      <!-- THE BOTTOM FURNITURE, AND IT IS ONE COLUMN RATHER THAN TWO ABSOLUTE BOXES ON PURPOSE.
+           The stamp's height depends on how far its copy wraps, which depends on the viewport; the
+           key has to clear it at every width. Stacking them in one bottom-anchored flex column
+           makes that a property of the layout instead of a magic offset that is right at 1440 and
+           wrong at 900 — the same reason the ROAM panel pins its floor note with flex rather than a
+           `max-height`. Both are `pointer-events: none`, so the map underneath stays draggable
+           through them. -->
+      <div class="storm-land-footer">
+        <!-- THE KEY (ADR-0299 D3 — "the legend is kept because it is functional, not decorative").
+             The owner, 2026-09-01: *"theres no legend atm, so a user can't tell whats each bit on
+             the island is a signal for."* The colour chips are the statuses this snapshot actually
+             paints, folded by the same `toSceneStatus` that coloured the islands, so the key and
+             the picture cannot list different colours. Every string comes from `forest-legend.ts`
+             so `vocabulary.test.ts` can hold it to the reader's language (ADR-0494 D5). -->
+        <aside class="storm-land-key">
+          <p class="storm-land-key__title">{LEGEND_TITLE}</p>
+          <dl class="storm-land-key__rows">
+            <dt>{LEGEND_ISLAND_ROW.term}</dt>
+            <dd>{LEGEND_ISLAND_ROW.text}</dd>
+            <dt>{LEGEND_COLOUR_TERM}</dt>
+            <dd class="storm-land-key__chips">
+              {
+                forestKeyChips.map((chip) => (
+                  <span class="storm-land-key__chip">
+                    <span class={`legend-dot st-${chip.status}`} />
+                    {chip.word}
+                  </span>
+                ))
+              }
+            </dd>
+            {
+              LEGEND_SHAPE_ROWS.map((row) => (
+                <Fragment>
+                  <dt>{row.term}</dt>
+                  <dd>{row.text}</dd>
+                </Fragment>
+              ))
+            }
+          </dl>
+        </aside>
+        <!-- The stamp is load-bearing copy, not a caption: it is what stops a snapshot reading as a
+             live view, and the site's own `signals-must-be-real` principle is the reason. Rendered
+             in the markup rather than by script so it is present even if the framing script never
+             runs — an undated map is the one way this backfires. -->
+        <p class="storm-land-stamp">{forestStamp}</p>
+      </div>
     </div>
   </section>
 
@@ -711,17 +764,135 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   .storm-land-canvas .tw-trail-casing { display: none; }
   .storm-land-canvas .tw-trail-fill { stroke: rgba(122, 98, 62, 0.42); stroke-width: 3; }
 
+  /* ---- THE BOTTOM FURNITURE: the key, then the snapshot stamp ----
+
+     Both sit OVER the map rather than under it, because the map fills the viewport and neither can
+     be scrolled to. The column is anchored to the bottom and the stamp is its last child, so the
+     stamp keeps the exact position and the exact width it had as an absolute box — which matters,
+     because `stampInset()` in forest-arrival.ts measures the stamp's own rect to decide how much of
+     the bottom of the designed resting frame is unusable. The key stacks ABOVE it and therefore
+     clears it at every width without anyone maintaining an offset.
+
+     ⚠ `pointer-events: none` ON THE WHOLE COLUMN. The map underneath stays draggable straight
+     through both, and an island sitting behind the key is still clickable. Nothing here is
+     interactive; the key is a printed key on a printed map. */
+  .storm-land-footer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 1.1rem;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0 1rem;
+    pointer-events: none;
+  }
+
+  /* THE KEY (ADR-0299 D3). Small, off the islands, and out of the corners the rest of chapter 2
+     claims: TELL speaks from the top-left and puts its skip control at the very bottom-left, and
+     ROAM's panel opens top-right. Sitting one row above the stamp leaves all three alone.
+
+     ⚠ IT IS FURNITURE, NOT A SECOND NARRATOR. It never animates, never appears on a clock and never
+     asks to be dismissed — the same standing it has on a paper map, which is why it is allowed to
+     be present while TELL is speaking. Rows are glosses rather than sentences (no terminal full
+     stop), and `forest-legend.test.ts` fails if one grows past ten words. */
+  .storm-land-key {
+    align-self: flex-start;
+    /* Aligned with TELL's own left margin on a wide screen, flush with the stamp's on a narrow
+       one — so it reads as part of the same furniture rather than as a floating card. */
+    margin-left: clamp(0rem, 2.5vw, 2rem);
+    /* Wide enough that every row is one line at the shipped copy, and no wider — the card takes its
+       NATURAL width (measured 347px at 1440), so this is a ceiling rather than a size. A row that
+       outgrows it wraps rather than pushing the card across the map. */
+    max-width: min(22.5rem, 100%);
+    margin-bottom: 0;
+    padding: 0.5rem 0.75rem 0.55rem;
+    border-radius: 8px;
+    background: rgba(251, 243, 234, 0.82);
+    color: #4a3a2a;
+    font-size: 0.76rem;
+    line-height: 1.42;
+  }
+  .storm-land-key__title {
+    margin: 0 0 0.3rem;
+    font-size: 0.62rem;
+    font-weight: 650;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+  .storm-land-key__rows {
+    margin: 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.6rem;
+    row-gap: 0.16rem;
+  }
+  .storm-land-key__rows dt {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .storm-land-key__rows dd {
+    margin: 0;
+    color: #6a5540;
+  }
+  .storm-land-key__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1rem 0.7rem;
+  }
+  .storm-land-key__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.34rem;
+  }
+  /* ⚠ THE KEY IS SIZED AGAINST THE MAP, NOT AGAINST THE VIEWPORT, AND THE MAP GETS DENSER AS THE
+     FRAME NARROWS. The forest is bottom-anchored and cropped to fill (`xMidYMid slice`), so a
+     narrow frame shows a tighter slice with the islands packed closer together — measured on the
+     published snapshot: at 1440x900 the bottom-left corner the card occupies is empty board, at
+     768x1024 the same card covers two islands, and at 390x844 it covers seven.
+
+     ⚠ THE OBVIOUS FIX IS THE WRONG ONE, AND IT WAS TRIED. `restingViewBox` already reserves the
+     bottom band the stamp occupies, so feeding it the whole footer would lift the world clear of
+     the key at every width with no numbers to maintain. Measured, it costs the composition the
+     arrival exists to open on: `restingFrame` pins the scale to the frame's SHORT side, so 143px
+     off a 900px frame drops the median island from 55px to 27px and leaves the forest floating in
+     the upper two thirds with its own board edge on screen — "shows them it is small", which is
+     the fault the whole arc was fixing. A full-width reservation is the right answer for the stamp,
+     which is docked full width, and the wrong one for a card in one corner.
+
+     So the card adapts instead, and each step below was measured rather than guessed. */
+  /* ⚠ WITHDRAWN BELOW A DESKTOP FRAME, RATHER THAN SHRUNK INTO ONE, AND THE THRESHOLD IS MEASURED.
+     The view is centred on the world, so a narrower frame walks the whole forest LEFT into the
+     corner the card stands in: the leftmost island of the card's own band sits at x=432 in a
+     1280px frame (37px clear of the card) and at x=260 in a 1024px one (129px of overlap, an
+     island covered outright). The number below is the width at which that clearance stops being
+     negative, rounded up to the nearest ordinary breakpoint, and it is a WIDTH rather than a
+     height because both were measured: 1024x768 and 1024x900 fail identically, 1280x720 and
+     1280x800 both pass.
+
+     Shrinking it instead was built first and does not work. Laid out two pairs per line the card
+     comes down to three rows and 93px — but at 768x1024 there is 91px of clear board between the
+     lowest island and the stamp, and going full width to buy that height walks the card across the
+     WHOLE bottom row, so it covered four islands where the tall one covered two. At 390x844 there
+     are 26 islands on screen and 46px of clear board; nothing legible stands in that.
+
+     The reading is not lost, which is what makes withdrawing it the right answer rather than a
+     shrug: every line of this card is what ROAM's panel says when the visitor taps an island, and
+     tapping is the gesture a touch frame actually affords. A key that blankets a third of the map
+     is not a key. */
+  @media (max-width: 1279px) {
+    .storm-land-key { display: none; }
+  }
+
   /* The snapshot stamp. Sits over the map rather than under it because the map fills the
      viewport, and it must be readable without scrolling: a map that presents itself as a live
      reading is the single way this backfires. */
   .storm-land-stamp {
-    position: absolute;
-    left: 50%;
-    bottom: 1.1rem;
-    transform: translateX(-50%);
-    z-index: 2;
     margin: 0;
-    max-width: min(46rem, calc(100% - 2rem));
+    max-width: min(46rem, 100%);
     text-align: center;
     font-size: 0.82rem;
     line-height: 1.5;
@@ -732,7 +903,10 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     pointer-events: none;
   }
   @media (max-width: 640px) {
-    .storm-land-stamp { font-size: 0.74rem; bottom: 0.6rem; }
+    /* The bottom offset moved to the column when the key joined it — the stamp is no longer the
+       thing anchored to the edge, and leaving `bottom` here would have silently done nothing. */
+    .storm-land-footer { bottom: 0.6rem; gap: 0.5rem; }
+    .storm-land-stamp { font-size: 0.74rem; }
   }
 
   /* ======================================================================
@@ -1223,20 +1397,35 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   .roam-row:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 
   /* The status dot, in the SAME hues the island's own crown is painted with —
-     the panel and the picture read one value, so they cannot disagree. */
+     the panel and the picture read one value, so they cannot disagree.
+
+     ⚠ THE KEY'S CHIPS SHARE THESE RULES RATHER THAN COPYING THEM. `.legend-dot` is the same dot at
+     a smaller size in a smaller type context, and it names the same colours the panel and the crown
+     do. Written as a second block it would be three copies of five hues, and the drift would show
+     up as a key that quietly disagrees with the map it explains — which is the failure this whole
+     increment was filed against. The `background` on the base rule is the `unknown` reading: no
+     `st-unknown` selector exists, on the map or here, so an island whose record did not load gets
+     the same neutral grey in both places by falling through. */
   .roam-chip { display: inline-flex; align-items: center; gap: 0.42rem; }
-  .roam-dot {
+  .roam-dot,
+  .legend-dot {
     width: 0.62rem;
     height: 0.62rem;
     border-radius: 50%;
     background: #9ca3af;
     flex: none;
   }
-  .roam-dot.st-healthy { background: #2f6b3f; }
-  .roam-dot.st-proposed { background: #b06a24; }
-  .roam-dot.st-mapped { background: #7d5f3b; }
-  .roam-dot.st-building { background: #4a7d8c; }
-  .roam-dot.st-unhealthy { background: #9f2d22; }
+  .legend-dot { width: 0.55rem; height: 0.55rem; }
+  .roam-dot.st-healthy,
+  .legend-dot.st-healthy { background: #2f6b3f; }
+  .roam-dot.st-proposed,
+  .legend-dot.st-proposed { background: #b06a24; }
+  .roam-dot.st-mapped,
+  .legend-dot.st-mapped { background: #7d5f3b; }
+  .roam-dot.st-building,
+  .legend-dot.st-building { background: #4a7d8c; }
+  .roam-dot.st-unhealthy,
+  .legend-dot.st-unhealthy { background: #9f2d22; }
   .roam-chip-word { font-weight: 550; }
 
   /* ⚠ THE LIST SCROLLS INSIDE ITSELF SO THE FLOOR STAYS ON SCREEN. The floor note sits BELOW this
