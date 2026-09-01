@@ -33,22 +33,33 @@ import {
   ROAM_ARC_NOTE,
   ROAM_CAPABILITY_NOTE,
   ROAM_COLOUR_NOTE,
+  ROAM_DECISION_EMPTY,
+  ROAM_DECISION_NOTE,
   ROAM_FLOOR_NOTE,
   ROAM_NOTES,
   ROAM_STORY_NOTE,
   ROAM_TRAIL_NOTE,
+  ROAM_UAT_EMPTY,
+  ROAM_UAT_NOTE,
   STATUS_READING,
+  UAT_STATE_READING,
+  WITNESS_LABEL,
   adrOverflow,
   adrTally,
   arcTally,
   capabilityTally,
+  decisionTally,
   incrementTally,
   lifecycleReading,
   edgeSentence,
   parseRoamPayload,
   parseTrailEdges,
   provenCount,
+  provenUatCount,
   toRoamStatus,
+  toRoamUatState,
+  toRoamWitness,
+  uatTally,
   trailHeading,
   edgeName,
   NAME_MAX,
@@ -82,6 +93,8 @@ const story = (
     title: `cap ${capId}`,
     status: capStatus,
   })),
+  uat: [],
+  decisions: [],
   arcs: [],
 });
 
@@ -614,17 +627,13 @@ test('the arc shape is COUNTED from the payload, and moves when the arc moves', 
 });
 
 test('a long decision list is CAPPED and says how much it left out', () => {
-  const adrs = Array.from({ length: ADR_LIST_CAP + 4 }, (_, i) => ({
-    number: 100 + i,
-    status: 'accepted',
-    title: `decision ${i}`,
-  }));
-  assert.equal(adrOverflow(adrs), '…and 4 more.');
-  assert.equal(adrOverflow(adrs.slice(0, ADR_LIST_CAP)), null, 'a full-but-not-over list says nothing');
-  assert.equal(adrOverflow([]), null);
-  assert.equal(adrTally([]), null, 'an arc with no decisions gets no heading at all');
-  assert.equal(adrTally(adrs.slice(0, 1)), '1 decision behind it');
-  assert.equal(adrTally(adrs), `${adrs.length} decisions behind it`);
+  const n = ADR_LIST_CAP + 4;
+  assert.equal(adrOverflow(n), '…and 4 more.');
+  assert.equal(adrOverflow(ADR_LIST_CAP), null, 'a full-but-not-over list says nothing');
+  assert.equal(adrOverflow(0), null);
+  assert.equal(adrTally(0), null, 'an arc with no decisions gets no heading at all');
+  assert.equal(adrTally(1), '1 decision behind it');
+  assert.equal(adrTally(n), `${n} decisions behind it`);
   // The control: the real corpus actually overflows, so the cap is doing something.
   assert.ok(
     SNAP.arcs.some((a) => a.adrs.length > ADR_LIST_CAP),
@@ -673,4 +682,246 @@ test('the drawer’s own notes carry the same grounding and length bars as the o
   // carries no grounding, and that is deliberate rather than an omission.
   assert.equal(ROAM_ARC_EMPTY.grounds, undefined);
   assert.doesNotMatch(ROAM_ARC_EMPTY.lines.join(' '), /because|predates|older/i, 'the empty state must not invent a cause');
+});
+
+// ── the depth the owner opened: the proof, and the decisions ────────────────
+//
+// ⚠ THE CLASS THESE ARE AIMED AT is the one the four above are: a panel that says something the map
+// does not support. Two new ways to do it arrive with this tier — a step reported as proven that no
+// verdict backs, and a decision named that the published file carries no record for — so both are
+// asserted against the REAL snapshot rather than against a fixture that agrees with the code.
+
+test('the REAL corpus reaches the new floor — the export is not empty at either tier', () => {
+  // The control for everything below. If the exporter ever stopped publishing these, every
+  // assertion about "a story with UAT" would pass vacuously over an empty set.
+  const withUat = SNAP.stories.filter((s) => s.uat.length > 0);
+  const withDecisions = SNAP.stories.filter((s) => s.decisions.length > 0);
+  assert.ok(withUat.length > 5, `only ${withUat.length} published stories carry an acceptance journey`);
+  assert.ok(SNAP.decisions.length > 20, `only ${SNAP.decisions.length} decisions reached the file`);
+  assert.ok(withDecisions.length > 5, `only ${withDecisions.length} published stories name a decision`);
+  // …and BOTH designed empty states exist in the real data, so neither branch is theoretical.
+  assert.ok(
+    SNAP.stories.some((s) => s.uat.length === 0),
+    'no published story lacks an acceptance journey — the empty branch is untested against real data',
+  );
+});
+
+test('a step is never reported PROVEN unless the export said so', () => {
+  // The same fence the island colour lives behind, one tier down: this module reads a state, it
+  // never derives one. A snapshot claiming a state this page has no reading for must fall to the
+  // reading that claims LEAST, or the page invents green.
+  assert.equal(toRoamUatState('proven'), 'proven');
+  assert.equal(toRoamUatState('failing'), 'failing');
+  assert.equal(toRoamUatState('signed-off-by-someone'), 'pending');
+  assert.equal(toRoamUatState(undefined), 'pending');
+  assert.equal(toRoamUatState(7), 'pending');
+  // and a witness nobody wrote a label for reads as the weakest true claim
+  assert.equal(toRoamWitness('human'), 'human');
+  assert.equal(toRoamWitness('a-committee'), 'either');
+});
+
+test('EVERY state and witness the exporter can produce has a reading here', () => {
+  // Read out of the EXPORTER's own output rather than typed here — an expectation copied from its
+  // own subject cannot fail. The published file is the only thing the parent's
+  // `ForestSnapshotUatCriterion` produces, so it is the authority available to this repo.
+  const states = new Set(SNAP.stories.flatMap((s) => s.uat.map((u) => u.state)));
+  const witnesses = new Set(SNAP.stories.flatMap((s) => s.uat.map((u) => u.witness)));
+  assert.ok(states.size > 0 && witnesses.size > 0, 'the published corpus carries no legs to read');
+  for (const state of states) {
+    assert.ok(state in UAT_STATE_READING, `the export paints "${state}" and this panel cannot read it`);
+  }
+  for (const w of witnesses) {
+    assert.ok(w in WITNESS_LABEL, `the export tags "${w}" and this panel has no label for it`);
+  }
+  // ⚠ AND THE BRANCHES THE DATA HAS NEVER PRODUCED STILL SHIP. `failing` has never occurred on this
+  // map; writing only the branches today's corpus contains would leave the panel speechless on the
+  // day one arrives, with the failure invisible because the row would still render.
+  for (const state of ['proven', 'pending', 'failing'] as const) {
+    assert.ok(UAT_STATE_READING[state].sentence.length > 25, `${state}: the reading is a stub`);
+    assert.match(UAT_STATE_READING[state].sentence, /\.$/);
+  }
+  assert.match(UAT_STATE_READING.failing.sentence, /not pass|fail/i);
+  assert.doesNotMatch(UAT_STATE_READING.failing.sentence, /not yet|in progress/i);
+});
+
+test('the proof tally is COUNTED from the payload, never written into copy', () => {
+  const none = story('a', 'proposed', []);
+  assert.equal(uatTally(none), 'no acceptance test recorded');
+  const one: RoamStory = {
+    ...none,
+    uat: [{ title: 'it launches', state: 'proven', witness: 'machine' }],
+  };
+  assert.equal(uatTally(one), '1 acceptance test, 1 proven');
+  assert.equal(provenUatCount(one), 1);
+  const mixed: RoamStory = {
+    ...none,
+    uat: [
+      { title: 'it launches', state: 'proven', witness: 'machine' },
+      { title: 'a person signs the look', state: 'pending', witness: 'human' },
+      { title: 'it blooms in the forest', state: 'failing', witness: 'machine' },
+    ],
+  };
+  assert.equal(uatTally(mixed), '3 acceptance tests, 1 proven');
+  // the control: the real corpus does not tally the same everywhere, so the count is being read
+  const distinct = new Set(
+    SNAP.stories.map((s) =>
+      uatTally({
+        ...none,
+        uat: s.uat.map((u) => ({
+          title: u.title,
+          state: toRoamUatState(u.state),
+          witness: toRoamWitness(u.witness),
+        })),
+      }),
+    ),
+  );
+  assert.ok(distinct.size > 2, 'every published story tallies the same — the count is not being read');
+});
+
+test('the decision row is ALWAYS offered, and says so honestly when there is nothing', () => {
+  // Unlike the arc drawer's heading, which is suppressed when an arc names none: an island that
+  // names no decision is itself a fact a reader should be able to see, not a row that vanishes.
+  const none = story('a', 'proposed', []);
+  assert.equal(decisionTally(none), 'no decision record named');
+  assert.equal(decisionTally({ ...none, decisions: [453] }), '1 decision behind it');
+  assert.equal(decisionTally({ ...none, decisions: [453, 494, 299] }), '3 decisions behind it');
+});
+
+test('EVERY decision a published story names has a record on the page', () => {
+  // The join the panel actually performs. A number with no record renders nothing, so a story whose
+  // citations all dangled would open an empty section under a row promising decisions — the panel
+  // disagreeing with itself, which is the failure class this whole suite is aimed at.
+  const known = new Set(SNAP.decisions.map((d) => d.number));
+  for (const s of SNAP.stories) {
+    for (const n of s.decisions) {
+      assert.ok(known.has(n), `story "${s.id}" names ADR-${n}, which no record on the page carries`);
+    }
+  }
+  for (const arc of SNAP.arcs) {
+    for (const n of arc.adrs) {
+      assert.ok(known.has(n), `arc "${arc.id}" names ADR-${n}, which no record on the page carries`);
+    }
+  }
+});
+
+test('the decision registry publishes NOTHING the map cannot reach', () => {
+  // ADR-0494 D2 decided REACHABILITY from something on the page, not a public archive. A record for
+  // a decision nothing names would be the export drifting into the second thing.
+  const named = new Set([
+    ...SNAP.stories.flatMap((s) => [...s.decisions]),
+    ...SNAP.arcs.flatMap((a) => [...a.adrs]),
+  ]);
+  for (const d of SNAP.decisions) {
+    assert.ok(named.has(d.number), `ADR-${d.number} is published but nothing on the map reaches it`);
+  }
+});
+
+test('NO DECISION BODY AND NO CRITERION ID reaches the browser — the two absent halves', () => {
+  // The protection on both new tiers is that the prose is not in the exported file at all, exactly
+  // as it is for arcs. This asserts against the SERIALISED payload, so a body arriving under a key
+  // nobody thought to forbid still reds.
+  const text = JSON.stringify(roamPayload(SNAP));
+  for (const key of ['"body"', '"context"', '"consequences"', '"statement"', '"detail"']) {
+    assert.ok(!text.includes(key), `the roam payload carries ${key} — a decision body reached the page`);
+  }
+  assert.doesNotMatch(text, /"uatc_[0-9a-f]/, 'a criterion id reached the browser; it was dropped upstream');
+  const parsed = parseRoamPayload(text);
+  for (const s of parsed?.stories ?? []) {
+    for (const leg of s.uat) {
+      assert.deepEqual(Object.keys(leg).sort(), ['state', 'title', 'witness']);
+    }
+  }
+});
+
+test('the new tiers survive the round trip, and a MALFORMED one never kills the forest', () => {
+  const parsed = parseRoamPayload(JSON.stringify(roamPayload(SNAP)));
+  assert.notEqual(parsed, null);
+  assert.equal(parsed?.decisions.length, SNAP.decisions.length, 'a decision was dropped on the way');
+  const legs = (parsed?.stories ?? []).reduce((n, s) => n + s.uat.length, 0);
+  const published = SNAP.stories.reduce((n, s) => n + s.uat.length, 0);
+  assert.equal(legs, published, 'a step was dropped between the build and the panel');
+
+  // Absent is tolerated — a snapshot taken before this tier existed simply has nothing to open.
+  const bare = parseRoamPayload('{"asOf":"1 January 2026","stories":[{"id":"a","title":"A","capabilities":[]}]}');
+  assert.notEqual(bare, null, 'a snapshot with no proof tier must still render its forest');
+  assert.deepEqual(bare?.stories[0]?.uat, []);
+  assert.deepEqual(bare?.stories[0]?.decisions, []);
+  assert.deepEqual(bare?.decisions, []);
+
+  // Present but unreadable is dropped, never half-drawn.
+  const junk = parseRoamPayload(
+    '{"asOf":"1 January 2026","stories":[{"id":"a","title":"A","capabilities":[],' +
+      '"uat":[{"title":"ok","state":"proven","witness":"machine"},{"state":"proven"},null,7],' +
+      '"decisions":[453,"nope",null]}],' +
+      '"decisions":[{"number":453,"status":"accepted","title":"a real one"},{"title":"no number"},null]}',
+  );
+  assert.equal(junk?.stories[0]?.uat.length, 1, 'a titleless step must not reach the panel');
+  assert.deepEqual(junk?.stories[0]?.decisions, [453], 'a non-numeric citation must not reach the panel');
+  assert.equal(junk?.decisions.length, 1, 'only the readable record survives');
+});
+
+test('the floor moved WITH the depth — it no longer calls the tests unreachable', () => {
+  const text = ROAM_FLOOR_NOTE.lines.join(' ');
+  // ⚠ THE REGRESSION THIS EXISTS FOR. The old floor read "under a capability sit its tests, the
+  // decisions behind it and the code", which became false in the same landing that put the tests
+  // and the decision names on this panel. A conversion point describing as unreachable the thing
+  // the visitor is looking at is worse than no conversion point.
+  assert.doesNotMatch(text, /\btests\b/i, 'the floor still says the tests are past it — they are on the panel');
+  assert.match(text, /code/i, 'the floor must name what is genuinely still past it');
+  assert.match(text, /app/i, 'the floor must say where this goes, never merely that it stops');
+  assert.ok(
+    ROAM_FLOOR_NOTE.grounds?.includes('ADR-0494'),
+    'the floor must cite the decision that moved it, or the citation names only where it used to be',
+  );
+});
+
+test('the two new sections notes carry the same grounding and length bars as the others', () => {
+  // In ROAM_NOTES, so the suite-wide scans cover them — a note left OUT of that list silently
+  // escapes every one of those checks, which is the wiring this asserts.
+  for (const note of [ROAM_UAT_NOTE, ROAM_UAT_EMPTY, ROAM_DECISION_NOTE, ROAM_DECISION_EMPTY]) {
+    assert.ok(ROAM_NOTES.includes(note), `${note.id} is outside the scanned set`);
+  }
+  assert.deepEqual(ROAM_UAT_NOTE.grounds, ['ADR-0082'], 'the proof note must cite the decision behind UAT criteria');
+  assert.deepEqual(ROAM_DECISION_NOTE.grounds, ['ADR-0037'], 'the decision note must cite decision binding');
+  // The empty states report that a record is empty and assert nothing about the product, so they
+  // carry no grounding — deliberate, and neither may invent a cause.
+  assert.equal(ROAM_UAT_EMPTY.grounds, undefined);
+  assert.equal(ROAM_DECISION_EMPTY.grounds, undefined);
+  for (const note of [ROAM_UAT_EMPTY, ROAM_DECISION_EMPTY]) {
+    assert.doesNotMatch(note.lines.join(' '), /because|too small|predates/i, `${note.id} invents a cause`);
+  }
+});
+
+test('the proof section speaks the READERS vocabulary, not the corpus', () => {
+  // ADR-0494 D5. Our noun is a "UAT criterion"; the reader's is an acceptance test. The MAP's own
+  // labels are untouched by that rule — this is about the sentences, which is the distinction
+  // ADR-0453 D3's clarification draws.
+  const prose = [
+    ...ROAM_UAT_NOTE.lines,
+    ...ROAM_DECISION_NOTE.lines,
+    uatTally(story('a', 'proposed', [])),
+  ].join(' ');
+  for (const ours of ['UAT', 'criterion', 'capability', 'arc', 'contract', 'increment']) {
+    assert.ok(
+      !new RegExp(`\\b${ours}\\b`, 'i').test(prose),
+      `the new copy uses our word "${ours}" where the reader has one of their own`,
+    );
+  }
+  assert.match(prose, /acceptance test/i);
+});
+
+test('the panel offers the two new rows, and the floor belongs to the three that go DOWN', () => {
+  // A source scan rather than a DOM drive: this file runs under `bun test`, which has no DOM. It
+  // asserts the wiring the browser probe then confirms — a row that renders but cannot be opened is
+  // caught here rather than by eye.
+  const code = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  for (const row of ['proof', 'decisions']) {
+    assert.ok(code.includes(`'data-roam-row', '${row}'`), `no ${row} row is rendered`);
+    assert.ok(code.includes(`which !== '${row}'`), `the click router does not accept the ${row} row`);
+  }
+  assert.match(
+    code,
+    /openSection === 'inside' \|\| openSection === 'proof' \|\| openSection === 'decisions'/,
+    'the floor is not gated on the three sections that go down',
+  );
 });

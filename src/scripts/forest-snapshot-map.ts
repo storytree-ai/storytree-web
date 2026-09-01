@@ -70,11 +70,39 @@ export interface SnapshotStoryArc {
   readonly via: string;
 }
 
-/** A decision attached to an arc. Number, status and title — the whole of what ADR-0453 D12 ships. */
-export interface SnapshotArcAdr {
+/**
+ * ONE DECISION — number, status and title, and that is the whole tier (ADR-0494 D2).
+ *
+ * ⚠ THE BODY IS NOT HERE AND CANNOT BE ADDED FROM THIS REPO. The exporter one repo up publishes
+ * title and identity only; a field added to this interface would render blank. The owner priced the
+ * exposure at exactly this depth — a stranger may see what was DECIDED, never the reasoning, which
+ * is what the app opens.
+ *
+ * Reached by NUMBER from both a story and an arc, so one decision has one record however many
+ * things point at it. See {@link ForestSnapshot.decisions}.
+ */
+export interface SnapshotAdr {
   readonly number: number;
   readonly status: string;
   readonly title: string;
+}
+
+/**
+ * ONE UAT LEG — a step of the story's own acceptance journey, and the verdict signed against it
+ * (ADR-0494 D1).
+ *
+ * ⚠ THE PUBLIC DEPTH FLOOR NOW SITS HERE rather than at the capability tree, and this is the tier
+ * that makes the page's claim checkable instead of asserted: everything above says "25 of 35 are
+ * proven", and this says what the proving consisted of.
+ *
+ * ⚠ NO ID, AND NO BODY. The exporter publishes the authored one-line title and nothing else of the
+ * leg's prose — a `## UAT Test Criteria` section is long-form, and the criterion's own id is a
+ * random hash no line renders. Both were measured and dropped upstream; neither is retrievable here.
+ */
+export interface SnapshotUatCriterion {
+  readonly title: string;
+  readonly state: string;
+  readonly witness: string;
 }
 
 /**
@@ -93,7 +121,8 @@ export interface SnapshotArc {
   readonly lifecycle: string;
   readonly incrementsClosed: number;
   readonly incrementsOpen: number;
-  readonly adrs: readonly SnapshotArcAdr[];
+  /** Decision NUMBERS into {@link ForestSnapshot.decisions} — inline records until schema 3. */
+  readonly adrs: readonly number[];
 }
 
 export interface SnapshotStory {
@@ -103,6 +132,12 @@ export interface SnapshotStory {
   readonly dependsOn: readonly string[];
   readonly building?: boolean;
   readonly capabilities: readonly SnapshotCapability[];
+  /** The acceptance journey IN AUTHORED ORDER — never sorted, because the order IS the journey.
+   *  Always present, empty when the story declares no witnessable leg (11 of 35 do not). */
+  readonly uat: readonly SnapshotUatCriterion[];
+  /** The deciding ADR numbers, into {@link ForestSnapshot.decisions}. Always present, empty when
+   *  the story declares none. */
+  readonly decisions: readonly number[];
   /** Always present, empty when no arc reaches this story — the drawer's designed empty state. */
   readonly arcs: readonly SnapshotStoryArc[];
 }
@@ -118,16 +153,25 @@ export interface ForestSnapshot {
   readonly stories: readonly SnapshotStory[];
   /** Every arc a story above reaches, id-sorted — normalised, so a hub arc appears once. */
   readonly arcs: readonly SnapshotArc[];
+  /** Every decision a story or an arc above reaches, number-sorted — normalised for the same
+   *  reason, and more sharply: the 35 stories make 211 citations over 117 distinct decisions. */
+  readonly decisions: readonly SnapshotAdr[];
 }
 
 /**
  * The schema version this renderer understands.
  *
- * 2 — the arc layer (ADR-0453 D12). The pin is EXACT and `assertSnapshot` refuses anything else at
- * build time, which is what stops the two repos disagreeing about what a published file means: an
- * exporter that has moved past this site reds the build rather than rendering half a map.
+ * 2 — the arc layer (ADR-0453 D12).
+ * 3 — the depth floor moves to the UAT proof and decisions become reachable (ADR-0494 D1/D2), with
+ *     the decision records normalised out of the arc tier into `snapshot.decisions`.
+ *
+ * The pin is EXACT and `assertSnapshot` refuses anything else at build time, which is what stops
+ * the two repos disagreeing about what a published file means: an exporter that has moved past this
+ * site reds the build rather than rendering half a map. Schema 3 is why that matters concretely —
+ * a reader still pinned to 2 would have walked `arc.adrs` expecting records and printed
+ * `undefined` down the drawer.
  */
-export const SUPPORTED_SCHEMA_VERSION = 2;
+export const SUPPORTED_SCHEMA_VERSION = 3;
 
 /**
  * Refuse a snapshot this renderer cannot honestly draw, LOUDLY and at build time.
@@ -424,6 +468,37 @@ export interface RoamCapability {
   readonly status: SceneStatus;
 }
 
+/** The states a UAT leg's own signed verdict folds to. Narrowed on the way in, like a status. */
+export type RoamUatState = 'proven' | 'pending' | 'failing';
+/** Who witnesses a leg: a harness the spine owns, a person, or either. */
+export type RoamWitness = 'machine' | 'human' | 'either';
+
+const UAT_STATES: readonly RoamUatState[] = ['proven', 'pending', 'failing'];
+const WITNESSES: readonly RoamWitness[] = ['machine', 'human', 'either'];
+
+/** Narrow a leg's state, defaulting to `pending` — the reading that claims LEAST. A state this site
+ *  cannot read must never borrow `proven`, on the page whose whole pitch is that green is earned. */
+export function toRoamUatState(raw: unknown): RoamUatState {
+  return typeof raw === 'string' && (UAT_STATES as readonly string[]).includes(raw)
+    ? (raw as RoamUatState)
+    : 'pending';
+}
+
+/** Narrow a leg's witness, defaulting to `either` — the parser's own default for an untagged leg,
+ *  so an unreadable value reads as the weakest true claim rather than naming a person or a harness. */
+export function toRoamWitness(raw: unknown): RoamWitness {
+  return typeof raw === 'string' && (WITNESSES as readonly string[]).includes(raw)
+    ? (raw as RoamWitness)
+    : 'either';
+}
+
+/** One UAT leg, as ROAM needs it — the authored step, and the verdict signed against it. */
+export interface RoamUatCriterion {
+  readonly title: string;
+  readonly state: RoamUatState;
+  readonly witness: RoamWitness;
+}
+
 /** One story, as ROAM needs it. `status` is the SAME value the island is painted with — folded
  *  once here and read by both the picture and the panel, so the two can never disagree. */
 export interface RoamStory {
@@ -431,14 +506,19 @@ export interface RoamStory {
   readonly title: string;
   readonly status: SceneStatus;
   readonly capabilities: readonly RoamCapability[];
+  /** The acceptance journey in AUTHORED order — the public depth floor since ADR-0494 D1. */
+  readonly uat: readonly RoamUatCriterion[];
+  /** Decision numbers — keys into {@link RoamPayload.decisions}, never inline records. */
+  readonly decisions: readonly number[];
   /** Arc ids only — keys into {@link RoamPayload.arcs}. The exporter's `via` provenance is dropped
    *  on the way to the browser: the drawer's copy is true of both edges, so shipping the
    *  distinction would put a field on the page that no sentence reads. */
   readonly arcs: readonly string[];
 }
 
-/** One decision attached to an arc, as ROAM needs it. */
-export interface RoamArcAdr {
+/** One decision at title-and-identity depth (ADR-0494 D2). The body is absent because the EXPORTER
+ *  never wrote it — see `SnapshotAdr` above; this shape only refuses to re-add it. */
+export interface RoamAdr {
   readonly number: number;
   readonly status: string;
   readonly title: string;
@@ -452,7 +532,8 @@ export interface RoamArc {
   readonly lifecycle: string;
   readonly incrementsClosed: number;
   readonly incrementsOpen: number;
-  readonly adrs: readonly RoamArcAdr[];
+  /** Decision numbers — the same keys a story's `decisions` uses, into the same registry. */
+  readonly adrs: readonly number[];
 }
 
 /** What ROAM is handed at build time. `asOf` is the SAME stamp the page prints under the map. */
@@ -460,6 +541,8 @@ export interface RoamPayload {
   readonly asOf: string;
   readonly stories: readonly RoamStory[];
   readonly arcs: readonly RoamArc[];
+  /** Every decision a story or an arc names, number-sorted — one record per decision. */
+  readonly decisions: readonly RoamAdr[];
 }
 
 /**
@@ -488,6 +571,15 @@ export function roamPayload(snap: ForestSnapshot): RoamPayload {
         title: cap.title,
         status: toSceneStatus(cap.status),
       })),
+      // The acceptance journey, in the exporter's authored order — never re-sorted here, or the
+      // panel would print the steps of a walk in an order nobody walks them in.
+      uat: (story.uat ?? []).map((u) => ({
+        title: u.title,
+        state: toRoamUatState(u.state),
+        witness: toRoamWitness(u.witness),
+      })),
+      // Numbers, resolved against the registry below at render time.
+      decisions: [...(story.decisions ?? [])],
       // The edge only. `via` is dropped here BECAUSE it is dropped: the drawer's copy says "the
       // initiative that built this", which is true of both edges, so shipping the distinction to
       // the browser would put a field on the page with no reader and no sentence.
@@ -501,7 +593,12 @@ export function roamPayload(snap: ForestSnapshot): RoamPayload {
       lifecycle: arc.lifecycle,
       incrementsClosed: arc.incrementsClosed,
       incrementsOpen: arc.incrementsOpen,
-      adrs: arc.adrs.map((d) => ({ number: d.number, status: d.status, title: d.title })),
+      adrs: [...arc.adrs],
+    })),
+    decisions: (snap.decisions ?? []).map((d) => ({
+      number: d.number,
+      status: d.status,
+      title: d.title,
     })),
   };
 }

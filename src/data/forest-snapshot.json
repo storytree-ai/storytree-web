@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "generatedAt": "2026-08-31T22:44:12.181Z",
+  "schemaVersion": 3,
+  "generatedAt": "2026-09-01T06:53:55.749Z",
   "source": "studio /api/tree + presentStories (ADR-0453 D7)",
   "storyCount": 35,
   "provenStoryCount": 25,
@@ -35,6 +35,22 @@
             "model-runtime-seam"
           ]
         }
+      ],
+      "uat": [
+        {
+          "title": "The selected live runtime authors a real slice.",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        4,
+        11,
+        30,
+        35,
+        68,
+        75,
+        232
       ],
       "arcs": [
         {
@@ -90,6 +106,23 @@
             "multi-turn-transcript"
           ]
         }
+      ],
+      "uat": [
+        {
+          "title": "(OPTIONAL / STRETCH) A wedged backend session recovers without a restart.",
+          "state": "pending",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        4,
+        10,
+        57,
+        70,
+        108,
+        137,
+        174,
+        175
       ],
       "arcs": [
         {
@@ -166,6 +199,24 @@
           ]
         }
       ],
+      "uat": [
+        {
+          "title": "The hosted witness is viewable within its recorded browser budget.",
+          "state": "pending",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        70,
+        93,
+        213,
+        215,
+        219,
+        230,
+        237,
+        274,
+        277
+      ],
       "arcs": [
         {
           "id": "chapter2-pixellab-organic-growth-arc",
@@ -207,6 +258,15 @@
           "status": "healthy",
           "dependsOn": []
         }
+      ],
+      "uat": [],
+      "decisions": [
+        183,
+        192,
+        267,
+        305,
+        314,
+        369
       ],
       "arcs": [
         {
@@ -255,6 +315,15 @@
             "art-pipeline"
           ]
         }
+      ],
+      "uat": [],
+      "decisions": [
+        217,
+        218,
+        219,
+        221,
+        222,
+        225
       ],
       "arcs": [
         {
@@ -313,6 +382,10 @@
           "status": "healthy",
           "dependsOn": []
         }
+      ],
+      "uat": [],
+      "decisions": [
+        16
       ],
       "arcs": [
         {
@@ -377,6 +450,50 @@
           "dependsOn": []
         }
       ],
+      "uat": [
+        {
+          "title": "Prove the merge candidate.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "The local/CI delta is explicit.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Auto-merge on green.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Merged coordination claims retire.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "The Studio deployment handoff is complete.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "The repository-owned path has no unproven merge door.",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        21,
+        22,
+        33,
+        37,
+        41,
+        46,
+        50,
+        58,
+        234,
+        311
+      ],
       "arcs": [
         {
           "id": "prove-unproven-capabilities-arc",
@@ -432,6 +549,20 @@
           "status": "proposed",
           "dependsOn": []
         }
+      ],
+      "uat": [
+        {
+          "title": "Credential hydration + live pull",
+          "state": "pending",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        23,
+        50,
+        74,
+        102,
+        112
       ],
       "arcs": [
         {
@@ -510,6 +641,43 @@
           "dependsOn": []
         }
       ],
+      "uat": [
+        {
+          "title": "A real spawned read command writes a replayable visit.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Two invocations join into one session with distinct visits.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "A write command leaves no owner prose on disk.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "The captured session replays from the command line.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Capture is additive and opt-out-clean.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "A real `agents` render writes a depth, not a flat column.",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        235,
+        241,
+        464
+      ],
       "arcs": [
         {
           "id": "linked-session-context-arc",
@@ -549,6 +717,13 @@
           ]
         }
       ],
+      "uat": [],
+      "decisions": [
+        192,
+        235,
+        241,
+        243
+      ],
       "arcs": [
         {
           "id": "linked-session-context-arc",
@@ -582,6 +757,37 @@
           "status": "healthy",
           "dependsOn": []
         }
+      ],
+      "uat": [
+        {
+          "title": "Cross the real factory boundary through the story-owned adapter.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Record search/list coverage without claiming a follow.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Expose the adapter's honest coverage.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Refuse inferred causality.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Prove future parent/child shapes without inventing live wiring.",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        192,
+        235
       ],
       "arcs": [
         {
@@ -637,6 +843,45 @@
           "status": "healthy",
           "dependsOn": []
         }
+      ],
+      "uat": [
+        {
+          "title": "A real spawned ingest writes a falling occupancy series.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "Occupancy is the resident total, not the billing total.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Two windows in one session stay two windows.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "A foreign session's transcript is never correlated.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "Re-ingesting the same transcripts appends nothing.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "No transcript content reaches the trace.",
+          "state": "pending",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        192,
+        235,
+        241,
+        248,
+        403
       ],
       "arcs": [
         {
@@ -752,6 +997,55 @@
             "local-backend-boot"
           ]
         }
+      ],
+      "uat": [
+        {
+          "title": "Launch — the native shell renders the COMPILED studio, no Vite, no source.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "The credentials surface is one-way — nothing reads back, the renderer stores nothing.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "A credential survives a real restart in the OS keychain, then removes cleanly.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "The local backend is live (no 503).",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "The owner's in-app `builder` grant opens the brokered write path.",
+          "state": "pending",
+          "witness": "human"
+        },
+        {
+          "title": "Launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176).",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        4,
+        21,
+        70,
+        90,
+        91,
+        108,
+        109,
+        111,
+        113,
+        117,
+        175,
+        176,
+        179,
+        180,
+        232
       ],
       "arcs": [
         {
@@ -1002,6 +1296,39 @@
           "dependsOn": []
         }
       ],
+      "uat": [
+        {
+          "title": "The REAL build",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Land it",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "An agent actually USES it end to end (the dogfood acceptance)",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        5,
+        20,
+        30,
+        31,
+        35,
+        37,
+        57,
+        59,
+        60,
+        112,
+        180,
+        184,
+        232,
+        243
+      ],
       "arcs": [
         {
           "id": "forest-status-provenance-arc",
@@ -1035,6 +1362,43 @@
           "dependsOn": []
         }
       ],
+      "uat": [
+        {
+          "title": "A terminal sits in the dock.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "A REAL pty hosts a real interactive shell in the member's checkout.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Real Claude Code runs interactively in the embedded terminal.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Scrollback, reflow and keys behave like a real terminal.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "The existing observability seams watch a session started in the terminal — a wisp lights.",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        4,
+        10,
+        57,
+        70,
+        142,
+        158,
+        174,
+        175
+      ],
       "arcs": [
         {
           "id": "uat-journey-surgery-arc",
@@ -1051,6 +1415,36 @@
         "studio"
       ],
       "capabilities": [],
+      "uat": [
+        {
+          "title": "Cite (reinforce)",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Link across artifacts (the derived edge)",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "Archive",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Synthesis",
+          "state": "pending",
+          "witness": "human"
+        }
+      ],
+      "decisions": [
+        32,
+        68,
+        168,
+        298,
+        425,
+        477
+      ],
       "arcs": []
     },
     {
@@ -1065,6 +1459,15 @@
           "status": "healthy",
           "dependsOn": []
         }
+      ],
+      "uat": [],
+      "decisions": [
+        68,
+        75,
+        83,
+        85,
+        93,
+        222
       ],
       "arcs": [
         {
@@ -1184,6 +1587,14 @@
           ]
         }
       ],
+      "uat": [],
+      "decisions": [
+        17,
+        18,
+        19,
+        23,
+        26
+      ],
       "arcs": [
         {
           "id": "arcs-hold-increments-arc",
@@ -1282,6 +1693,38 @@
           "status": "healthy",
           "dependsOn": []
         }
+      ],
+      "uat": [
+        {
+          "title": "Open an open-question in Review.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Comment in the document flow.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Track a change in the prose.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "The annotated edit is never silently lost.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Live refresh, no reload.",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        140,
+        146,
+        388
       ],
       "arcs": [
         {
@@ -1427,6 +1870,20 @@
           ]
         }
       ],
+      "uat": [
+        {
+          "title": "Open the selected artifact over the map.",
+          "state": "pending",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        23,
+        70,
+        161,
+        171,
+        185
+      ],
       "arcs": [
         {
           "id": "uat-journey-surgery-arc",
@@ -1474,6 +1931,52 @@
           ]
         }
       ],
+      "uat": [
+        {
+          "title": "Forced claim at workspace creation.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "See the neighbour on the ledger.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Upgrade to work; a second work-claimant queues.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Atomic promotion on release.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Overlap deltas arrive once.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Liveness + departure.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "A build leaves session presence untouched (ADR-0199).",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Offline degrade + the gate wall.",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        33,
+        200
+      ],
       "arcs": [
         {
           "id": "capability-claim-binds-arc",
@@ -1513,6 +2016,18 @@
           ]
         }
       ],
+      "uat": [
+        {
+          "title": "A reader inspects a machine claim and gets a chain or a refusal — never a verdict.",
+          "state": "pending",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        180,
+        184,
+        249
+      ],
       "arcs": [
         {
           "id": "verification-integrity-arc",
@@ -1526,6 +2041,15 @@
       "status": "healthy",
       "dependsOn": [],
       "capabilities": [],
+      "uat": [],
+      "decisions": [
+        68,
+        74,
+        75,
+        78,
+        83,
+        85
+      ],
       "arcs": [
         {
           "id": "bun-runtime-migration-arc",
@@ -1545,6 +2069,16 @@
         "proof-protocol"
       ],
       "capabilities": [],
+      "uat": [],
+      "decisions": [
+        68,
+        74,
+        75,
+        78,
+        83,
+        85,
+        259
+      ],
       "arcs": [
         {
           "id": "forest-status-provenance-arc",
@@ -1712,6 +2246,86 @@
           ]
         }
       ],
+      "uat": [
+        {
+          "title": "Boot the current offline studio on the forest.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Open a decision through the forest's Library chrome.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Follow an in-corpus cross-link between decisions.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Find the artifact that grounds the question.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Reload and recover the same grounding.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Read the decision behind it, then come back.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Browse the knowledge-derived Library.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Narrow the Library deterministically.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Follow an artifact source back to the decision tier.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Author a structured Library artifact.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Edit, relock, and delete the artifact.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Survive a cold process restart.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Leave both offline stores byte-for-byte as found.",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        8,
+        36,
+        38,
+        100,
+        112,
+        221,
+        222,
+        237,
+        240,
+        272,
+        313
+      ],
       "arcs": [
         {
           "id": "forest-status-provenance-arc",
@@ -1795,6 +2409,39 @@
           ]
         }
       ],
+      "uat": [
+        {
+          "title": "Grant.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "Sign in.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "Browse.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "Revoke.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "Broker a build (ADR-0117).",
+          "state": "pending",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        42,
+        49,
+        117,
+        311
+      ],
       "arcs": [
         {
           "id": "uat-journey-surgery-arc",
@@ -1849,6 +2496,28 @@
           "dependsOn": []
         }
       ],
+      "uat": [
+        {
+          "title": "Invite",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Activate",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Mark a builder (ADR-0117)",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        43,
+        100,
+        117
+      ],
       "arcs": [
         {
           "id": "uat-journey-surgery-arc",
@@ -1885,6 +2554,36 @@
           "dependsOn": []
         }
       ],
+      "uat": [
+        {
+          "title": "The embedded terminal spawns in the picked repo.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The fail-closed gate holds end-to-end.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The selection survives an app relaunch.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The native OS directory dialog opens and is usable.",
+          "state": "pending",
+          "witness": "human"
+        }
+      ],
+      "decisions": [
+        4,
+        10,
+        57,
+        70,
+        158,
+        174
+      ],
       "arcs": []
     },
     {
@@ -1911,6 +2610,28 @@
             "multi-session-tabs"
           ]
         }
+      ],
+      "uat": [
+        {
+          "title": "The session panel creates, switches and closes REAL sessions in the native shell.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "Per-tab scrollback, colour, resize and focus survive switching and closing.",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        4,
+        10,
+        57,
+        70,
+        158,
+        174,
+        186,
+        190
       ],
       "arcs": [
         {
@@ -1954,6 +2675,12 @@
           "status": "healthy",
           "dependsOn": []
         }
+      ],
+      "uat": [],
+      "decisions": [
+        44,
+        82,
+        209
       ],
       "arcs": [
         {
@@ -2005,6 +2732,35 @@
           "dependsOn": []
         }
       ],
+      "uat": [
+        {
+          "title": "The detail kind validates through the public port.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "The criterion points; the story title stays display-canonical.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "A substantive detail change invalidates the prior hash.",
+          "state": "proven",
+          "witness": "machine"
+        },
+        {
+          "title": "story-author's fence admits the hierarchy and denies every other path.",
+          "state": "proven",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        10,
+        82,
+        192,
+        209,
+        307
+      ],
       "arcs": [
         {
           "id": "model-uat-promotion",
@@ -2036,6 +2792,14 @@
           ]
         }
       ],
+      "uat": [],
+      "decisions": [
+        10,
+        70,
+        82,
+        192,
+        209
+      ],
       "arcs": [
         {
           "id": "model-uat-promotion",
@@ -2051,6 +2815,12 @@
         "forest-world"
       ],
       "capabilities": [],
+      "uat": [],
+      "decisions": [
+        66,
+        93,
+        100
+      ],
       "arcs": [
         {
           "id": "forest-status-provenance-arc",
@@ -2141,6 +2911,55 @@
           ]
         }
       ],
+      "uat": [
+        {
+          "title": "One prompt breeds the storm — the choreography.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "Act 1 ships no WebGL bytes — the static-import-closure wall.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The exits actually work.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "One tap transforms — IN PLACE.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The same request, done right — the website-first walk's MECHANICS (increment G).",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The ONE continuous walk grows upstream — the BaaS dependency layers, MECHANICALLY.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The artifact edge is live.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The surrounding pages' disposition is EXECUTED.",
+          "state": "pending",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        93,
+        123,
+        213,
+        215,
+        216
+      ],
       "arcs": [
         {
           "id": "uat-journey-surgery-arc",
@@ -2217,6 +3036,47 @@
           ]
         }
       ],
+      "uat": [
+        {
+          "title": "One wisp per claimed story, anchored on the STORY's territory.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The claim GRADE is the position channel.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The active subagent's colour state is STAMPED, and it SHIFTS.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The CI merge releases the branch's claims — every grade, audited, waiter promoted.",
+          "state": "pending",
+          "witness": "machine"
+        },
+        {
+          "title": "The departure window: fades by age, then gone — no zombie.",
+          "state": "pending",
+          "witness": "machine"
+        }
+      ],
+      "decisions": [
+        33,
+        45,
+        70,
+        99,
+        121,
+        128,
+        137,
+        138,
+        142,
+        175,
+        200,
+        212
+      ],
       "arcs": [
         {
           "id": "uat-journey-surgery-arc",
@@ -2233,31 +3093,11 @@
       "incrementsClosed": 16,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 267,
-          "status": "accepted",
-          "title": "Arcs take the map's primary top-drawer slot, the Library becomes secondary"
-        },
-        {
-          "number": 314,
-          "status": "accepted",
-          "title": "The arc surface is momentum lanes with a briefing panel: bars are units not time, blocked is stuck not answerable"
-        },
-        {
-          "number": 349,
-          "status": "accepted",
-          "title": "The floor-health readout is a small always-visible lamp on the map, not a band inside the arc drawer"
-        },
-        {
-          "number": 351,
-          "status": "accepted",
-          "title": "The arc lane state stops implying a session it cannot see: `running` becomes `moving`, and `claimed` is a positive-only ledger join"
-        },
-        {
-          "number": 374,
-          "status": "accepted",
-          "title": "An arc can be PARKED, and an unclaimed arc is quiet rather than moving"
-        }
+        267,
+        314,
+        349,
+        351,
+        374
       ]
     },
     {
@@ -2267,11 +3107,7 @@
       "incrementsClosed": 1,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 369,
-          "status": "accepted",
-          "title": "The arc domain owns its own package, and the arrow runs arc to drive"
-        }
+        369
       ]
     },
     {
@@ -2281,41 +3117,13 @@
       "incrementsClosed": 12,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 305,
-          "status": "accepted",
-          "title": "Arcs hold increments: one durable typed tier replaces increments, proposals and plans"
-        },
-        {
-          "number": 306,
-          "status": "accepted",
-          "title": "Typed work-hierarchy refs: increments cite stories and capabilities as resolvable pointers"
-        },
-        {
-          "number": 308,
-          "status": "accepted",
-          "title": "Increments form a DAG and carry their own claim set: depends_on for order, cites for the fence"
-        },
-        {
-          "number": 322,
-          "status": "accepted",
-          "title": "An increment's landed prose lives in one field: increment add stops dual-writing body and outcome.note"
-        },
-        {
-          "number": 337,
-          "status": "accepted",
-          "title": "An agent may reopen a closed arc: arc reopen records why, then flips the bit"
-        },
-        {
-          "number": 347,
-          "status": "accepted",
-          "title": "arc close refuses over open increments: draining the work is the closing act"
-        },
-        {
-          "number": 382,
-          "status": "accepted",
-          "title": "The 20-increment arc cap is withdrawn; placement discipline replaces it"
-        }
+        305,
+        306,
+        308,
+        322,
+        337,
+        347,
+        382
       ]
     },
     {
@@ -2325,11 +3133,7 @@
       "incrementsClosed": 11,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 426,
-          "status": "accepted",
-          "title": "apps/desktop stays on Electron — Electrobun is viable but buys nothing this arc is allowed to count"
-        }
+        426
       ]
     },
     {
@@ -2339,11 +3143,7 @@
       "incrementsClosed": 5,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 346,
-          "status": "accepted",
-          "title": "The capability claim becomes a real fence: waiting binds, story-grain session claims retire"
-        }
+        346
       ]
     },
     {
@@ -2353,16 +3153,8 @@
       "incrementsClosed": 19,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 274,
-          "status": "accepted",
-          "title": "PixelLab animates organic growth over the app-owned SVG island"
-        },
-        {
-          "number": 277,
-          "status": "accepted",
-          "title": "Occlusion-registered cutouts are retained for small plants, not the hero tree"
-        }
+        274,
+        277
       ]
     },
     {
@@ -2372,46 +3164,14 @@
       "incrementsClosed": 37,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 355,
-          "status": "superseded",
-          "title": "Interactive Codex writes only in its current claimed worktree"
-        },
-        {
-          "number": 356,
-          "status": "accepted",
-          "title": "Codex promotes only an explicit finite phase target set"
-        },
-        {
-          "number": 364,
-          "status": "superseded",
-          "title": "Codex write authority is a standing worktrees grant narrowed by the live claim"
-        },
-        {
-          "number": 368,
-          "status": "superseded",
-          "title": "The claim broker holds the credential the sandbox may not, and derives identity Git cannot be lied to about"
-        },
-        {
-          "number": 375,
-          "status": "superseded",
-          "title": "The resident claim authority lives in the desktop app, and the managed hook reads through it"
-        },
-        {
-          "number": 379,
-          "status": "superseded",
-          "title": "The desktop hosts the Codex claim authority whenever the boundary is installed"
-        },
-        {
-          "number": 381,
-          "status": "accepted",
-          "title": "Unevidenced Codex hardening stops; the remaining work is exercise"
-        },
-        {
-          "number": 390,
-          "status": "accepted",
-          "title": "Codex runs at Claude parity and the managed containment boundary is withdrawn"
-        }
+        355,
+        356,
+        364,
+        368,
+        375,
+        379,
+        381,
+        390
       ]
     },
     {
@@ -2421,26 +3181,10 @@
       "incrementsClosed": 11,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 223,
-          "status": "accepted",
-          "title": "The knowledge DAG is an authored standsOn edge, not the citation web"
-        },
-        {
-          "number": 363,
-          "status": "accepted",
-          "title": "The knowledge DAG excludes definitions and joins the work graph by projection"
-        },
-        {
-          "number": 365,
-          "status": "accepted",
-          "title": "An increment stands on knowledge, not on its arc; uat-criterion joins the tier order"
-        },
-        {
-          "number": 373,
-          "status": "accepted",
-          "title": "The standsOn seed reads injected refList fields, not only see-also citations"
-        }
+        223,
+        363,
+        365,
+        373
       ]
     },
     {
@@ -2450,11 +3194,7 @@
       "incrementsClosed": 18,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 207,
-          "status": "accepted",
-          "title": "Explorer onboarding v1: desktop entrypoint, dev-owned Claude auth, hosted live read, public distribution"
-        }
+        207
       ]
     },
     {
@@ -2464,16 +3204,8 @@
       "incrementsClosed": 4,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 395,
-          "status": "accepted",
-          "title": "Brown records provenance; proof absence does not invent it"
-        },
-        {
-          "number": 416,
-          "status": "accepted",
-          "title": "A proven story keeps its green while its capability set expands"
-        }
+        395,
+        416
       ]
     },
     {
@@ -2483,76 +3215,20 @@
       "incrementsClosed": 47,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 214,
-          "status": "accepted",
-          "title": "Ground AI-authored art in a physical model: CSG over SVG, not a render-substrate swap"
-        },
-        {
-          "number": 217,
-          "status": "accepted",
-          "title": "Art factories are per object type: parametric kit, explicit draw order, render-and-look loop"
-        },
-        {
-          "number": 218,
-          "status": "accepted",
-          "title": "Baked art carries resolved paint into the shared scene via a fenced node family"
-        },
-        {
-          "number": 219,
-          "status": "accepted",
-          "title": "Generative image models enter the art pipeline author-time only, bridged to checkable vector"
-        },
-        {
-          "number": 221,
-          "status": "accepted",
-          "title": "Autumn-tree hero is the studio garden-flag central tree, resolving ADR-0218's deferred tree call"
-        },
-        {
-          "number": 222,
-          "status": "accepted",
-          "title": "Split the art factory into its own story; forest-world gains a capability floor"
-        },
-        {
-          "number": 224,
-          "status": "accepted",
-          "title": "Station 4 realized: render-look-refine as a bounded quorum revert-only look guard"
-        },
-        {
-          "number": 225,
-          "status": "accepted",
-          "title": "Generative-3D produces the bridge blocking substrate via a vendor-swappable author-time adapter"
-        },
-        {
-          "number": 226,
-          "status": "accepted",
-          "title": "Unified world-art vegetation vocabulary: grass proves capabilities, flowers prove UAT, retire the witness signpost"
-        },
-        {
-          "number": 227,
-          "status": "accepted",
-          "title": "Baked hero trees carry status via per-status colourways (restore the tree-spread crown hue)"
-        },
-        {
-          "number": 228,
-          "status": "accepted",
-          "title": "Forest map defaults to pathways-only: shared-island hubs return to the map, retire the off-map panel and stamps from the default"
-        },
-        {
-          "number": 229,
-          "status": "accepted",
-          "title": "The default map layout is DAG rows again; the dependency-aware and solar layouts stay in the picker"
-        },
-        {
-          "number": 231,
-          "status": "accepted",
-          "title": "The vegetation vocabulary is permanent studio world art, not a gear toggle"
-        },
-        {
-          "number": 233,
-          "status": "accepted",
-          "title": "The forest-map ground tiling is always the Townscaper mesh; retire the substrate gear control"
-        }
+        214,
+        217,
+        218,
+        219,
+        221,
+        222,
+        224,
+        225,
+        226,
+        227,
+        228,
+        229,
+        231,
+        233
       ]
     },
     {
@@ -2562,51 +3238,15 @@
       "incrementsClosed": 50,
       "incrementsOpen": 1,
       "adrs": [
-        {
-          "number": 235,
-          "status": "accepted",
-          "title": "Record context traversal at deterministic runtime boundaries"
-        },
-        {
-          "number": 241,
-          "status": "accepted",
-          "title": "Context traversal traces persist locally per session, unretained and version-pinned"
-        },
-        {
-          "number": 243,
-          "status": "accepted",
-          "title": "A live-spend-only adapter earns its activation leg by seam, attestation, or fixture"
-        },
-        {
-          "number": 248,
-          "status": "accepted",
-          "title": "A context gauge needs window occupancy, which cumulativeInputTokens is not"
-        },
-        {
-          "number": 413,
-          "status": "accepted",
-          "title": "The context meter measures the orchestrator's own window; per-helper lanes wait until that shape is confirmed useful"
-        },
-        {
-          "number": 456,
-          "status": "accepted",
-          "title": "The context-window meter folds into the context traversal surface; the standalone Context tab retires"
-        },
-        {
-          "number": 464,
-          "status": "accepted",
-          "title": "Retire the citation-derived offer surface: search and depends_on become the discovery route"
-        },
-        {
-          "number": 467,
-          "status": "superseded",
-          "title": "The citation-derived pointer block is deleted, after search and the authored edge are repaired"
-        },
-        {
-          "number": 484,
-          "status": "accepted",
-          "title": "storytree owns its own telemetry log in Postgres; the harness scraper is demoted to a labelled secondary source"
-        }
+        235,
+        241,
+        243,
+        248,
+        413,
+        456,
+        464,
+        467,
+        484
       ]
     },
     {
@@ -2616,21 +3256,9 @@
       "incrementsClosed": 6,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 405,
-          "status": "accepted",
-          "title": "The machine-UAT signing mechanism exists — UAT needs its own surface"
-        },
-        {
-          "number": 417,
-          "status": "accepted",
-          "title": "Machine acceptance signing is not brownfield adoption"
-        },
-        {
-          "number": 423,
-          "status": "accepted",
-          "title": "Adopt's status guard narrows to mapped; the resume path already exists elsewhere"
-        }
+        405,
+        417,
+        423
       ]
     },
     {
@@ -2640,16 +3268,8 @@
       "incrementsClosed": 41,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 209,
-          "status": "accepted",
-          "title": "Tier model-judged UAT below irreducible human witness"
-        },
-        {
-          "number": 247,
-          "status": "accepted",
-          "title": "Retire the model-JUDGE tier — a model may DRIVE a journey; the witness split is human or machine"
-        }
+        209,
+        247
       ]
     },
     {
@@ -2659,11 +3279,7 @@
       "incrementsClosed": 28,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 465,
-          "status": "accepted",
-          "title": "Long-running unproven capabilities are adopted on the owner's risk acceptance, not proven"
-        }
+        465
       ]
     },
     {
@@ -2673,11 +3289,7 @@
       "incrementsClosed": 8,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 404,
-          "status": "accepted",
-          "title": "Dispatching a build is a CLI verb — retire the in-app Build and Adopt affordances"
-        }
+        404
       ]
     },
     {
@@ -2687,26 +3299,10 @@
       "incrementsClosed": 28,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 354,
-          "status": "accepted",
-          "title": "The context traversal replay lives in a bottom-panel tab beside the terminal, listed by trace not by claim"
-        },
-        {
-          "number": 393,
-          "status": "accepted",
-          "title": "The replay draws the orchestrator's own walk only: no prose, no subagent lanes, no unobservable rays"
-        },
-        {
-          "number": 476,
-          "status": "accepted",
-          "title": "The traversal panel's depth reading is seeded from the graph's own surface"
-        },
-        {
-          "number": 478,
-          "status": "accepted",
-          "title": "An unkillable mutant is adjudicated adversarially, not exempted"
-        }
+        354,
+        393,
+        476,
+        478
       ]
     },
     {
@@ -2716,56 +3312,16 @@
       "incrementsClosed": 78,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 294,
-          "status": "accepted",
-          "title": "Story UAT is a journey, not a spec — criteria that duplicate lower-tier proof are deleted"
-        },
-        {
-          "number": 295,
-          "status": "accepted",
-          "title": "The UAT driver's own verdict is the witness — model-driven UAT by default"
-        },
-        {
-          "number": 348,
-          "status": "accepted",
-          "title": "Human UAT witness narrows to taste — live-spend and outward-facing legs default to machine"
-        },
-        {
-          "number": 357,
-          "status": "accepted",
-          "title": "Human UAT witness also covers surfaces no harness owns — every human leg states its basis"
-        },
-        {
-          "number": 388,
-          "status": "accepted",
-          "title": "Suggestions-as-proposals is retired on the review surface — direct CriticMarkup editing is the answer"
-        },
-        {
-          "number": 396,
-          "status": "accepted",
-          "title": "A retired story's UAT criteria are deleted with their ordinals burned — the body keeps the history, the criteria keep no obligation"
-        },
-        {
-          "number": 425,
-          "status": "accepted",
-          "title": "Studio commenting is retired until multiplayer"
-        },
-        {
-          "number": 435,
-          "status": "accepted",
-          "title": "Model-driven UAT walks run on the Claude subscription by default — Codex becomes the explicit selection"
-        },
-        {
-          "number": 437,
-          "status": "accepted",
-          "title": "A retired story's proof-credit fence tests whether the proof is still REAL — a green whose subject was deleted goes with its criterion"
-        },
-        {
-          "number": 439,
-          "status": "accepted",
-          "title": "No workflow is UI-only — every studio mutation has a CLI verb"
-        }
+        294,
+        295,
+        348,
+        357,
+        388,
+        396,
+        425,
+        435,
+        437,
+        439
       ]
     },
     {
@@ -2775,82 +3331,959 @@
       "incrementsClosed": 88,
       "incrementsOpen": 0,
       "adrs": [
-        {
-          "number": 249,
-          "status": "accepted",
-          "title": "Oracle-report freshness: an unattributable observation is not evidence"
-        },
-        {
-          "number": 251,
-          "status": "accepted",
-          "title": "Mirror conformance: two surfaces required to agree are gated by a test that compares them"
-        },
-        {
-          "number": 252,
-          "status": "accepted",
-          "title": "Verification-decay detection: continuous mechanical warns, a judgment-gated adversarial pass in a fresh session"
-        },
-        {
-          "number": 253,
-          "status": "accepted",
-          "title": "Criterion identity is immutable across UAT revisions"
-        },
-        {
-          "number": 256,
-          "status": "accepted",
-          "title": "Deferral-keyed escalation lines are not built: a backstop's trigger must be observable in-run"
-        },
-        {
-          "number": 262,
-          "status": "accepted",
-          "title": "Contract clauses are declared but not observable: check:coverage stays name-granular until a clause carries identity"
-        },
-        {
-          "number": 265,
-          "status": "proposed",
-          "title": "Per-contract falsifiability at CONFIRM_RED: the spine observes one red per file, not per contract"
-        },
-        {
-          "number": 269,
-          "status": "accepted",
-          "title": "A drain ceiling rises only when the measured population enlarges, never to absorb growth"
-        },
-        {
-          "number": 278,
-          "status": "accepted",
-          "title": "A fifth verification-decay instrument: an injected seam whose default no test exercises"
-        },
-        {
-          "number": 301,
-          "status": "accepted",
-          "title": "Drain ceilings charge by authorship: verification-decay and graduation-worklist"
-        },
-        {
-          "number": 350,
-          "status": "accepted",
-          "title": "An event that caused another says so: causal edges on the event log"
-        },
-        {
-          "number": 372,
-          "status": "proposed",
-          "title": "check:ownership-totality earns its blocking rung, clearing ADR-0317 D2's bar"
-        },
-        {
-          "number": 377,
-          "status": "accepted",
-          "title": "Arc folding defaults to a new arc; folding requires surface ownership"
-        },
-        {
-          "number": 378,
-          "status": "accepted",
-          "title": "A --real build refuses when its spec's brief asserts an existence claim the declared sourceFile falsifies"
-        },
-        {
-          "number": 483,
-          "status": "accepted",
-          "title": "The mutation rung names what it cannot witness: a cross-package mutant is unwitnessable, never survived"
-        }
+        249,
+        251,
+        252,
+        253,
+        256,
+        262,
+        265,
+        269,
+        278,
+        301,
+        350,
+        372,
+        377,
+        378,
+        483
       ]
+    }
+  ],
+  "decisions": [
+    {
+      "number": 4,
+      "status": "accepted",
+      "title": "Orchestrator/agent boundary"
+    },
+    {
+      "number": 5,
+      "status": "accepted",
+      "title": "Orchestration spine — code sequences, pi judges"
+    },
+    {
+      "number": 8,
+      "status": "accepted",
+      "title": "UI drives agents — approval-gated trunk"
+    },
+    {
+      "number": 10,
+      "status": "accepted",
+      "title": "The organism model — story as bounded context, the proof ladder, and cross-story interfaces"
+    },
+    {
+      "number": 11,
+      "status": "accepted",
+      "title": "Own the agent loop and context engineering"
+    },
+    {
+      "number": 16,
+      "status": "accepted",
+      "title": "Knowledge↔code binding & staleness model"
+    },
+    {
+      "number": 17,
+      "status": "accepted",
+      "title": "The cross-cutting knowledge tier (resolves open-q §9)"
+    },
+    {
+      "number": 18,
+      "status": "accepted",
+      "title": "Knowledge tier Phase 1 — structured source of truth, generated views, corpus curation"
+    },
+    {
+      "number": 19,
+      "status": "accepted",
+      "title": "The knowledge tier is named \"library\"; defer DBOS for its store"
+    },
+    {
+      "number": 20,
+      "status": "accepted",
+      "title": "Red-green is enforced spine-side on the owned loop (not by process isolation)"
+    },
+    {
+      "number": 21,
+      "status": "accepted",
+      "title": "Keyless agent-session auth to GCP/Cloud SQL, and the IAM-user privilege bootstrap"
+    },
+    {
+      "number": 22,
+      "status": "accepted",
+      "title": "CI green gate + auto-merge-on-green (inside free Actions)"
+    },
+    {
+      "number": 23,
+      "status": "accepted",
+      "title": "Agents reach the Library through an exploratory, just-in-time CLI"
+    },
+    {
+      "number": 26,
+      "status": "accepted",
+      "title": "Library schema migrations & health checks — per-row version pin, forward-only migrate-on-write, and a gated health module"
+    },
+    {
+      "number": 30,
+      "status": "accepted",
+      "title": "Adopt the Claude Agent SDK as a live runtime (pivot-out by architecture)"
+    },
+    {
+      "number": 31,
+      "status": "accepted",
+      "title": "A signed REAL pass is promoted, not evaporated — branch-per-pass landing + dependency-bearing worktrees"
+    },
+    {
+      "number": 32,
+      "status": "accepted",
+      "title": "The cite + graduation mechanism — a cite is a typed link; graduation is a future synthesis agent"
+    },
+    {
+      "number": 33,
+      "status": "accepted",
+      "title": "The notice board is session presence — advisory coordination for parallel sessions"
+    },
+    {
+      "number": 35,
+      "status": "accepted",
+      "title": "The spine lends the leaf its oracle — bounded feedback tools (option A)"
+    },
+    {
+      "number": 36,
+      "status": "accepted",
+      "title": "The story world — the studio renders the work hierarchy as a hex-island world (SVG, not PixiJS)"
+    },
+    {
+      "number": 37,
+      "status": "accepted",
+      "title": "Decision binding — structured ADR status, story↔ADR edges, and hygiene gates"
+    },
+    {
+      "number": 38,
+      "status": "accepted",
+      "title": "Story-world vocabulary recalibration — growth carries the lifecycle"
+    },
+    {
+      "number": 41,
+      "status": "accepted",
+      "title": "Possibly-dead session wisps park in the dock — the world orbits fresh/stale only"
+    },
+    {
+      "number": 42,
+      "status": "accepted",
+      "title": "Serve the studio to a trusted circle — Cloud Run + IAP, read+comment guests"
+    },
+    {
+      "number": 43,
+      "status": "accepted",
+      "title": "App-owned users, roles, and invitations from the UI"
+    },
+    {
+      "number": 44,
+      "status": "accepted",
+      "title": "Per-UAT-test human attestation — the owner's \"I saw it work\" as signal"
+    },
+    {
+      "number": 45,
+      "status": "accepted",
+      "title": "The hosted live-activity layer is signed-verdict blooms; presence stays for multi-dev"
+    },
+    {
+      "number": 46,
+      "status": "accepted",
+      "title": "Continuous deployment for the hosted studio (merge → deploy)"
+    },
+    {
+      "number": 49,
+      "status": "accepted",
+      "title": "The hosted studio may wake its own DB (keyless, admin-gated)"
+    },
+    {
+      "number": 50,
+      "status": "accepted",
+      "title": "ADR numbers are allocated from the store (no more parallel-authoring collisions)"
+    },
+    {
+      "number": 57,
+      "status": "accepted",
+      "title": "Dogfood the inner loop as the default; node-borne proof config is the keystone expansion"
+    },
+    {
+      "number": 58,
+      "status": "accepted",
+      "title": "Cross-story dependency direction, the no-cycle rule, and the brownfield exit hatch"
+    },
+    {
+      "number": 59,
+      "status": "accepted",
+      "title": "Gate-as-proof: authoring nodes earn a signed verdict via their structural gate"
+    },
+    {
+      "number": 60,
+      "status": "accepted",
+      "title": "Live and real builds own the database (default --store pg, auto-start Cloud SQL)"
+    },
+    {
+      "number": 66,
+      "status": "accepted",
+      "title": "Wire the website into the system: a tracked, corpus-grounded story with inner-loop-proven logic"
+    },
+    {
+      "number": 68,
+      "status": "accepted",
+      "title": "Make the organism model physical: real story isolation and the farmer owns the proof ruler"
+    },
+    {
+      "number": 70,
+      "status": "accepted",
+      "title": "Frontend as an inner-loop role: the two-stage proof for visual surfaces"
+    },
+    {
+      "number": 74,
+      "status": "accepted",
+      "title": "Enforce the organism boundary: gate the cross-story dependency graph and make it UI-visible"
+    },
+    {
+      "number": 75,
+      "status": "accepted",
+      "title": "Model the shared ports as root organisms (collapse the substrate class)"
+    },
+    {
+      "number": 78,
+      "status": "accepted",
+      "title": "Rename the two root ports for role, not position (verdict-contract→proof-protocol, base→storage-protocol)"
+    },
+    {
+      "number": 82,
+      "status": "accepted",
+      "title": "Per-test UAT tests earn green by declared witness; story UAT greens when all pass"
+    },
+    {
+      "number": 83,
+      "status": "accepted",
+      "title": "Author-defined story green: declared obligations, machine per-test UAT, mapped as a bootstrap shortcut"
+    },
+    {
+      "number": 85,
+      "status": "accepted",
+      "title": "Resolve ADR-0083 Fork B: brownfield reliability gates + author-declared observe-and-sign"
+    },
+    {
+      "number": 90,
+      "status": "accepted",
+      "title": "UI-driven orchestration: hosted build-capable backend, thin clients, source server-side"
+    },
+    {
+      "number": 91,
+      "status": "accepted",
+      "title": "Proof-bearing builds may run in a hosted self-contained worker off the laptop tether"
+    },
+    {
+      "number": 93,
+      "status": "accepted",
+      "title": "Shared forest-world render core for studio and the public website"
+    },
+    {
+      "number": 99,
+      "status": "accepted",
+      "title": "Synthetic smoke verdicts must not derive a green unit"
+    },
+    {
+      "number": 100,
+      "status": "accepted",
+      "title": "Bring consuming surfaces — apps and the public website subrepo — into the boundary graph"
+    },
+    {
+      "number": 102,
+      "status": "accepted",
+      "title": "Shared islands promote their edges to per-island icon stamps (you carry the icon of what you depend on)"
+    },
+    {
+      "number": 108,
+      "status": "accepted",
+      "title": "Chat-driven orchestration — a server-side session-orchestrator runtime, supervised and landed by the human"
+    },
+    {
+      "number": 109,
+      "status": "accepted",
+      "title": "A native credential-host desktop client (Electron) for BYO-credential delivery"
+    },
+    {
+      "number": 111,
+      "status": "accepted",
+      "title": "Desktop client Step 1 lands as the apps/desktop surface and stories/desktop story"
+    },
+    {
+      "number": 112,
+      "status": "accepted",
+      "title": "Extract the build/orchestrate drivers into packages/drive"
+    },
+    {
+      "number": 113,
+      "status": "accepted",
+      "title": "Thick-local desktop for the inner circle — the drive machinery runs on the trusted member's machine"
+    },
+    {
+      "number": 117,
+      "status": "accepted",
+      "title": "Broker the inner circle's builds: a members-gated write endpoint and a builder role replace the per-friend Cloud SQL grant"
+    },
+    {
+      "number": 121,
+      "status": "accepted",
+      "title": "Per-unit write-claim refuses a second concurrent build of one unit"
+    },
+    {
+      "number": 123,
+      "status": "accepted",
+      "title": "WebGL forest-world renderer via react-three-fiber, website-first"
+    },
+    {
+      "number": 128,
+      "status": "accepted",
+      "title": "The bare forest map is honest by absence; inner-loop adoption is the gap"
+    },
+    {
+      "number": 137,
+      "status": "accepted",
+      "title": "Chat is the full session-orchestrator: it spawns the inner loop; ADRs are its one direct write"
+    },
+    {
+      "number": 138,
+      "status": "accepted",
+      "title": "The wisp is a forced, CI-cleared story-claim — one coordination and observability layer"
+    },
+    {
+      "number": 140,
+      "status": "accepted",
+      "title": "Library Review mode — inline block-anchored comments and suggestion-based edits"
+    },
+    {
+      "number": 142,
+      "status": "accepted",
+      "title": "Branch dies on merge; the wisp survives via claim-at-declare"
+    },
+    {
+      "number": 146,
+      "status": "accepted",
+      "title": "Review-mode editing is a split-pane markdown editor with CriticMarkup tracking"
+    },
+    {
+      "number": 158,
+      "status": "accepted",
+      "title": "Glue is un-asserted code within a story; the autonomous chat writes only proof-producing work, un-provable glue is escalated or earns a contract"
+    },
+    {
+      "number": 161,
+      "status": "accepted",
+      "title": "The library is a node-keyed context DAG: agent step-nodes and process nodes share one next: emitter"
+    },
+    {
+      "number": 168,
+      "status": "accepted",
+      "title": "Session-retro friction: every session feeds friction to the Library through a justification-gated graduation loop"
+    },
+    {
+      "number": 171,
+      "status": "accepted",
+      "title": "Island placement is dependency-aware: stress-majorization layout with a soft hierarchy anchor"
+    },
+    {
+      "number": 174,
+      "status": "accepted",
+      "title": "Interactive builds run in an in-app terminal, not the in-app orchestrator"
+    },
+    {
+      "number": 175,
+      "status": "accepted",
+      "title": "Repurpose (don't delete) the in-app orchestrator chat infrastructure into the app-guide agent"
+    },
+    {
+      "number": 176,
+      "status": "accepted",
+      "title": "The desktop app requires a reachable DB and a git checkout to launch — retire the degraded read shell"
+    },
+    {
+      "number": 179,
+      "status": "accepted",
+      "title": "Desktop credentials are configurable through the Storytree UI"
+    },
+    {
+      "number": 180,
+      "status": "accepted",
+      "title": "Lift the desktop write-broker deferral for brokered UAT signing"
+    },
+    {
+      "number": 183,
+      "status": "accepted",
+      "title": "Arcs contain plans: the initiative overlay upstream of stories and ADRs, and its ephemeral git-anchored choreography tier"
+    },
+    {
+      "number": 184,
+      "status": "accepted",
+      "title": "Machine-witness drive-machinery's three live UAT legs"
+    },
+    {
+      "number": 185,
+      "status": "accepted",
+      "title": "Library as a tech-tree overlay on the forest map"
+    },
+    {
+      "number": 186,
+      "status": "accepted",
+      "title": "The embedded terminal is multi-session with tabs; a map Build seed opens a fresh tab, never the active session"
+    },
+    {
+      "number": 190,
+      "status": "accepted",
+      "title": "Terminal re-attach replays serialized screen state and the session chrome follows VS Code"
+    },
+    {
+      "number": 192,
+      "status": "accepted",
+      "title": "Hosted-story boundary honesty: the landlord rule now, packages-forward for new stories, slow migration"
+    },
+    {
+      "number": 200,
+      "status": "accepted",
+      "title": "The noticeboard is the claim ledger — forced session claims, presence retired"
+    },
+    {
+      "number": 207,
+      "status": "accepted",
+      "title": "Explorer onboarding v1: desktop entrypoint, dev-owned Claude auth, hosted live read, public distribution"
+    },
+    {
+      "number": 209,
+      "status": "accepted",
+      "title": "Tier model-judged UAT below irreducible human witness"
+    },
+    {
+      "number": 212,
+      "status": "accepted",
+      "title": "One wisp per session: merge the build wisp into the claim lifecycle"
+    },
+    {
+      "number": 213,
+      "status": "accepted",
+      "title": "Act 2 experience: one continuous orchestrator-led walk"
+    },
+    {
+      "number": 214,
+      "status": "accepted",
+      "title": "Ground AI-authored art in a physical model: CSG over SVG, not a render-substrate swap"
+    },
+    {
+      "number": 215,
+      "status": "accepted",
+      "title": "Public website story frame: two-act experience is the entire site"
+    },
+    {
+      "number": 216,
+      "status": "accepted",
+      "title": "Act 1 experience: attested overwhelm → finale → transform (frozen)"
+    },
+    {
+      "number": 217,
+      "status": "accepted",
+      "title": "Art factories are per object type: parametric kit, explicit draw order, render-and-look loop"
+    },
+    {
+      "number": 218,
+      "status": "accepted",
+      "title": "Baked art carries resolved paint into the shared scene via a fenced node family"
+    },
+    {
+      "number": 219,
+      "status": "accepted",
+      "title": "Generative image models enter the art pipeline author-time only, bridged to checkable vector"
+    },
+    {
+      "number": 221,
+      "status": "accepted",
+      "title": "Autumn-tree hero is the studio garden-flag central tree, resolving ADR-0218's deferred tree call"
+    },
+    {
+      "number": 222,
+      "status": "accepted",
+      "title": "Split the art factory into its own story; forest-world gains a capability floor"
+    },
+    {
+      "number": 223,
+      "status": "accepted",
+      "title": "The knowledge DAG is an authored standsOn edge, not the citation web"
+    },
+    {
+      "number": 224,
+      "status": "accepted",
+      "title": "Station 4 realized: render-look-refine as a bounded quorum revert-only look guard"
+    },
+    {
+      "number": 225,
+      "status": "accepted",
+      "title": "Generative-3D produces the bridge blocking substrate via a vendor-swappable author-time adapter"
+    },
+    {
+      "number": 226,
+      "status": "accepted",
+      "title": "Unified world-art vegetation vocabulary: grass proves capabilities, flowers prove UAT, retire the witness signpost"
+    },
+    {
+      "number": 227,
+      "status": "accepted",
+      "title": "Baked hero trees carry status via per-status colourways (restore the tree-spread crown hue)"
+    },
+    {
+      "number": 228,
+      "status": "accepted",
+      "title": "Forest map defaults to pathways-only: shared-island hubs return to the map, retire the off-map panel and stamps from the default"
+    },
+    {
+      "number": 229,
+      "status": "accepted",
+      "title": "The default map layout is DAG rows again; the dependency-aware and solar layouts stay in the picker"
+    },
+    {
+      "number": 230,
+      "status": "accepted",
+      "title": "Swappable sprite art-sheet render mode: take ADR-0219's parked raster fork for the studio map, prototype-scoped and default-off"
+    },
+    {
+      "number": 231,
+      "status": "accepted",
+      "title": "The vegetation vocabulary is permanent studio world art, not a gear toggle"
+    },
+    {
+      "number": 232,
+      "status": "accepted",
+      "title": "Add a ChatGPT-subscription Codex prove-it leaf"
+    },
+    {
+      "number": 233,
+      "status": "accepted",
+      "title": "The forest-map ground tiling is always the Townscaper mesh; retire the substrate gear control"
+    },
+    {
+      "number": 234,
+      "status": "accepted",
+      "title": "Render delegatable Library agents to native Gemini CLI subagent files"
+    },
+    {
+      "number": 235,
+      "status": "accepted",
+      "title": "Record context traversal at deterministic runtime boundaries"
+    },
+    {
+      "number": 237,
+      "status": "accepted",
+      "title": "Chapter 2 is a scripted mode of the real app — share product UI, art and semantic motion"
+    },
+    {
+      "number": 240,
+      "status": "accepted",
+      "title": "Studio map responsiveness — cache and defer before cutting density"
+    },
+    {
+      "number": 241,
+      "status": "accepted",
+      "title": "Context traversal traces persist locally per session, unretained and version-pinned"
+    },
+    {
+      "number": 243,
+      "status": "accepted",
+      "title": "A live-spend-only adapter earns its activation leg by seam, attestation, or fixture"
+    },
+    {
+      "number": 247,
+      "status": "accepted",
+      "title": "Retire the model-JUDGE tier — a model may DRIVE a journey; the witness split is human or machine"
+    },
+    {
+      "number": 248,
+      "status": "accepted",
+      "title": "A context gauge needs window occupancy, which cumulativeInputTokens is not"
+    },
+    {
+      "number": 249,
+      "status": "accepted",
+      "title": "Oracle-report freshness: an unattributable observation is not evidence"
+    },
+    {
+      "number": 251,
+      "status": "accepted",
+      "title": "Mirror conformance: two surfaces required to agree are gated by a test that compares them"
+    },
+    {
+      "number": 252,
+      "status": "accepted",
+      "title": "Verification-decay detection: continuous mechanical warns, a judgment-gated adversarial pass in a fresh session"
+    },
+    {
+      "number": 253,
+      "status": "accepted",
+      "title": "Criterion identity is immutable across UAT revisions"
+    },
+    {
+      "number": 256,
+      "status": "accepted",
+      "title": "Deferral-keyed escalation lines are not built: a backstop's trigger must be observable in-run"
+    },
+    {
+      "number": 259,
+      "status": "accepted",
+      "title": "Every client reaches the store through an HTTP front door; direct pg is a server-side privilege"
+    },
+    {
+      "number": 262,
+      "status": "accepted",
+      "title": "Contract clauses are declared but not observable: check:coverage stays name-granular until a clause carries identity"
+    },
+    {
+      "number": 265,
+      "status": "proposed",
+      "title": "Per-contract falsifiability at CONFIRM_RED: the spine observes one red per file, not per contract"
+    },
+    {
+      "number": 267,
+      "status": "accepted",
+      "title": "Arcs take the map's primary top-drawer slot, the Library becomes secondary"
+    },
+    {
+      "number": 269,
+      "status": "accepted",
+      "title": "A drain ceiling rises only when the measured population enlarges, never to absorb growth"
+    },
+    {
+      "number": 272,
+      "status": "accepted",
+      "title": "A forest-map pan frame is rasterisation, not density — pan moves off the SVG transform"
+    },
+    {
+      "number": 274,
+      "status": "accepted",
+      "title": "PixelLab animates organic growth over the app-owned SVG island"
+    },
+    {
+      "number": 277,
+      "status": "accepted",
+      "title": "Occlusion-registered cutouts are retained for small plants, not the hero tree"
+    },
+    {
+      "number": 278,
+      "status": "accepted",
+      "title": "A fifth verification-decay instrument: an injected seam whose default no test exercises"
+    },
+    {
+      "number": 294,
+      "status": "accepted",
+      "title": "Story UAT is a journey, not a spec — criteria that duplicate lower-tier proof are deleted"
+    },
+    {
+      "number": 295,
+      "status": "accepted",
+      "title": "The UAT driver's own verdict is the witness — model-driven UAT by default"
+    },
+    {
+      "number": 298,
+      "status": "accepted",
+      "title": "Proposals fold into arcs: the deferred-work tier is an arc entry, not a kind"
+    },
+    {
+      "number": 301,
+      "status": "accepted",
+      "title": "Drain ceilings charge by authorship: verification-decay and graduation-worklist"
+    },
+    {
+      "number": 305,
+      "status": "accepted",
+      "title": "Arcs hold increments: one durable typed tier replaces increments, proposals and plans"
+    },
+    {
+      "number": 306,
+      "status": "accepted",
+      "title": "Typed work-hierarchy refs: increments cite stories and capabilities as resolvable pointers"
+    },
+    {
+      "number": 307,
+      "status": "accepted",
+      "title": "The agent tier goes live-canonical: the committed seed stops being an authoring surface"
+    },
+    {
+      "number": 308,
+      "status": "accepted",
+      "title": "Increments form a DAG and carry their own claim set: depends_on for order, cites for the fence"
+    },
+    {
+      "number": 311,
+      "status": "accepted",
+      "title": "Gate survival is evidence-backed: retain nine production-catching rungs and retire sixteen"
+    },
+    {
+      "number": 313,
+      "status": "accepted",
+      "title": "Act 2 camera choreography stays on the regrow cursor and yields cleanly to the viewer"
+    },
+    {
+      "number": 314,
+      "status": "accepted",
+      "title": "The arc surface is momentum lanes with a briefing panel: bars are units not time, blocked is stuck not answerable"
+    },
+    {
+      "number": 322,
+      "status": "accepted",
+      "title": "An increment's landed prose lives in one field: increment add stops dual-writing body and outcome.note"
+    },
+    {
+      "number": 337,
+      "status": "accepted",
+      "title": "An agent may reopen a closed arc: arc reopen records why, then flips the bit"
+    },
+    {
+      "number": 346,
+      "status": "accepted",
+      "title": "The capability claim becomes a real fence: waiting binds, story-grain session claims retire"
+    },
+    {
+      "number": 347,
+      "status": "accepted",
+      "title": "arc close refuses over open increments: draining the work is the closing act"
+    },
+    {
+      "number": 348,
+      "status": "accepted",
+      "title": "Human UAT witness narrows to taste — live-spend and outward-facing legs default to machine"
+    },
+    {
+      "number": 349,
+      "status": "accepted",
+      "title": "The floor-health readout is a small always-visible lamp on the map, not a band inside the arc drawer"
+    },
+    {
+      "number": 350,
+      "status": "accepted",
+      "title": "An event that caused another says so: causal edges on the event log"
+    },
+    {
+      "number": 351,
+      "status": "accepted",
+      "title": "The arc lane state stops implying a session it cannot see: `running` becomes `moving`, and `claimed` is a positive-only ledger join"
+    },
+    {
+      "number": 354,
+      "status": "accepted",
+      "title": "The context traversal replay lives in a bottom-panel tab beside the terminal, listed by trace not by claim"
+    },
+    {
+      "number": 355,
+      "status": "superseded",
+      "title": "Interactive Codex writes only in its current claimed worktree"
+    },
+    {
+      "number": 356,
+      "status": "accepted",
+      "title": "Codex promotes only an explicit finite phase target set"
+    },
+    {
+      "number": 357,
+      "status": "accepted",
+      "title": "Human UAT witness also covers surfaces no harness owns — every human leg states its basis"
+    },
+    {
+      "number": 363,
+      "status": "accepted",
+      "title": "The knowledge DAG excludes definitions and joins the work graph by projection"
+    },
+    {
+      "number": 364,
+      "status": "superseded",
+      "title": "Codex write authority is a standing worktrees grant narrowed by the live claim"
+    },
+    {
+      "number": 365,
+      "status": "accepted",
+      "title": "An increment stands on knowledge, not on its arc; uat-criterion joins the tier order"
+    },
+    {
+      "number": 368,
+      "status": "superseded",
+      "title": "The claim broker holds the credential the sandbox may not, and derives identity Git cannot be lied to about"
+    },
+    {
+      "number": 369,
+      "status": "accepted",
+      "title": "The arc domain owns its own package, and the arrow runs arc to drive"
+    },
+    {
+      "number": 372,
+      "status": "proposed",
+      "title": "check:ownership-totality earns its blocking rung, clearing ADR-0317 D2's bar"
+    },
+    {
+      "number": 373,
+      "status": "accepted",
+      "title": "The standsOn seed reads injected refList fields, not only see-also citations"
+    },
+    {
+      "number": 374,
+      "status": "accepted",
+      "title": "An arc can be PARKED, and an unclaimed arc is quiet rather than moving"
+    },
+    {
+      "number": 375,
+      "status": "superseded",
+      "title": "The resident claim authority lives in the desktop app, and the managed hook reads through it"
+    },
+    {
+      "number": 377,
+      "status": "accepted",
+      "title": "Arc folding defaults to a new arc; folding requires surface ownership"
+    },
+    {
+      "number": 378,
+      "status": "accepted",
+      "title": "A --real build refuses when its spec's brief asserts an existence claim the declared sourceFile falsifies"
+    },
+    {
+      "number": 379,
+      "status": "superseded",
+      "title": "The desktop hosts the Codex claim authority whenever the boundary is installed"
+    },
+    {
+      "number": 381,
+      "status": "accepted",
+      "title": "Unevidenced Codex hardening stops; the remaining work is exercise"
+    },
+    {
+      "number": 382,
+      "status": "accepted",
+      "title": "The 20-increment arc cap is withdrawn; placement discipline replaces it"
+    },
+    {
+      "number": 388,
+      "status": "accepted",
+      "title": "Suggestions-as-proposals is retired on the review surface — direct CriticMarkup editing is the answer"
+    },
+    {
+      "number": 390,
+      "status": "accepted",
+      "title": "Codex runs at Claude parity and the managed containment boundary is withdrawn"
+    },
+    {
+      "number": 393,
+      "status": "accepted",
+      "title": "The replay draws the orchestrator's own walk only: no prose, no subagent lanes, no unobservable rays"
+    },
+    {
+      "number": 395,
+      "status": "accepted",
+      "title": "Brown records provenance; proof absence does not invent it"
+    },
+    {
+      "number": 396,
+      "status": "accepted",
+      "title": "A retired story's UAT criteria are deleted with their ordinals burned — the body keeps the history, the criteria keep no obligation"
+    },
+    {
+      "number": 403,
+      "status": "accepted",
+      "title": "The decision log becomes ordinary artifacts in Postgres, and open-sourcing is deferred"
+    },
+    {
+      "number": 404,
+      "status": "accepted",
+      "title": "Dispatching a build is a CLI verb — retire the in-app Build and Adopt affordances"
+    },
+    {
+      "number": 405,
+      "status": "accepted",
+      "title": "The machine-UAT signing mechanism exists — UAT needs its own surface"
+    },
+    {
+      "number": 413,
+      "status": "accepted",
+      "title": "The context meter measures the orchestrator's own window; per-helper lanes wait until that shape is confirmed useful"
+    },
+    {
+      "number": 416,
+      "status": "accepted",
+      "title": "A proven story keeps its green while its capability set expands"
+    },
+    {
+      "number": 417,
+      "status": "accepted",
+      "title": "Machine acceptance signing is not brownfield adoption"
+    },
+    {
+      "number": 423,
+      "status": "accepted",
+      "title": "Adopt's status guard narrows to mapped; the resume path already exists elsewhere"
+    },
+    {
+      "number": 425,
+      "status": "accepted",
+      "title": "Studio commenting is retired until multiplayer"
+    },
+    {
+      "number": 426,
+      "status": "accepted",
+      "title": "apps/desktop stays on Electron — Electrobun is viable but buys nothing this arc is allowed to count"
+    },
+    {
+      "number": 435,
+      "status": "accepted",
+      "title": "Model-driven UAT walks run on the Claude subscription by default — Codex becomes the explicit selection"
+    },
+    {
+      "number": 437,
+      "status": "accepted",
+      "title": "A retired story's proof-credit fence tests whether the proof is still REAL — a green whose subject was deleted goes with its criterion"
+    },
+    {
+      "number": 439,
+      "status": "accepted",
+      "title": "No workflow is UI-only — every studio mutation has a CLI verb"
+    },
+    {
+      "number": 456,
+      "status": "accepted",
+      "title": "The context-window meter folds into the context traversal surface; the standalone Context tab retires"
+    },
+    {
+      "number": 464,
+      "status": "accepted",
+      "title": "Retire the citation-derived offer surface: search and depends_on become the discovery route"
+    },
+    {
+      "number": 465,
+      "status": "accepted",
+      "title": "Long-running unproven capabilities are adopted on the owner's risk acceptance, not proven"
+    },
+    {
+      "number": 467,
+      "status": "superseded",
+      "title": "The citation-derived pointer block is deleted, after search and the authored edge are repaired"
+    },
+    {
+      "number": 476,
+      "status": "accepted",
+      "title": "The traversal panel's depth reading is seeded from the graph's own surface"
+    },
+    {
+      "number": 477,
+      "status": "accepted",
+      "title": "The citation tier is retired: depends_on is the only edge, and provenance survives only as a frozen snapshot"
+    },
+    {
+      "number": 478,
+      "status": "accepted",
+      "title": "An unkillable mutant is adjudicated adversarially, not exempted"
+    },
+    {
+      "number": 483,
+      "status": "accepted",
+      "title": "The mutation rung names what it cannot witness: a cross-package mutant is unwitnessable, never survived"
+    },
+    {
+      "number": 484,
+      "status": "accepted",
+      "title": "storytree owns its own telemetry log in Postgres; the harness scraper is demoted to a labelled secondary source"
     }
   ]
 }
