@@ -1,15 +1,18 @@
 // forest-growth.ts — the forest's arrival.
 //
-// ⚠ WHAT THIS SUITE IS FOR. Two of the three things that can go wrong here are INVISIBLE to anyone
-// running a browser with JavaScript on, which is everyone who reviews this:
+// ⚠ WHAT THIS SUITE IS FOR. Most of what can go wrong here is INVISIBLE to anyone running a browser
+// with JavaScript on, which is everyone who reviews this:
 //
 //   1. the parked state escaping its `is-growing` scope, which hides the whole map from a visitor
 //      whose script never runs while looking perfect to everybody else;
 //   2. an island dropped from the schedule, which leaves part of the forest permanently invisible
-//      on a page whose pitch is that the map is complete.
-//
-// The third — the reveal running long enough to read as a live feed rather than a picture
-// assembling — is the honesty fence in the module header.
+//      on a page whose pitch is that the map is complete;
+//   3. a trail segment parked and never drawn, which is the same failure one layer down and is
+//      STRICTLY EASIER to commit now that a segment's parked state is a `stroke-dashoffset` rather
+//      than a group opacity;
+//   4. the reveal running long enough to read as a live feed rather than a picture assembling,
+//      which is the honesty fence (ADR-0491) and which edge scheduling pushes on in a way the old
+//      wave schedule could not.
 //
 // ⚠ `bun test` TRANSPILES AND DOES NOT TYPECHECK. `npm run typecheck` covers this file.
 
@@ -18,23 +21,73 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
+  DRAWING_CLASS,
+  DRAW_REVERSED_CLASS,
   GROWING_CLASS,
+  GROWTH_TUNING,
   ISLAND_LAYERS,
   LAND_LAYERS,
-  NESTED_LAYERS,
-  MS_GROWTH_FLORA_OFFSET,
-  GROWTH_WAVES,
-  MS_GROWTH_ISLAND,
+  MS_GROWTH_CEILING,
   MS_GROWTH_LEAD_IN,
-  MS_GROWTH_TRAILS,
-  MS_GROWTH_WAVE,
-  growthTotalMs,
-  islandDelayMs,
-  trailsDelayMs,
-  waveOf,
+  NESTED_LAYERS,
+  TRAIL_PASSES,
+  deriveGrowthPlan,
+  parseSegmentChain,
+  type GrowthEdge,
+  type GrowthGraph,
 } from './forest-growth';
+import { TELL_SCRIPT, beatStarts } from './act2-tell';
 
 const page = (): string => readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
+/**
+ * The stylesheet with its comments removed.
+ *
+ * ⚠ EVERY SELECTOR SCAN BELOW MUST USE THIS. A rule is matched as "anything up to a `{`", and this
+ * file's comments sit directly above their rules and quote the very class names being searched for
+ * — so the un-stripped text hands a scan a "selector" made of prose. Found by seeding the fault
+ * these scans exist for: the `.is-drawing` check read a comment mentioning `.tw-trail-fill` as if
+ * it were a selector, and reported on that instead of on the rule.
+ */
+const styleRules = (): string => page().replace(/\/\*[\s\S]*?\*\//g, '');
+const emitter = (): string => readFileSync(new URL('../lib/worldSvg.ts', import.meta.url), 'utf8');
+
+// ── graph fixtures ──────────────────────────────────────────────────────────
+
+/** A graph whose segment lengths are all the fallback, so pacing is deterministic here. */
+function graphOf(storyIds: readonly string[], edges: readonly GrowthEdge[]): GrowthGraph {
+  return { storyIds, edges, segmentLengths: new Map() };
+}
+function edge(from: string, to: string, segs = 1): GrowthEdge {
+  return {
+    from,
+    to,
+    segments: Array.from({ length: segs }, (_, i) => ({ id: `${from}-${to}-${i}`, reversed: false })),
+  };
+}
+/** A → B → C → … : the deepest possible graph for `n` islands, and the worst case for a schedule
+ *  whose length is a property of the longest chain. */
+function chain(n: number): GrowthGraph {
+  const ids = Array.from({ length: n }, (_, i) => `s${i}`);
+  return graphOf(ids, ids.slice(1).map((id, i) => edge(`s${i}`, id)));
+}
+/** One base island, everything else hanging directly off it — the shallowest non-trivial graph. */
+function star(n: number): GrowthGraph {
+  const ids = Array.from({ length: n }, (_, i) => `s${i}`);
+  return graphOf(ids, ids.slice(1).map((id) => edge('s0', id)));
+}
+/** `layers` ranks of `width` islands, fully connected rank to rank — the shape a real corpus is
+ *  closest to, and the one that produces the most pathways. */
+function layered(layers: number, width: number): GrowthGraph {
+  const ids: string[] = [];
+  for (let l = 0; l < layers; l += 1) for (let w = 0; w < width; w += 1) ids.push(`l${l}w${w}`);
+  const edges: GrowthEdge[] = [];
+  for (let l = 1; l < layers; l += 1) {
+    for (let w = 0; w < width; w += 1) {
+      for (let p = 0; p < width; p += 1) edges.push(edge(`l${l - 1}w${p}`, `l${l}w${w}`, 2));
+    }
+  }
+  return graphOf(ids, edges);
+}
 
 // ── the layers an island is actually made of ────────────────────────────────
 
@@ -50,9 +103,8 @@ test('TEETH: every per-island layer the ENGINE emits is animated — none is lef
   // probe counted `.tw-isle` too, and agreed with it). This reads `worldSvg.ts` — the function
   // that writes these groups — and asks which classes it stamps a `data-id` onto, because
   // `data-id` is exactly the marker that says "this group belongs to one story".
-  const emitter = readFileSync(new URL('../lib/worldSvg.ts', import.meta.url), 'utf8');
   const emitted = new Set<string>();
-  for (const m of emitter.matchAll(/<g class="(tw-[a-z-]+)[^"]*"[^`]*?data-id=/g)) {
+  for (const m of emitter().matchAll(/<g class="(tw-[a-z-]+)[^"]*"[^`]*?data-id=/g)) {
     if (m[1] !== undefined) emitted.add(m[1]);
   }
   assert.ok(emitted.size >= 3, `only found ${emitted.size} per-island layers in worldSvg.ts — the extractor has gone blind`);
@@ -94,97 +146,261 @@ test('the trees are not scaled — a fixed origin would slide them off their own
   assert.ok(!/transform-box|scale\(/.test(terr[1] ?? ''), 'the flora layer is being scaled about a fixed origin');
   for (const land of LAND_LAYERS) {
     assert.ok(
-      new RegExp(`\\.${land},?[\\s\\S]{0,120}?transform-box:\\s*fill-box`).test(css),
+      new RegExp(`\\.${land},?[\\s\\S]{0,140}?transform-box:\\s*fill-box`).test(css),
       `${land} should scale about its own fill-box centre`,
     );
   }
-  // The offset must also be IN the stylesheet, and agree — the module's constant is what the
-  // schedule and the ceiling are computed from, the CSS is what actually runs.
-  const off = /calc\(var\(--grow-delay,\s*0ms\)\s*\+\s*(\d+)ms\)/.exec(css);
-  assert.ok(off !== null, 'the flora rule does not offset itself from its island at all');
-  assert.equal(Number(off[1]), MS_GROWTH_FLORA_OFFSET, 'the CSS flora offset and the module constant disagree');
+  assert.ok(
+    (terr[1] ?? '').includes('--flora-delay'),
+    'the flora rule does not read the per-island flora delay the module stamps',
+  );
   // Enough that the land is essentially settled before an unscaled tree becomes readable on it.
   assert.ok(
-    MS_GROWTH_FLORA_OFFSET >= MS_GROWTH_ISLAND * 0.4,
-    `the trees start ${MS_GROWTH_FLORA_OFFSET}ms in while the land takes ${MS_GROWTH_ISLAND}ms — a full-size tree on a part-grown disc`,
+    GROWTH_TUNING.floraOffsetMs >= GROWTH_TUNING.islandGrowthMs * 0.4,
+    `the trees start ${GROWTH_TUNING.floraOffsetMs}ms in while the land takes ` +
+      `${GROWTH_TUNING.islandGrowthMs}ms — a full-size tree on a part-grown disc`,
   );
+});
+
+test('TEETH: the island growth no longer overshoots — an overshoot reads as landing, not growing', () => {
+  // The owner's words were that the islands "pop up". The previous curve was
+  // `cubic-bezier(0.34, 1.32, 0.44, 1)`: it passes final size and comes back. That is the shape of
+  // something arriving, and no amount of extra duration removes it — a slow pop is still a pop.
+  const css = page();
+  const rule = /\.forest-arrival-svg\.is-growing \.tw-ground \{([^}]*)\}/.exec(css);
+  assert.ok(rule !== null, 'no growth rule for the land');
+  const curve = /cubic-bezier\(([^)]*)\)/.exec(rule[1] ?? '');
+  assert.ok(curve !== null, 'the land growth has no named easing curve');
+  const points = (curve[1] ?? '').split(',').map((n) => Number(n.trim()));
+  assert.equal(points.length, 4, 'unreadable easing curve');
+  for (const p of [points[1], points[3]]) {
+    assert.ok(p !== undefined && p <= 1, `the easing overshoots (control point ${p}) — the islands will pop`);
+  }
+});
+
+// ── reading the graph off the page ──────────────────────────────────────────
+
+test('TEETH: the emitter still stamps everything the schedule reads off the DOM', () => {
+  // ⚠ THE SCHEDULE READS THE DEPENDENCY GRAPH OUT OF THE SERVED MARKUP AND SHIPS NO OTHER COPY OF
+  // IT. That is the property worth having — nothing can disagree with the picture it animates — and
+  // its cost is that the reader is coupled to attribute names written one repo up and copied here
+  // by `sync:web-engine`. A rename there would leave `readGrowthGraph` finding zero edges, which
+  // does not throw: every island would become a base island and the whole forest would arrive at
+  // once, looking like a fade. This is the check that reds instead.
+  const src = emitter();
+  for (const attr of ['data-from', 'data-to', 'data-segments']) {
+    assert.ok(
+      new RegExp(`tw-trail-edge[\\s\\S]{0,400}?${attr}=`).test(src),
+      `worldSvg.ts no longer stamps ${attr} on tw-trail-edge — the schedule reads it`,
+    );
+  }
+  // ⚠ THE PASS LIST IS DERIVED, NOT TYPED HERE — same reason as the island layers above. The
+  // emitter writes all four passes through ONE branch (`class="tw-${k}"`), so the literal class
+  // names never appear next to `data-id`; what identifies them is the kind guard. A FIFTH pass
+  // added upstream would otherwise arrive unscheduled and jump into place mid-arrival.
+  const passBranch = /\(\s*((?:k === 'trail-[a-z]+'\s*\|\|\s*)*k === 'trail-[a-z]+')\s*\)\s*\)\s*\{[\s\S]{0,400}?data-id=/.exec(src);
+  assert.ok(passBranch !== null, 'could not find the trail-pass emit branch in worldSvg.ts');
+  const emittedPasses = [...(passBranch[1] ?? '').matchAll(/'(trail-[a-z]+)'/g)].map((m) => `tw-${m[1]}`);
+  assert.ok(emittedPasses.length >= 3, `only found ${emittedPasses.length} trail passes — the extractor has gone blind`);
+  const unscheduled = emittedPasses.filter((p) => !(TRAIL_PASSES as readonly string[]).includes(p));
+  assert.deepEqual(
+    unscheduled,
+    [],
+    `worldSvg.ts emits trail pass(es) the schedule never stamps: ${unscheduled.join(', ')}`,
+  );
+  assert.ok(
+    /class="tw-ground[^"]*" data-id=/.test(src),
+    'worldSvg.ts no longer stamps data-id on tw-ground — the island list is read from it',
+  );
+});
+
+test("TEETH: the chain encoding this parses is the one the engine writes", () => {
+  // `data-segments` is `id:F,id:R`, and the F/R is what decides which END a road grows from. If the
+  // engine's encoding changed, `parseSegmentChain` would read every hop as forward and half the
+  // network would draw backwards — visible, but only to someone watching closely, and nothing
+  // would fail. The encoding lives in the SYNCED engine, so this reads it there.
+  const scene = readFileSync(new URL('../lib/forest-world/scene.ts', import.meta.url), 'utf8');
+  assert.ok(
+    /reversed\s*\?\s*'R'\s*:\s*'F'/.test(scene),
+    "the engine no longer encodes a reversed hop as 'R' — parseSegmentChain reads it as forward",
+  );
+  assert.ok(
+    /segments:\s*e\.segments\.map[\s\S]{0,120}?\.join\(','\)/.test(scene),
+    'the engine no longer joins the chain with commas',
+  );
+  assert.deepEqual(parseSegmentChain('ta:F,tb:R,tc:F'), [
+    { id: 'ta', reversed: false },
+    { id: 'tb', reversed: true },
+    { id: 'tc', reversed: false },
+  ]);
+  // Tolerant, on purpose: a chain that gained a field must not take the whole arrival down.
+  assert.deepEqual(parseSegmentChain(''), []);
+  assert.deepEqual(parseSegmentChain(null), []);
+  assert.deepEqual(parseSegmentChain('ta'), [{ id: 'ta', reversed: false }]);
 });
 
 // ── the schedule ────────────────────────────────────────────────────────────
 
-test('TEETH: every island gets a wave — none is dropped from the schedule', () => {
-  // The failure: an off-by-one or a `waves` larger than `count` leaves an island with no delay, or
-  // with one past the moment the armed class is removed. Either way that island never appears, and
-  // nothing on the page says so. Checked across corpus sizes because today's 35 is not a promise.
-  for (const count of [1, 2, 3, 7, 8, 35, 36, 200]) {
-    const waves = new Set<number>();
-    for (let i = 0; i < count; i += 1) {
-      const w = waveOf(i, count);
-      assert.ok(Number.isInteger(w) && w >= 0 && w < GROWTH_WAVES, `island ${i}/${count} got wave ${w}`);
+test('TEETH: every island gets a window — none is dropped from the schedule', () => {
+  // The failure: an island the walk never reaches gets no delay, or one past the moment the armed
+  // class is removed. Either way that island never appears, and nothing on the page says so.
+  // Checked across shapes because today's corpus is not a promise — including a graph with a CYCLE,
+  // which is the shape that can strand an island off the map entirely.
+  const cyclic = graphOf(
+    ['a', 'b', 'c', 'd'],
+    [edge('a', 'b'), edge('c', 'd'), edge('d', 'c')], // c and d depend on each other; nothing reaches them
+  );
+  for (const g of [chain(1), chain(2), chain(35), star(35), layered(6, 6), cyclic]) {
+    for (const id of g.storyIds) {
+      const island = deriveGrowthPlan(g).islands.get(id);
+      assert.ok(island !== undefined, `island ${id} has no window at all`);
       assert.ok(
-        islandDelayMs(i, count) + MS_GROWTH_ISLAND <= growthTotalMs(count),
-        `island ${i}/${count} finishes after the arrival is declared over`,
+        island.floraEndMs <= deriveGrowthPlan(g).totalMs + 0.5,
+        `island ${id} is still growing after the arrival is declared over`,
       );
-      waves.add(w);
+      assert.ok(island.startMs >= MS_GROWTH_LEAD_IN - 0.5, `island ${id} starts before the lead-in`);
     }
-    assert.ok(waves.size <= GROWTH_WAVES);
-    assert.equal(waveOf(0, count), 0, 'the foundation row is not in the first wave');
+  }
+  // And the cycle is REPORTED rather than silently smoothed over.
+  const plan = deriveGrowthPlan(cyclic);
+  assert.deepEqual([...plan.unreachedStoryIds].sort(), ['c', 'd']);
+  for (const id of plan.unreachedStoryIds) {
+    assert.equal(plan.islands.get(id)?.reach, 'unreached');
   }
 });
 
-test('the order is foundations first — a later island never arrives before an earlier one', () => {
-  // The islands are in the build's own placement order, which is dependency rank from the bottom
-  // up. The reveal has to preserve that or it stops being a true statement about the forest.
-  const count = 35;
-  for (let i = 1; i < count; i += 1) {
+test('TEETH: every routed segment gets a draw window — no road is parked for good', () => {
+  // The sharper half of the same failure. A segment is parked by `stroke-dashoffset`, so a segment
+  // the walk never reached would be invisible for the whole session, on a map whose pitch is that
+  // it is complete. Every segment named by an edge between two islands on the map must be drawn.
+  const g = layered(5, 4);
+  const plan = deriveGrowthPlan(g);
+  const named = new Set(g.edges.flatMap((e) => e.segments.map((s) => s.id)));
+  const missing = [...named].filter((id) => !plan.segments.has(id));
+  assert.deepEqual(missing, [], `${missing.length} routed segment(s) never draw: ${missing.slice(0, 5).join(', ')}`);
+  for (const [id, seg] of plan.segments) {
+    assert.ok(seg.endMs > seg.startMs, `segment ${id} draws in zero time`);
+    assert.ok(seg.endMs <= plan.totalMs + 0.5, `segment ${id} is still drawing after the arrival ends`);
+  }
+});
+
+test('TEETH: the order follows the EDGE — a road leaves a settled island, and an island waits for its road', () => {
+  // The causal invariant, and the whole point of the increment. Under the retired wave schedule an
+  // island's start time came from its RANK; here it comes from an arrival, which is what makes the
+  // forest read as growing out of something rather than being uncovered in strips.
+  const plan = deriveGrowthPlan(layered(5, 4));
+  const eps = 0.5;
+  for (const p of plan.pathways) {
+    const source = plan.islands.get(p.from);
+    assert.ok(source !== undefined);
     assert.ok(
-      islandDelayMs(i, count) >= islandDelayMs(i - 1, count),
-      `island ${i} grows before island ${i - 1} — the dependency order is not preserved`,
+      p.startMs >= source.endMs - eps,
+      `the pathway ${p.from} → ${p.to} leaves before ${p.from} has settled — an edge preceding its own end`,
     );
   }
-  assert.ok(
-    islandDelayMs(count - 1, count) > islandDelayMs(0, count),
-    'every island arrives at once — there is no growth, only a fade',
-  );
+  for (const [id, island] of plan.islands) {
+    if (island.reach !== 'pathway') continue;
+    const arrivals = plan.pathways.filter((p) => p.to === id).map((p) => p.endMs);
+    assert.ok(arrivals.length > 0, `${id} is reached by a pathway but no pathway names it`);
+    assert.ok(
+      Math.abs(island.startMs - Math.min(...arrivals)) < eps,
+      `${id} starts at ${island.startMs} but its first road arrives at ${Math.min(...arrivals)} — ` +
+        'something other than the arrival is gating it',
+    );
+  }
 });
 
-test('the trails follow the islands they connect — an edge never precedes both its ends', () => {
-  const count = 35;
+test('TEETH: it is ONE arrival, not islands and then trails', () => {
+  // The owner's second complaint, as a property. The retired schedule waited for the LAST island
+  // before drawing ANY edge, so the reveal was two animations queued. Under edge scheduling most
+  // islands must arrive AFTER roads have started drawing, or the mechanism has silently reverted.
+  const plan = deriveGrowthPlan(layered(5, 4));
+  const firstRoad = Math.min(...plan.pathways.map((p) => p.startMs));
+  const after = [...plan.islands.values()].filter((i) => i.startMs > firstRoad).length;
+  const total = plan.islands.size;
   assert.ok(
-    trailsDelayMs(count) >= islandDelayMs(count - 1, count) + MS_GROWTH_ISLAND,
-    'the trails phase in while islands are still arriving',
+    after / total >= 0.6,
+    `only ${after}/${total} islands arrive after the first road starts drawing — the reveal is back in phases`,
   );
+  // And the converse: roads are still drawing while islands are still arriving.
+  const lastIsland = Math.max(...[...plan.islands.values()].map((i) => i.startMs));
+  const drawingThen = plan.pathways.filter((p) => p.startMs <= lastIsland && p.endMs >= lastIsland).length;
+  assert.ok(drawingThen > 0, 'no road is mid-draw when the last island arrives — the two are queued, not woven');
 });
 
 test('TEETH: the arrival is BOUNDED and stays a reveal, not a live feed', () => {
-  // ⚠ THE HONESTY FENCE, AS A NUMBER. The map is a snapshot stamped with a date, and the page's
-  // whole pitch is that its signals are real. A reveal that runs long enough to be mistaken for a
-  // forest still filling in breaks exactly that claim — the same reason wisps were excluded from
-  // the snapshot. The ceiling is what stops "make it more visible" walking the total upward one
-  // reasonable step at a time.
+  // ⚠ THE HONESTY FENCE, AS A NUMBER (ADR-0491). The map is a snapshot stamped with a date, and the
+  // page's whole pitch is that its signals are real. A reveal that runs long enough to be mistaken
+  // for a forest still filling in breaks exactly that claim — the same reason wisps were excluded
+  // from the snapshot.
   //
-  // It also has to hold as the corpus GROWS, which is why this is per-count: the retired walk's
-  // per-island 0.22s law was fine over three stories and takes 7.5s over today's 35.
-  for (const count of [3, 35, 200, 2000]) {
-    const total = growthTotalMs(count);
-    assert.ok(total <= 4000, `${count} islands take ${total}ms to arrive — that is a wait, not an arrival`);
-    assert.ok(total > MS_GROWTH_LEAD_IN, `${count} islands: the growth has no duration at all`);
+  // ⚠ EDGE SCHEDULING IS WHY THIS MATTERS MORE THAN IT USED TO. A wave schedule's length is fixed
+  // by construction; this one is a property of the GRAPH, so without the ceiling it would lengthen
+  // quietly every time the corpus deepened and no single commit would have done it. The deep chain
+  // below is the shape that proves the compression actually bites rather than being decorative.
+  const shapes: [string, GrowthGraph][] = [
+    ['a lone island', chain(1)],
+    ['three in a line', chain(3)],
+    ["today's depth over today's count", layered(12, 3)],
+    ['a wide flat corpus', star(200)],
+    ['a very deep chain', chain(200)],
+    ['a large layered corpus', layered(20, 100)],
+  ];
+  for (const [name, g] of shapes) {
+    const plan = deriveGrowthPlan(g);
+    assert.ok(
+      plan.totalMs <= MS_GROWTH_CEILING,
+      `${name}: the arrival takes ${Math.round(plan.totalMs)}ms — that is a wait, not an arrival`,
+    );
+    assert.ok(plan.totalMs > MS_GROWTH_LEAD_IN, `${name}: the growth has no duration at all`);
   }
-  // Waves, not per-island: the total must not scale with the corpus.
-  assert.equal(growthTotalMs(35), growthTotalMs(2000), 'the arrival gets longer as the corpus grows');
+  assert.ok(
+    deriveGrowthPlan(chain(200)).compression < 1,
+    'a 200-deep chain is not compressed at all — the ceiling is not connected to anything',
+  );
+  // Compression scales the whole plan by ONE factor, so the causal order survives it. If it ever
+  // stopped doing that, a compressed corpus would draw roads into islands that had not settled.
+  const deep = deriveGrowthPlan(chain(60));
+  for (const p of deep.pathways) {
+    assert.ok(
+      p.startMs >= (deep.islands.get(p.from)?.endMs ?? 0) - 0.5,
+      'compression broke the causal order — a road leaves before its island has settled',
+    );
+  }
 });
 
-test('the growth finishes around the first thing TELL says, not long after it', () => {
-  // Timed overlap, asserted rather than left to drift: the name beat lands while the last waves are
-  // still arriving. If MS_LEAD_IN is retuned without looking here, the site either says its name to
-  // an empty board or waits in silence for a settled one.
-  const src = readFileSync(new URL('./act2-tell.ts', import.meta.url), 'utf8');
-  const m = /export const MS_LEAD_IN = (\d+);/.exec(src);
-  assert.ok(m !== null, 'could not read MS_LEAD_IN out of act2-tell.ts');
-  const leadIn = Number(m[1]);
-  const total = growthTotalMs(35);
-  assert.ok(leadIn < total, `TELL starts at ${leadIn}ms, after the whole arrival ends at ${total}ms`);
-  assert.ok(leadIn > MS_GROWTH_LEAD_IN, `TELL starts at ${leadIn}ms, before the first island arrives`);
+test('TEETH: the ceiling is anchored to the page, not to taste — the arrival ends inside the first argued sentence', () => {
+  // ⚠ WHY 7.2 SECONDS. The number is not a feeling about animation length; it is where this page
+  // stops being a picture and starts being an argument.
+  //
+  // TELL's first beat is nothing but the product's name held over the map — its own header says the
+  // overlap with a still-arriving forest is the designed opening. Its SECOND beat is the first
+  // thing the visitor has to actually read and hold, and motion behind prose that keeps going while
+  // you read is precisely what reads as live rather than as an assembly you watched.
+  //
+  // This reads the real script, so a re-timed pitch moves the fence or reds the branch. That is the
+  // whole reason the ceiling is checked here rather than just asserted as a constant.
+  const facts = { stories: 35, proven: 12, capabilities: 140 };
+  const starts = beatStarts(TELL_SCRIPT, facts as never);
+  const argueAt = starts[1];
+  assert.ok(argueAt !== undefined, 'could not read when TELL starts arguing');
+  assert.ok(
+    MS_GROWTH_CEILING > argueAt,
+    `the ceiling (${MS_GROWTH_CEILING}ms) is before TELL's second beat (${Math.round(argueAt)}ms) — ` +
+      'the forest would be settled before the page has said its own name over it',
+  );
+  // The first sentence of the first argued beat, at the site's own reading rate plus the fade it
+  // has to be acquired through. The arrival must be over before the visitor finishes it.
+  const firstArgued = TELL_SCRIPT[1];
+  assert.ok(firstArgued !== undefined, 'TELL has no second beat');
+  const line = (firstArgued.lines ?? [])[0] ?? '';
+  assert.ok(line.length > 0, 'the second beat has no first line to read');
+  const readable = argueAt + 360 + (line.length / 13) * 1000;
+  assert.ok(
+    MS_GROWTH_CEILING <= readable,
+    `the ceiling (${MS_GROWTH_CEILING}ms) runs past the first sentence the page argues ` +
+      `(readable by ${Math.round(readable)}ms) — the visitor reads it against a forest still moving`,
+  );
 });
 
 // ── the no-script guarantee ─────────────────────────────────────────────────
@@ -199,13 +415,14 @@ test('TEETH: the parked state never escapes the armed class — no-script keeps 
   // Selector lists span lines (several layers share one rule), so the selector half of the match
   // deliberately allows newlines — an earlier line-bound version silently matched nothing and
   // reported a confident pass, which is the same blindness this file is here to prevent.
-  const rules = [...css.matchAll(/([^{}]*\.tw-(?:isle|ground|terr|trails)\b[^{}]*)\{([^}]*)\}/g)];
+  const rules = [...styleRules().matchAll(/([^{}]*\.tw-(?:isle|ground|terr|trails|trail-fill|trail-shadow|trail-casing|trail-ghost)\b[^{}]*)\{([^}]*)\}/g)];
   const growthRules = rules.filter(([, , body]) =>
     // A FULL hide (`opacity: 0`), not a dim — TELL's lenses legitimately set 0.62 on the same
-    // selectors, and matching those would make this test fail for a reason it is not about.
-    /animation:\s*act2-forest-|opacity:\s*0\s*(?:;|$)/.test(body ?? ''),
+    // selectors, and matching those would make this test fail for a reason it is not about. The
+    // dash pair is the trail half's equivalent of a full hide.
+    /animation:\s*act2-(?:forest|trail)-|opacity:\s*0\s*(?:;|$)|stroke-dasharray:\s*1 1/.test(body ?? ''),
   );
-  assert.ok(growthRules.length >= 2, 'the growth rules are not in index.astro at all');
+  assert.ok(growthRules.length >= 3, 'the growth rules are not in index.astro at all');
   for (const [, selector, body] of growthRules) {
     assert.ok(
       (selector ?? '').includes(`.${GROWING_CLASS}`),
@@ -214,18 +431,62 @@ test('TEETH: the parked state never escapes the armed class — no-script keeps 
   }
 });
 
-test('the growth keyframes and the schedule constants agree with each other', () => {
-  // The durations live in two places by necessity — the CSS cannot be imported here. This is the
-  // same joint act2-tell.test.ts holds for the prose fade, and it fails the same way: silently.
+test('TEETH: a segment the schedule never named keeps painting — the parked state hangs off .is-drawing', () => {
+  // ⚠ THE SECOND, SHARPER NO-SCRIPT FAILURE, AND IT SURVIVES SCRIPT RUNNING. If the dash-park were
+  // written against `.tw-trail-fill` rather than `.tw-trail-fill.is-drawing`, any segment the walk
+  // did not reach — an edge into a story dropped from the snapshot, a router change, a cycle —
+  // would be parked at `stroke-dashoffset: 1` and never revealed. The road would simply be gone,
+  // and the page would look finished.
   const css = page();
-  const isle = /animation:\s*act2-forest-grow\s+(\d+)ms/.exec(css);
-  const trails = /animation:\s*act2-forest-trails\s+(\d+)ms/.exec(css);
-  assert.ok(isle !== null, 'could not find the island growth animation in index.astro');
-  assert.ok(trails !== null, 'could not find the trail reveal animation in index.astro');
-  assert.equal(Number(isle[1]), MS_GROWTH_ISLAND, 'the island animation and MS_GROWTH_ISLAND disagree');
-  assert.equal(Number(trails[1]), MS_GROWTH_TRAILS, 'the trail animation and MS_GROWTH_TRAILS disagree');
-  assert.ok(css.includes('--grow-delay'), 'the CSS never reads the per-island delay the module stamps');
-  assert.ok(MS_GROWTH_WAVE > 0, 'the waves land simultaneously');
+  const parked = [...styleRules().matchAll(/([^{}]*\.tw-trail-(?:fill|shadow|casing|ghost)\b[^{}]*)\{([^}]*)\}/g)].filter(
+    ([, , body]) => /stroke-dasharray:\s*1 1|animation:\s*act2-trail-draw/.test(body ?? ''),
+  );
+  assert.ok(parked.length >= 1, 'the trail draw-on is not in index.astro at all');
+  // ⚠ PER SELECTOR IN THE LIST, NOT PER RULE. These rules carry one selector per pass, comma
+  // separated. An earlier version of this check asked whether the whole LIST mentioned
+  // `.is-drawing` — which stays true when a single pass loses it, so the one fault that matters
+  // survived the check. Seeded and confirmed: dropping `.is-drawing` from just `.tw-trail-fill`
+  // passed. Split first.
+  let checked = 0;
+  for (const [, selectorList] of parked) {
+    for (const selector of (selectorList ?? '').split(',')) {
+      if (!/\.tw-trail-(?:fill|shadow|casing|ghost)\b/.test(selector)) continue;
+      checked += 1;
+      assert.ok(
+        selector.includes(`.${DRAWING_CLASS}`),
+        `a trail park rule matches every segment, not only scheduled ones:\n  ${selector.trim()}`,
+      );
+    }
+  }
+  assert.ok(checked >= TRAIL_PASSES.length, `only ${checked} trail selectors examined — the extractor has gone blind`);
+  assert.ok(
+    css.includes(DRAW_REVERSED_CLASS),
+    'the stylesheet has no rule for a segment drawn from its far end — half the network draws backwards',
+  );
+});
+
+test('the stylesheet reads every custom property the module stamps, and its fallbacks match the tuning', () => {
+  // The durations live in two places by necessity — the CSS cannot be imported here, and the module
+  // cannot read the CSS. This is the same joint act2-tell.test.ts holds for the prose fade, and it
+  // fails the same way: silently. The fallbacks are what a segment or island gets if the stamp ever
+  // fails to land, so they must be the real numbers rather than a placeholder.
+  const css = page();
+  for (const prop of ['--grow-delay', '--grow-dur', '--flora-delay', '--draw-delay', '--draw-dur']) {
+    assert.ok(css.includes(`var(${prop}`), `the CSS never reads ${prop}, which the module stamps`);
+  }
+  const growDur = /var\(--grow-dur,\s*(\d+)ms\)/.exec(css);
+  assert.ok(growDur !== null, 'the island growth has no duration fallback');
+  assert.equal(
+    Number(growDur[1]),
+    GROWTH_TUNING.islandGrowthMs,
+    'the CSS growth fallback and GROWTH_TUNING.islandGrowthMs disagree',
+  );
+  for (const pass of TRAIL_PASSES) {
+    assert.ok(
+      new RegExp(`\\.${pass}\\.${DRAWING_CLASS}`).test(css),
+      `${pass} is stamped by the module but has no draw rule — a pass un-hidden later would jump`,
+    );
+  }
 });
 
 test('reduced motion turns the arrival off in the stylesheet as well as in the module', () => {
@@ -233,10 +494,12 @@ test('reduced motion turns the arrival off in the stylesheet as well as in the m
   // stylesheet must not be the ONLY thing between a reduced-motion visitor and an animation, nor
   // the only thing that is not.
   const css = page();
-  const block = /@media \(prefers-reduced-motion: reduce\)([\s\S]*?)\n  \}/.exec(css);
+  const block = /@media \(prefers-reduced-motion: reduce\)([\s\S]*?)\n  \}\n/.exec(css);
   assert.ok(block !== null, 'index.astro has no reduced-motion block');
+  const body = block[1] ?? '';
+  assert.ok(/is-growing[\s\S]*?animation:\s*none/.test(body), 'reduced motion does not disable the forest growth');
   assert.ok(
-    /is-growing[\s\S]*?animation:\s*none/.test(css),
-    'reduced motion does not disable the forest growth animation',
+    /is-drawing[\s\S]*?stroke-dashoffset:\s*0/.test(body),
+    'reduced motion leaves the trail segments parked by their dash offset — the roads would be missing',
   );
 });
