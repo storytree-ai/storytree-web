@@ -782,6 +782,15 @@ export interface TellOptions {
   readonly stage: TellStage;
   /** True when the visitor asked for less motion. See `mountTell` for what that changes. */
   readonly reducedMotion: boolean;
+  /**
+   * Called once when the sequence is over, however it ended — run to the end, skipped, or torn down
+   * by the storm's disarm. ASK reveals the site's ending on it.
+   *
+   * ⚠ IT FIRES ON EVERY EXIT, WHICH IS THE ONLY VERSION OF THIS THAT IS SAFE. A callback wired only
+   * to the natural end would hide the site's one outbound link from every visitor who skipped — the
+   * visitors most likely to have decided early that they wanted it.
+   */
+  readonly onDone?: (() => void) | undefined;
 }
 
 export interface TellHandle {
@@ -901,6 +910,13 @@ function el<K extends keyof HTMLElementTagNameMap>(
  */
 export function mountTell(opts: TellOptions): TellHandle {
   const { host, map, stage, reducedMotion } = opts;
+  /** Fired exactly once, on whichever exit happens first — see `TellOptions.onDone`. */
+  let done = false;
+  const signalDone = (): void => {
+    if (done) return;
+    done = true;
+    opts.onDone?.();
+  };
 
   const facts = readForestFacts(map);
   if (facts === null) return { unmount(): void {} };
@@ -1119,6 +1135,7 @@ export function mountTell(opts: TellOptions): TellHandle {
     layer.classList.add('is-over');
     clearLens();
     unlock();
+    signalDone();
     stage.resetView();
     timers.push(
       window.setTimeout(() => {
@@ -1165,6 +1182,9 @@ export function mountTell(opts: TellOptions): TellHandle {
     }
     column.replaceChildren(all);
     layer.classList.add('is-static');
+    // There is no sequence to end, so the ending is available at once. A visitor who asked for less
+    // motion is not asking to be shown less of the site.
+    signalDone();
     // ⚠ AND NO LOCK. There is no sequence to protect here and, decisively, no `finish()` will ever
     // run to take one off — a lock on this branch would be permanent. The static column is
     // `pointer-events: none` like the rest of the overlay, so the map underneath stays fully live,
@@ -1192,6 +1212,11 @@ export function mountTell(opts: TellOptions): TellHandle {
       // is the branch a mid-sequence Escape takes. Leaving the lock on here would strand the visitor
       // with a map they cannot touch and no overlay left to explain why.
       unlock();
+      // ⚠ AND HERE TOO, not only in `finish`. `unmount` is the storm's disarm path and it does NOT
+      // route through `finish`, so a visitor who leaves chapter 2 by Escape would otherwise be the
+      // one visitor the site never offers its ending to. `signalDone` is once-only, so the common
+      // path — finish, then unmount later — still fires exactly one.
+      signalDone();
       skip.removeEventListener('click', stop);
       host.removeEventListener('pointerdown', onLockedReach);
       host.removeEventListener('wheel', onLockedReach);

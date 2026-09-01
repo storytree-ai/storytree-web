@@ -269,6 +269,23 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
           storytree grows software as a living map of the system, watched as it happens. This is
           the plain-text door; the full guided experience needs JavaScript and motion.
         </p>
+        <!-- The site's ending, on the path that has no script (ADR-0493 D1). act2-ask builds the
+             same link at runtime for the guided experience; here it is plain markup, because a
+             visitor whose script never runs is one this site genuinely serves and would otherwise
+             be the only one with nothing to do at the end. `act2-ask.test.ts` asserts the two hrefs
+             are the SAME value rather than trusting them to match — a contact link that is right in
+             one place and mistyped in the other is a defect nothing else on this page can detect.
+             Register is collaboration, never notification (D4): we hold no list, so the copy must
+             not imply one exists. Nothing is captured (D2/D3) — an outbound hyperlink, no form, no
+             endpoint, no third-party script. -->
+        <p class="fallback__ask">
+          One person, building this in the open.
+          <a
+            class="ask-link"
+            href="https://www.linkedin.com/in/mick-hua-353353a/"
+            target="_blank"
+            rel="noopener noreferrer">Want in? Say hello on LinkedIn →</a>
+        </p>
       </div>
     </section>
   </div>
@@ -308,6 +325,13 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     font-size: 0.92rem; line-height: 1.6; color: var(--ink-soft);
   }
   .fallback__cta { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 1.5rem; }
+  /* The ending, on the no-script path. Scoped (not :global) because this markup
+     is authored here rather than built by act2-ask — the `.ask-link` rule it
+     shares lives in the global block below and carries the look. */
+  .fallback__ask {
+    margin: 1.4rem 0 0; max-width: 38rem;
+    font-size: 0.92rem; line-height: 1.6; color: var(--ink-soft);
+  }
 </style>
 
 <style is:global>
@@ -933,6 +957,58 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
      the same broken promise one step earlier. */
   #storm-land.tell-locked .forest-arrival-svg .tw-hit,
   #storm-land.tell-locked .forest-arrival-svg { cursor: default; }
+
+  /* ---- ASK: the site's ending (ADR-0493) ----
+
+     The one thing on the page that points off it. Global because act2-ask
+     creates it at runtime; namespaced ask-.
+
+     ⚠ IT IS HIDDEN UNTIL REVEALED, AND THAT IS SAFE HERE ONLY BECAUSE THE
+     ELEMENT ITSELF IS BUILT BY SCRIPT. The no-script trap the growth and the
+     controls lock both had to dodge — a base-stylesheet rule hiding markup a
+     script was supposed to un-hide — cannot arise: with no script there is no
+     `.ask-layer` at all, and those visitors get the same link as plain markup
+     in the calm view instead.
+
+     It sits opposite the skip control, which has left by the time this
+     appears, so the corner is never carrying two competing affordances. */
+  .ask-layer {
+    position: absolute;
+    right: clamp(1.2rem, 4vw, 3rem);
+    bottom: clamp(1.2rem, 4vh, 2.6rem);
+    z-index: 9;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.35rem;
+    text-align: right;
+    opacity: 0;
+    translate: 0 8px;
+    pointer-events: none;
+    transition: opacity 0.8s ease, translate 0.8s ease;
+  }
+  .ask-layer.is-on { opacity: 1; translate: 0 0; pointer-events: auto; }
+  .ask-line {
+    margin: 0;
+    font-size: 0.86rem;
+    color: #6b5946;
+    text-shadow: 0 0 14px rgba(251, 243, 234, 0.95);
+  }
+  .ask-link {
+    color: #4a3a26;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(74, 58, 38, 0.42);
+    padding-bottom: 1px;
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+  .ask-link:hover { color: #2c2318; border-color: rgba(74, 58, 38, 0.85); }
+  .ask-link:focus-visible { outline: 2px solid #4a3a26; outline-offset: 3px; }
+  @media (max-width: 640px) {
+    .ask-layer { right: 0.9rem; bottom: 0.9rem; gap: 0.25rem; }
+    .ask-line { font-size: 0.78rem; }
+  }
 
   /* A locked gesture points at the way out rather than doing nothing at all.
      `is-wanted` is added by act2-tell for MS_SKIP_NUDGE when the reader
