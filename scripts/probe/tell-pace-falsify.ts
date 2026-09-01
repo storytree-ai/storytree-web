@@ -5,7 +5,7 @@ import { TELL_SCRIPT, resolveScript, stateAt, type ForestFacts } from '../../src
 
 const TODAY: ForestFacts = {
   stories: 35, proven: 21, capabilities: 128,
-  selfIsland: 'website-experience', selfIsGreen: false,
+  selfIsland: 'website-experience', selfIsGreen: false, busiestIsland: 'studio',
 };
 
 // --- the SHIPPED constants as of commit 3e9663b (web) / 00d7db3 (parent) ---

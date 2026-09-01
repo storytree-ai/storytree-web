@@ -65,6 +65,12 @@
 // ---------------------------------------------------------------------------
 
 import { buildLoopDiagram, HONEST_LOOP } from './act2-loop-diagram';
+// ⚠ ONE PARSER FOR `data-edges`, NOT TWO. ROAM already owns the reading of a trail segment's edge
+// list, and the direction convention (`from` is depended ON) is the thing both movements now assert
+// in prose — TELL says it, ROAM's panel says it, and `roam-falsify.mjs` seeds a reversal against
+// them. A second parser here would be the shape where one consumer gets a correction and the other
+// does not. The two modules already ship in the same entry chunk, so the import costs nothing.
+import { parseTrailEdges } from './act2-roam';
 
 // ── the vocabulary ──────────────────────────────────────────────────────────
 
@@ -84,8 +90,30 @@ export type TellLens =
   | 'islands'
   /** Hold the green islands and let everything else fall back. */
   | 'proven'
-  /** Bring the dependency trails forward. They are already on screen — GROW opts this surface in —
-   *  so this lens EMPHASISES rather than reveals, and deliberately does not touch the resting frame. */
+  /**
+   * Bring the dependency trails forward. They are already on screen — GROW opts this surface in —
+   * so the CSS half EMPHASISES rather than reveals.
+   *
+   * ⚠ IT MOVES THE CAMERA NOW, AND IT DID NOT USED TO. ADR-0494 D6: *"we should also zoom in on the
+   * edges and talk to how depends on works when it comes to linking microservices into a dag."*
+   *
+   * MEASURED ON THE BUILT SITE AT 1600x900, because the first version of this comment guessed and
+   * guessed wrong. At the resting frame the world is 3482 units across, so a trail's 3-unit stroke
+   * lands at **1.4 CSS px** — a hairline, read as texture rather than as a line between two named
+   * places. The beat flies to a viewBox 2290 units across, and the lens thickens the stroke to 4
+   * units, which together put it at **2.8 px**. That is the difference between "the picture has some
+   * lines in it" and "that island is connected to that one".
+   *
+   * ⚠ IT IS NOT ABOUT MAKING AN ARROWHEAD LEGIBLE — THERE ARE NO ARROWHEADS. Measured on the
+   * published map: zero `<marker>` elements, zero arrow classes, `marker-end: none` on every trail
+   * segment. The direction of a dependency lives in `data-edges` and is spoken by ROAM's panel; the
+   * picture does not draw it at any zoom. A comment claiming otherwise would send the next reader
+   * hunting for a glyph that has never existed.
+   *
+   * The target is `focusIsland` on the map's most-connected island — chosen from the rendered edges,
+   * never written down — which puts the reader in the densest knot of dependencies on the map. See
+   * `busiestIsland`.
+   */
   | 'trails'
   /** Fly to the island that is this website and ring it. */
   | 'self';
@@ -138,6 +166,12 @@ export interface ForestFacts {
   readonly selfIsland: string | null;
   /** Whether that island is green RIGHT NOW, read off its status class. */
   readonly selfIsGreen: boolean;
+  /**
+   * The most-connected island on the rendered map — where the edges beat flies. Null when the map
+   * carries no dependency data at all, in which case that beat still speaks and simply does not
+   * move (see `applyBeat`). Computed by {@link busiestIsland} from the map's own trail metadata.
+   */
+  readonly busiestIsland: string | null;
 }
 
 /** The fully-resolved state of one beat: what is on screen, and what the map is doing. */
@@ -213,7 +247,12 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     id: 'turn',
     lines: [
       'So storytree grows software as a map you can stand in front of.',
-      'This one is real — storytree, drawn from its own records.',
+      // ⚠ IT SAID "storytree" TWICE IN TWO LINES, AND THE SECOND ONE WAS DOING NOTHING. The line
+      // above has just named it; "its own" carries the referent. Dropping the repeat is a better
+      // sentence AND it pays for part of the edges beat this increment adds — which is the order
+      // those two considerations have to come in, because a cut made only for the clock is how
+      // copy gets sanded down to nothing.
+      'This one is real, drawn from its own records.',
     ],
     lens: 'none',
     figure: 'none',
@@ -267,13 +306,35 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     grounds: ['ADR-0040'],
   },
   {
-    // ⚠ `depends-on` IS THE READER'S NAME FOR THE EDGE, and it is the word the map's own records
-    // use for it too — so this is one of the rare places where our vocabulary and theirs already
-    // agree. "What depends on what" was a gloss standing in for a term the reader holds.
-    id: 'trails',
-    lines: ['Every trail is a depends-on.'],
+    // THE EDGES BEAT (ADR-0494 D6). The owner: *"we should also zoom in on the edges and talk to how
+    // depends on works when it comes to linking microservices into a dag."*
+    //
+    // ⚠ `depends-on` IS THE READER'S NAME FOR THE EDGE, and it is the word the map's own records use
+    // for it too — so this is one of the rare places where our vocabulary and theirs already agree.
+    //
+    // ⚠ DIRECTION IS A DEFINITION OF THE RELATION, NOT A CLAIM ABOUT A GLYPH — and the difference
+    // matters, because THE MAP DRAWS NO ARROWHEADS. Measured on the published map: zero `<marker>`
+    // elements and `marker-end: none` on every segment. What the line says is what a depends-on IS,
+    // which end is which lives in `data-edges` as `from->to`, and the panel is where a visitor can
+    // actually read it off a specific trail. This sentence is the SAME claim ROAM's trail note has
+    // shipped since click-to-explain landed, in the same order — so `act2-tell.test.ts` reads the
+    // direction out of that note and out of `edgeSentence` rather than trusting three files to
+    // agree from memory. `roam-falsify.mjs` seeds a REVERSED DEPENDENCY as one of its defects, so
+    // the inversion is a mistake this repo has already decided is worth catching.
+    //
+    // ⚠ "So does yours." IS THE PROJECTION, AND IT IS THE CHEAPEST PLACE ON THE PAGE TO TRIGGER IT
+    // (ADR-0453 D3/D4). The map is illegible on purpose; what makes it land is the reader seeing
+    // their OWN system's shape in it, and a dependency graph is the one structure every one of them
+    // already has. It is a sentence about the reader, not a claim about us — which is why the
+    // grounding sits on the first line, where the claim actually is.
+    id: 'edges',
+    lines: [
+      'Every trail is a depends-on: from what is needed to what needs it.',
+      'Together they make a DAG. So does yours.',
+    ],
     lens: 'trails',
     figure: 'none',
+    grounds: ['ADR-0010'],
   },
   {
     // The honesty beat, and the reason it is worth the camera move: a map that flatters its author
@@ -338,6 +399,47 @@ export function renderLine(line: string, facts: ForestFacts): string {
         return whole;
     }
   });
+}
+
+/**
+ * The most-connected island on the map, from the trail metadata the scene stamped on each segment.
+ *
+ * ⚠ THE EDGES MUST BE DEDUPED FIRST, AND SKIPPING THAT STEP GIVES A CONFIDENT WRONG ANSWER. Routed
+ * trails MERGE and a logical dependency is stamped on EVERY segment of its route, so counting raw
+ * `from->to` mentions measures how far a dependency was routed, not how many an island has.
+ * Measured on the published map: 336 segments carry 2547 mentions of 90 distinct dependencies —
+ * a 28x inflation, and it does not fall evenly (`studio` reads 786 mentions against a true degree of
+ * 26). Both readings happen to name the same island today, which is exactly why this would have
+ * survived review: the wrong measure produces the right answer until the routing changes.
+ *
+ * Degree counts BOTH ends. The camera wants the busiest junction on the picture, and a knot of
+ * trails looks the same whether they arrive or leave.
+ *
+ * Ties break on the lexicographically smallest id, so two islands of equal degree cannot make the
+ * beat fly somewhere different between two loads of the same page. Null when the map carries no
+ * parsable edges at all.
+ */
+export function busiestIsland(rawEdgeLists: readonly (string | null)[]): string | null {
+  const edges = new Set<string>();
+  for (const raw of rawEdgeLists) {
+    for (const edge of parseTrailEdges(raw)) edges.add(`${edge.from}->${edge.to}`);
+  }
+  const degree = new Map<string, number>();
+  for (const key of edges) {
+    const at = key.indexOf('->');
+    for (const id of [key.slice(0, at), key.slice(at + 2)]) {
+      degree.set(id, (degree.get(id) ?? 0) + 1);
+    }
+  }
+  let best: string | null = null;
+  let bestDegree = 0;
+  for (const [id, n] of degree) {
+    if (n > bestDegree || (n === bestDegree && best !== null && id < best)) {
+      best = id;
+      bestDegree = n;
+    }
+  }
+  return best;
 }
 
 /**
@@ -686,12 +788,24 @@ export function readForestFacts(map: Element): ForestFacts | null {
   const counts = parseForestCounts(map.getAttribute('data-forest-counts'));
   if (counts === null) return null;
   const isle = map.querySelector(`.tw-isle[data-id="${CSS.escape(SELF_STORY_ID)}"]`);
+  const hub = busiestIsland(
+    [...map.querySelectorAll('[data-edges]')].map((seg) => seg.getAttribute('data-edges')),
+  );
   return {
     stories: counts.stories,
     proven: counts.proven,
     capabilities: counts.capabilities,
     selfIsland: isle === null ? null : SELF_STORY_ID,
     selfIsGreen: isle !== null && isle.classList.contains('st-healthy'),
+    // ⚠ ONLY IF IT IS ACTUALLY DRAWN. The degree is computed from trail metadata, which a scene can
+    // in principle stamp for an island the map does not render; flying at one would be the "sentence
+    // pointing at empty sea" failure `islandWorldRect`'s header describes, arriving by a different
+    // door. `focusIsland` would decline it too, but declining silently at the last moment is a worse
+    // place to find out than declining here where the fact is assembled.
+    busiestIsland:
+      hub !== null && map.querySelector(`.tw-isle[data-id="${CSS.escape(hub)}"]`) !== null
+        ? hub
+        : null,
   };
 }
 
@@ -839,8 +953,16 @@ export function mountTell(opts: TellOptions): TellHandle {
     clearLens();
     const cls = LENS_CLASS[state.lens];
     if (cls !== '') host.classList.add(cls);
+    // ⚠ TWO LENSES MOVE THE CAMERA AND THEY FAIL DIFFERENTLY, WHICH IS THE WHOLE OF THIS BRANCH.
+    // `self` POINTS — "That one is this website" — so a focus it cannot make leaves the sentence
+    // aimed at nothing, and the lens comes off with it. `trails` DESCRIBES — every trail is a
+    // depends-on whether or not the camera moved — so a map with no edge metadata still gets the
+    // sentence and simply keeps the resting frame. Dropping the beat there would delete a true
+    // sentence to avoid an absent animation.
     if (state.lens === 'self' && facts.selfIsland !== null) {
       if (!stage.focusIsland(facts.selfIsland)) host.classList.remove(cls);
+    } else if (state.lens === 'trails' && facts.busiestIsland !== null) {
+      stage.focusIsland(facts.busiestIsland);
     } else if (state.lens !== 'self') {
       stage.resetView();
     }
