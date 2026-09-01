@@ -1333,7 +1333,37 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
 
 
   // ── target 1 · an island, and targets 2 and 3 nested inside it ────────────
+  /**
+   * BRING A JUST-OPENED SECTION INTO VIEW, by exactly the amount it overflows and no more.
+   *
+   * ⚠ WHY THIS IS NEEDED AT ALL: measured at 1440x650 — an ordinary laptop once browser chrome and a
+   * dock are taken off — the panel hits its `82vh` ceiling at 533px, and only 104 of the capability
+   * graph's 208px sit inside the scrolling body at rest. Nothing was ever unreachable (the body
+   * scrolls, and the floor note and stamp are its siblings so neither can be pushed off), but half a
+   * picture is a poor resting view and `legible-at-the-resting-view` asks for the whole shape.
+   *
+   * ⚠ WHY IT IS COMPUTED RATHER THAN `scrollIntoView`, measured rather than assumed: `block:
+   * 'nearest'` moved NINE pixels, because the element's top edge was already in view and "nearest"
+   * then has almost nothing left to do; `block: 'end'` would scroll on a TALL window too, pushing
+   * the story's own title off the top to solve a problem that window does not have.
+   *
+   * ⚠⚠ AND WHY IT RUNS AFTER THE WHOLE PANEL IS BUILT, WHICH IS THE BUG THAT COST THE FIRST TWO
+   * ATTEMPTS. Called at the point the graph is appended, it measures a body that does not yet
+   * contain the proof, decision and initiative rows below it — so the overflow reads as 9px instead
+   * of 95px, it scrolls by 9, and the result looks exactly like a scroll that simply did not work.
+   *
+   * ⚠ NOT A CLOCK. It happens because the reader clicked a row, in the same turn as the click:
+   * nothing is scheduled, nothing is animated, and nothing happens if they do nothing.
+   */
+  const reveal = (node: HTMLElement | null): void => {
+    if (node === null) return;
+    const below = node.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom;
+    if (below > 0) body.scrollTop += below;
+  };
+
   const renderStory = (story: RoamStory): void => {
+    /** The section opened by this render, revealed once everything below it exists. */
+    let toReveal: HTMLElement | null = null;
     body.replaceChildren();
     floorSlot.replaceChildren();
     body.append(el('p', 'roam-kind', ROAM_KIND_WORD.story));
@@ -1368,7 +1398,18 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
       // Nothing to settle and nothing to dispose: the resting view is the whole graph, which is
       // right from the first paint, and every listener lives on the frame itself.
       const graph = capabilityGraph(story);
-      if (graph) body.append(graph);
+      if (graph) {
+        body.append(graph);
+        // ⚠ BRING IT INTO VIEW, BECAUSE ON A SHORT WINDOW HALF OF IT OPENS BELOW THE FOLD. Measured
+        // at 1440x650 — an ordinary laptop once browser chrome and a dock are taken off — the panel
+        // hits its `82vh` ceiling at 533px and only 104 of the graph's 208px sit inside the
+        // scrolling body at rest. Nothing was ever unreachable (the body scrolls, and the floor note
+        // and stamp are its siblings so neither can be pushed off), but half a picture is a poor
+        // resting view, and `legible-at-the-resting-view` asks for the whole shape.
+        //
+        // Revealed at the END of this render, not here — see `reveal` below.
+        toReveal = graph;
+      }
     }
 
     // target 6 · the proof — the acceptance journey. This is the level the owner opened the map to
@@ -1481,6 +1522,8 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
       floorSlot.append(noteBlock(ROAM_FLOOR_NOTE));
     }
     openPanel();
+    // Everything below the opened section now exists, so the overflow this measures is the real one.
+    reveal(toReveal);
     witness('story', story.id);
   };
 
