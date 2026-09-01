@@ -19,7 +19,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { ASK_CTA, ASK_FORBIDDEN, ASK_HREF, ASK_LINE } from './act2-ask';
+import { ASK_AVAILABILITY_PHRASINGS, ASK_CTA, ASK_FORBIDDEN, ASK_HREF, ASK_LINE } from './act2-ask';
 
 const page = (): string => readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
 const module_ = (): string => readFileSync(new URL('./act2-ask.ts', import.meta.url), 'utf8');
@@ -54,6 +54,65 @@ test('the no-script ending obeys the same register — it is copy, not a second 
   for (const phrase of ASK_FORBIDDEN) {
     assert.ok(!copy.includes(phrase), `the no-script ending says "${phrase}"`);
   }
+});
+
+test('TEETH: the register guard refuses a SALE as well as a promise (owner, 2026-09-01)', () => {
+  // ⚠ A DIFFERENT DRIFT FROM THE WAITLIST ONE, AND NEITHER LIST CATCHES THE OTHER. The owner:
+  // "the invite is to get involved not to buy a product." A page with nothing to sell that reads
+  // like a storefront is the vapour ADR-0453 D2's reader is fastest to smell — and the sentence
+  // below would look entirely normal on any other product site.
+  const drifted = 'Get started free — no card needed. Pricing from $9.'.toLowerCase();
+  const caught = ASK_FORBIDDEN.filter((phrase) => drifted.includes(phrase));
+  assert.ok(caught.length >= 2, `the guard only caught ${caught.join(', ')} in the storefront sentence`);
+});
+
+// ── 1b. it says, out loud, that nobody can use this yet ─────────────────────
+
+test('the ending STATES its unavailability — ADR-0453 D9, and the clause it went six days without', () => {
+  // ⚠ THIS IS THE ASSERTION WHOSE ABSENCE COST SIX DAYS. ADR-0453 D9 asks the site to say plainly
+  // that storytree is "being built in the open and is not available yet". ADR-0493 replaced only
+  // the CAPTURE half of that clause; the ending then shipped carrying "building this in the open"
+  // and nothing whatever about availability, and nothing red-lit, because no test asked.
+  //
+  // ⚠ AND SILENCE WAS NOT NEUTRAL, which is why the property is worth a rung rather than a comment.
+  // ROAM names "the app" twice as the thing that opens the depth below the public map, so the page
+  // positively asserts a product exists and then asks the reader if they want in. The honest
+  // inference was that there is one to be let into.
+  const line = ASK_LINE.toLowerCase();
+  const said = ASK_AVAILABILITY_PHRASINGS.filter((phrase) => line.includes(phrase));
+  assert.ok(
+    said.length > 0,
+    `the ending never says nobody can use it yet — "${ASK_LINE}" contains none of: ${ASK_AVAILABILITY_PHRASINGS.join(', ')}`,
+  );
+});
+
+test('TEETH: the availability guard rejects the exact copy that shipped without it', () => {
+  // The string this ending carried from 2026-08-26 to 2026-09-01. It satisfies every OTHER
+  // assertion in this file — it promises nothing, sells nothing, captures nothing — which is
+  // precisely why the suite passed over it. A guard that this sentence survives is not a guard.
+  const shippedWithoutIt = 'One person, building this in the open.'.toLowerCase();
+  const said = ASK_AVAILABILITY_PHRASINGS.filter((phrase) => shippedWithoutIt.includes(phrase));
+  assert.deepEqual(said, [], 'the availability guard would pass the copy that lacked the clause');
+});
+
+// ── 1c. the two copies of the COPY, like the two copies of the link ─────────
+
+test('the calm view carries the SAME words, not merely the same register', () => {
+  // ⚠ THE HREF WAS HELD THIS WAY AND THE WORDS WERE NOT, and the words are where the substantive
+  // claim lives. "Still under construction" is the site's only statement that nobody can use this;
+  // if it reaches the guided path and not the no-script one, the visitors who get the plain page
+  // are the only ones still misled — and they are the group this fallback exists to serve.
+  const fallback = /<p class="fallback__ask">([\s\S]*?)<\/p>/.exec(page());
+  assert.ok(fallback !== null, 'the calm view carries no ending at all');
+  const markup = fallback[1] ?? '';
+  assert.ok(
+    markup.includes(ASK_LINE),
+    `the calm view's line has drifted from ASK_LINE — expected "${ASK_LINE}"`,
+  );
+  assert.ok(
+    markup.includes(ASK_CTA),
+    `the calm view's call to action has drifted from ASK_CTA — expected "${ASK_CTA}"`,
+  );
 });
 
 // ── 2. nothing is captured ──────────────────────────────────────────────────
