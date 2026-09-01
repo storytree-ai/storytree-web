@@ -51,6 +51,7 @@ const FACTS: ForestFacts = {
   capabilities: 215,
   selfIsland: SELF_STORY_ID,
   selfIsGreen: false,
+  busiestIsland: 'studio',
 };
 
 /**

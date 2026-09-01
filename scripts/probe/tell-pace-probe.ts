@@ -35,6 +35,7 @@ const facts: ForestFacts = {
   capabilities: 128,
   selfIsland: 'website-experience',
   selfIsGreen: false,
+  busiestIsland: 'studio',
 };
 
 function words(s: string): number {
