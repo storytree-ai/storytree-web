@@ -227,7 +227,14 @@ export function renderStamp(snap: ForestSnapshot): string {
   const proven = `${snap.provenStoryCount} of ${snap.storyCount}`;
   return (
     `storytree's own system, as of ${formatStampDate(snap.generatedAt)}. ` +
-    `${proven} stories are proven — each one green because a signed test said so, not because ` +
+    // ⚠ MICROSERVICES, NOT STORIES (ADR-0494 D5). This is the single most prominent sentence under
+    // the map and it is the FIRST prose a visitor reads, seconds before TELL says "Every island is a
+    // microservice" — so our noun here made the page contradict itself inside ten seconds. Found by
+    // reading the LIVE site after the vocabulary pass landed: the fence covered TELL, ROAM and two
+    // strings in index.astro, and this fifth surface was generated here and scanned by nothing.
+    // `vocabulary.test.ts` now renders this stamp against the real snapshot and holds it to the same
+    // list.
+    `${proven} microservices are proven — each one green because a signed test said so, not because ` +
     `anyone marked it done. This is a snapshot, refreshed from time to time. It is not live.`
   );
 }

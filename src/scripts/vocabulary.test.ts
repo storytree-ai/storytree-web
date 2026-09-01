@@ -26,6 +26,8 @@ import { readFileSync } from 'node:fs';
 import { INTERNAL_NOUNS, findInternalNouns, speaksReaderVocabulary } from './vocabulary';
 import { SELF_CLAUSE, SELF_STORY_ID, TELL_SCRIPT, renderLine, type ForestFacts } from './act2-tell';
 import { ASK_CTA, ASK_LINE } from './act2-ask';
+import { assertSnapshot, renderStamp } from './forest-snapshot-map';
+import snapshotJson from '../data/forest-snapshot.json';
 import {
   LIFECYCLE_READING,
   ROAM_KIND_WORD,
@@ -168,6 +170,13 @@ function visitorProse(): Prose[] {
   out.push({ where: 'ASK line', text: ASK_LINE });
   out.push({ where: 'ASK cta', text: ASK_CTA });
 
+  // THE MAP'S STAMP — the fifth surface, and the one this fence originally missed. It is generated
+  // by `renderStamp` rather than written anywhere, so no scan of copy constants could see it, and it
+  // is the FIRST prose a visitor reads: it sat under the map saying "stories" while TELL said
+  // "microservice" ten seconds later. Rendered against the REAL published snapshot, because that is
+  // the string the live site serves.
+  out.push({ where: 'MAP stamp', text: renderStamp(assertSnapshot(snapshotJson)) });
+
   // The page's own two act-2 strings. Read out of the source the same way `act2-tell.test.ts` reads
   // the stylesheet — they are markup this module cannot import, and leaving them unscanned would
   // mean the label a screen reader announces was the one place our nouns could survive.
@@ -202,7 +211,7 @@ test('the surface is scanned WIDE — a fence over three sentences would pass va
   const prose = visitorProse();
   assert.ok(prose.length >= 40, `only ${prose.length} strings are being scanned`);
   const surfaces = new Set(prose.map((p) => p.where.split(' ')[0]));
-  assert.deepEqual([...surfaces].sort(), ['ASK', 'ROAM', 'TELL', 'index.astro']);
+  assert.deepEqual([...surfaces].sort(), ['ASK', 'MAP', 'ROAM', 'TELL', 'index.astro']);
 });
 
 test('TEETH: the fence catches each internal noun — it is not vacuous', () => {
