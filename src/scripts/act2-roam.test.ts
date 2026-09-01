@@ -95,6 +95,7 @@ const story = (
     id: capId,
     title: `cap ${capId}`,
     status: capStatus,
+    dependsOn: [],
   })),
   uat: [],
   decisions: [],
