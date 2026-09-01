@@ -44,6 +44,22 @@
 //
 // Both are the same rule: the page may only say what the map in front of it actually shows.
 //
+// ── THE THIRD REFUSAL: IT NEVER MAKES THE READER LEARN OUR NOUNS ────────────────────────────────
+//
+// 3. **IT SPEAKS THE READER'S VOCABULARY, NOT OURS** (ADR-0494 D5). An island is a MICROSERVICE, an
+//    edge is a DEPENDS-ON, the whole is a DAG. `story`, `capability`, `arc` and `contract` are our
+//    internal nouns and do not appear here as terms a visitor is expected to acquire. That is not a
+//    softening of ADR-0453 D1's "excitement, not teaching" — it is the same rule applied properly:
+//    teaching a stranger the word "story" is instruction, and saying "microservice" to a developer
+//    who already holds it costs a sentence LESS. `vocabulary.ts` holds the list and
+//    `vocabulary.test.ts` enforces it across every prose surface in this chapter.
+//
+//    ⚠ AND IT REACHES THE PROSE ONLY, NEVER THE MAP. The island LABELS stay our real, untranslated,
+//    deliberately illegible corpus names — a stranger projecting their own system onto a shape they
+//    cannot read is the mechanism ADR-0453 D3 protects, and renaming an island would invert the
+//    decision while looking like the same job. Change the words AROUND the map; never the words ON
+//    it.
+//
 // ⚠ THIS MODULE IS PURE UNTIL `mountTell` IS CALLED. Nothing at module scope touches `document`, so
 // the script and the state machine are importable under `bun test`, which has no DOM.
 // ---------------------------------------------------------------------------
@@ -178,10 +194,14 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     // The founding account, in the owner's own framing: you either reviewed every line the model
     // wrote or you trusted it, and there was no in-between that let you go straight to the surfaces
     // that called for your attention.
+    //
+    // ⚠ THE SECOND LINE IS DELIBERATELY UNFINISHED, AND THE NEXT BEAT FINISHES IT. "The middle" is
+    // named here and answered by `turn` two seconds later; spelling it out twice cost 50 characters
+    // for a sentence the reader was about to be shown rather than told.
     id: 'binary',
     lines: [
-      'Which leaves two options, both bad: read every line yourself, or trust it and hope.',
-      'What was missing was the middle — a way to see which parts wanted your attention.',
+      'That leaves two bad options: read every line yourself, or trust it and hope.',
+      'What was missing was the middle.',
     ],
     lens: 'none',
     figure: 'none',
@@ -193,15 +213,22 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     id: 'turn',
     lines: [
       'So storytree grows software as a map you can stand in front of.',
-      'This one is real. It is storytree, drawn from its own records.',
+      'This one is real — storytree, drawn from its own records.',
     ],
     lens: 'none',
     figure: 'none',
     grounds: ['ADR-0453'],
   },
   {
+    // ⚠ MICROSERVICE IS THE READER'S WORD FOR THIS, AND IT IS WHY THE LINE GOT SHORTER RATHER THAN
+    // LONGER (ADR-0494 D5). The line used to be "Every island is one story — one thing the system
+    // does": our noun, plus a gloss the noun needed. An experienced developer (ADR-0453 D2) already
+    // holds `microservice`, so the gloss is redundant and the sentence pays for itself. This is the
+    // ONLY place the swap is allowed to reach — the island's own LABEL on the map stays our real,
+    // untranslated corpus name, because the visitor projecting their own system onto an unreadable
+    // shape is the whole mechanism (ADR-0453 D3, clarified in place by ADR-0494 D5).
     id: 'islands',
-    lines: ['Every island is one story — one thing the system does.', '{stories} of them.'],
+    lines: ['Every island is a microservice.', '{stories} of them.'],
     lens: 'islands',
     figure: 'none',
   },
@@ -240,8 +267,11 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     grounds: ['ADR-0040'],
   },
   {
+    // ⚠ `depends-on` IS THE READER'S NAME FOR THE EDGE, and it is the word the map's own records
+    // use for it too — so this is one of the rare places where our vocabulary and theirs already
+    // agree. "What depends on what" was a gloss standing in for a term the reader holds.
     id: 'trails',
-    lines: ['The trails are what depends on what.'],
+    lines: ['Every trail is a depends-on.'],
     lens: 'trails',
     figure: 'none',
   },
