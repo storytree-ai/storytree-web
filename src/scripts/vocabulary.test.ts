@@ -25,6 +25,7 @@ import { readFileSync } from 'node:fs';
 
 import { INTERNAL_NOUNS, findInternalNouns, speaksReaderVocabulary } from './vocabulary';
 import { SELF_CLAUSE, SELF_STORY_ID, TELL_SCRIPT, renderLine, type ForestFacts } from './act2-tell';
+import { ASK_CTA, ASK_LINE } from './act2-ask';
 import {
   LIFECYCLE_READING,
   ROAM_KIND_WORD,
@@ -171,16 +172,23 @@ function visitorProse(): Prose[] {
     out.push({ where: `ROAM decisionTally(${n})`, text: decisionTally(decisionFixture(n)) });
   }
 
-  // ⚠ THE MAP'S OWN BUILT STRINGS, WHICH IS WHERE OUR NOUNS SURVIVED THE PASS THAT RETIRED THEM.
-  // The stamp under the picture, every island's nameplate, its hover title and the map's accessible
-  // description are all assembled from counts in `forest-snapshot-map.ts` — so there was no literal
-  // for this suite to read, and on 2026-09-01 the shipped page said "35 stories are proven" in its
-  // single most-read line and "9 capabilities" on every island, a day after the copy constants had
-  // all been rewritten. That is the failure mode this file's own header names ("a noun assembled at
-  // render time is invisible to any scan of the copy constants") arriving in the one module the
-  // scan did not reach. Both plural branches are exercised, because they carry two different words.
+  // ASK's ending — the last prose a visitor meets, and the one most likely to be written by
+  // somebody thinking about conversion rather than about this fence.
+  out.push({ where: 'ASK line', text: ASK_LINE });
+  out.push({ where: 'ASK cta', text: ASK_CTA });
+
+  // THE MAP'S OWN BUILT STRINGS — the fifth surface, and the one this fence originally missed. They
+  // are generated in `forest-snapshot-map.ts` rather than written anywhere, so no scan of copy
+  // constants could see them. The STAMP is the FIRST prose a visitor reads and sat under the map
+  // saying "stories" while TELL said "microservice" ten seconds later. The other three went the same
+  // way and were found the same way, by reading the built page: every island's NAMEPLATE said
+  // "9 capabilities", its hover TITLE said "of 9 capabilities proven", and the map's accessible
+  // DESCRIPTION said "35 story islands" — a day after every copy constant had been rewritten. They
+  // are named exports now for exactly that reason: a word a test cannot import is a word this fence
+  // does not cover. Rendered against the REAL published snapshot, because that is the string the
+  // live site serves, and both plural branches are exercised because they carry two different words.
   //
-  // ⚠ THE ISLAND'S TITLE IS DELIBERATELY NOT HERE. It is `${story.title} — ${provenTally(…)}`, and
+  // ⚠ AN ISLAND'S TITLE IS DELIBERATELY NOT HERE. It is `${story.title} — ${provenTally(…)}`, and
   // the title half is our real corpus name, which the fence must never read (ADR-0453 D3). Only the
   // built half is exported, which is why only the built half can be scanned.
   const snap = assertSnapshot(snapshotJson);
@@ -234,7 +242,7 @@ test('the surface is scanned WIDE — a fence over three sentences would pass va
   const prose = visitorProse();
   assert.ok(prose.length >= 40, `only ${prose.length} strings are being scanned`);
   const surfaces = new Set(prose.map((p) => p.where.split(' ')[0]));
-  assert.deepEqual([...surfaces].sort(), ['KEY', 'MAP', 'ROAM', 'TELL', 'index.astro']);
+  assert.deepEqual([...surfaces].sort(), ['ASK', 'KEY', 'MAP', 'ROAM', 'TELL', 'index.astro']);
 });
 
 test('TEETH: the fence catches each internal noun — it is not vacuous', () => {

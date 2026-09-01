@@ -49,6 +49,7 @@ import { mountForestArrival, type ArrivalHandle } from './forest-arrival';
 import { mountForestGrowth, type GrowthHandle } from './forest-growth';
 import { mountRoam, type RoamHandle } from './act2-roam';
 import { mountTell, type TellHandle } from './act2-tell';
+import { mountAsk, type AskHandle } from './act2-ask';
 
 /** The exported handle the storm engine holds — name kept for the unchanged
  *  contract (act1-storm calls `mod.mountForestLand(landCanvasEl)`). */
@@ -100,10 +101,23 @@ export function mountForestLand(container: HTMLElement): InflectionHandle {
   // `mountTell` returns an inert handle and the visitor simply gets the forest, silently and
   // correctly. A prose overlay is an enhancement on top of an enhancement; neither is a prerequisite
   // for the other.
+  // ASK is the site's ENDING, and it is mounted BEFORE TELL so TELL can reveal it. It renders
+  // nothing until then: a hidden layer with a link that is out of the tab order, so it cannot be
+  // reached from behind the prose. Nothing about it is on the timed sequence's clock — it costs the
+  // reading budget zero characters, which is the whole reason it lives out here rather than as an
+  // eleventh beat (the owner has an open question about the sequence's LENGTH).
+  const ask: AskHandle | null = host instanceof HTMLElement ? mountAsk({ host }) : null;
+
   const tell: TellHandle | null =
     host instanceof HTMLElement && map !== null
-      ? mountTell({ host, map, stage: arrival, reducedMotion })
+      ? mountTell({ host, map, stage: arrival, reducedMotion, onDone: () => ask?.reveal() })
       : null;
+
+  // ⚠ AND IF TELL NEVER MOUNTS, THE ENDING STILL HAS TO ARRIVE. `mountTell` returns an inert handle
+  // when the map is missing or its payload unreadable — the visitor then simply gets the forest,
+  // silently and correctly — and in that branch nothing would ever call `onDone`. The site's one
+  // outbound link is not an enhancement on top of an enhancement; it is the ending.
+  if (tell === null) ask?.reveal();
 
   // ROAM is live from the FIRST FRAME, not after TELL. It adds nothing to the timed sequence — no
   // beat, no delay, no clock — because everything it says is pulled by a click and nothing it says
@@ -116,6 +130,7 @@ export function mountForestLand(container: HTMLElement): InflectionHandle {
   return {
     unmount(): void {
       roam?.unmount();
+      ask?.unmount();
       tell?.unmount();
       // Before the map framing goes, so a mid-growth skip leaves every island revealed rather than
       // parked at scale 0.62 under a class nothing will now remove.

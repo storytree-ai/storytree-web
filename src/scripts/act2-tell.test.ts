@@ -45,10 +45,15 @@ import {
   stateAt,
   totalDurationMs,
   busiestIsland,
+  LOCKED_CLASS,
   type ForestFacts,
   type TellBeat,
 } from './act2-tell';
 import { ROAM_TRAIL_NOTE, edgeSentence } from './act2-roam';
+
+/** `index.astro`'s source — the stylesheet and the markup this module cannot import. Several tests
+ *  below read it, so it is read through one helper rather than four copies of the same URL. */
+const page = (): string => readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
 
 /** The corpus as published on 2026-08-28 — the numbers the live page is quoting today. */
 const TODAY: ForestFacts = {
@@ -400,10 +405,10 @@ test('TEETH: the acquisition constants track the stylesheet they were transcribe
   // silently re-create the original defect — the budget would keep paying for a fade shorter than
   // the one actually running — and every other test here would stay green. So this one reads the
   // stylesheet.
-  const page = readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
+  const source = page();
   const grab = (selector: string): number => {
     const block = new RegExp(`\\.${selector}\\s*\\{[^}]*?transition:\\s*opacity\\s+([0-9.]+)s`, 's');
-    const m = block.exec(page);
+    const m = block.exec(source);
     assert.ok(m !== null, `could not find a .${selector} opacity transition in index.astro`);
     return Math.round(Number(m[1]) * 1000);
   };
@@ -539,6 +544,128 @@ test('SHORT AND LIGHT is measured, not asserted (ADR-0453 D1)', () => {
   const seconds = totalDurationMs(resolveScript(TELL_SCRIPT, TODAY), TODAY) / 1000;
   assert.ok(seconds < 85, `TELL runs ${seconds.toFixed(1)}s — it has grown into a lesson`);
   assert.ok(seconds > 20, `TELL runs ${seconds.toFixed(1)}s — too short to have said anything`);
+});
+
+// ── the controls lock ───────────────────────────────────────────────────────
+//
+// ⚠ WHAT THIS SECTION CAN AND CANNOT PROVE, STATED RATHER THAN LEFT TO INFERENCE. `bun test` has no
+// DOM, so the lock's runtime behaviour — the class going on with the schedule and coming off in all
+// three exits — is verified in a browser against the built site and recorded on the PR, not here.
+// What IS mechanical here is the half that fails INVISIBLY: a lock rule escaping its runtime class
+// (which breaks only for the people who cannot report it) and a second route to the behaviour the
+// lock exists to remove.
+
+test('TEETH: no lock rule escapes the runtime class — a no-script visitor keeps a live map', () => {
+  // ⚠ THE SAME FAILURE `forest-growth.test.ts` GUARDS, ONE MOVEMENT LATER, AND IT IS INVISIBLE IN A
+  // BROWSER. Hoisting `pointer-events: none` out of `.tell-locked` — the obvious "simplify the
+  // selector" edit — gives a permanently dead map to precisely the visitors whose script never runs,
+  // while every scripted browser looks perfect. They get the whole forest as a static dated picture
+  // today, and that guarantee is load-bearing.
+  const css = page().replace(/\/\*[\s\S]*?\*\//g, '');
+  // Selector lists span lines, so the selector half deliberately allows newlines — a line-bound
+  // version of this scan in the growth suite silently matched nothing and reported a confident pass.
+  //
+  // ⚠ SCOPED TO THE ARRIVAL MAP, AND THE FIRST DRAFT WAS NOT. Matching any `.tw-hit` rule caught
+  // `.act2-stage .tw-hit { pointer-events: none }` — the RETIRED walkthrough's stage, which is
+  // unmounted, unrelated to this lock, and correctly unscoped. A test that fails on innocent code is
+  // one somebody widens the scope of rather than obeys, so the scan asks for rules that reach the
+  // surface the lock actually covers: the arrival map, or something under `#storm-land`.
+  const rules = [...css.matchAll(/([^{}]*\.(?:forest-arrival-svg|tw-hit|tw-isle)\b[^{}]*)\{([^}]*)\}/g)];
+  const locking = rules.filter(
+    ([, selector, body]) =>
+      /pointer-events:\s*none/.test(body ?? '') &&
+      /\.forest-arrival-svg|#storm-land/.test(selector ?? ''),
+  );
+  assert.ok(locking.length >= 1, 'the lock is not in index.astro at all');
+  for (const [, selector, body] of locking) {
+    assert.ok(
+      (selector ?? '').includes(`.${LOCKED_CLASS}`),
+      `a lock rule is not scoped to .${LOCKED_CLASS} — a no-script visitor loses the map:\n  ${selector?.trim()} {${body?.trim()}}`,
+    );
+  }
+});
+
+test('the skip control is styled, labelled and reachable — the lock\'s only exit is not decorative', () => {
+  // A 70-second lock with an escape nobody can find is the same as no escape (the increment says so
+  // in as many words). Three things have to hold together and each is cheap to lose in an edit: the
+  // control is the one pointer-live thing on an otherwise inert overlay, it can take focus, and it
+  // gets a highlight to point at when a locked gesture happens.
+  const css = page().replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /\.tell-skip\s*\{[^}]*pointer-events:\s*auto/, 'the skip control is not clickable');
+  assert.match(css, /\.tell-skip:focus-visible\s*\{/, 'the skip control has no focus ring');
+  assert.match(css, /\.tell-skip\.is-wanted\s*\{/, 'the locked-gesture highlight has no rule');
+  // And the module drives that highlight rather than declaring a class nothing adds.
+  const mod = readFileSync(new URL('./act2-tell.ts', import.meta.url), 'utf8');
+  assert.match(mod, /classList\.add\('is-wanted'\)/, 'nothing ever adds the highlight');
+  assert.match(mod, /classList\.remove\('is-wanted'\)/, 'the highlight is never taken off again');
+});
+
+test('TEETH: a reader gesture can no longer end the sequence — the old route is GONE, not disabled', () => {
+  // ⚠ THIS IS THE OWNER'S ACTUAL COMPLAINT, ASSERTED AT ITS SOURCE. "if i zoom in the prose
+  // disappears" was not a bug in the lock's absence — it was a FEATURE: `mountTell` subscribed to
+  // `onReaderTakeOver` and stopped. Locking the map hides that route without removing it, and a
+  // route that is merely unreachable comes back the first time someone adjusts the lock. So the verb
+  // is off the `TellStage` seam entirely and the module never names it. (`ArrivalHandle` keeps it —
+  // it uses it for its own resize guard, which is a different question about a different surface.)
+  const mod = readFileSync(new URL('./act2-tell.ts', import.meta.url), 'utf8');
+  const code = mod.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(
+    !/onReaderTakeOver/.test(code),
+    'act2-tell can still be stopped by a reader gesture — the lock has a second door',
+  );
+  // The lock is applied on the timed path and removed on every exit. Counted rather than located:
+  // one `add`, and at least the `finish` + `unmount` pair taking it off.
+  assert.equal((code.match(/classList\.add\(LOCKED_CLASS\)/g) ?? []).length, 1);
+  assert.ok((code.match(/classList\.remove\(LOCKED_CLASS\)/g) ?? []).length >= 1);
+});
+
+test('TEETH: the keyboard half exists and is NOT `inert`, which was measured not to work here', () => {
+  // ⚠ THE MECHANISM THIS TEST IS REALLY ABOUT IS THE ONE THAT IS ABSENT. The first version of the
+  // lock set `inert` on the map and looked complete: the pointer half worked, nothing threw, and
+  // `'inert' in HTMLElement.prototype` was true. Measured in a browser against the built site, focus
+  // still landed on a hit rect and Enter still opened a panel — with `inert` on the `<svg>` AND with
+  // it on the containing `<div>`. It is an HTML global attribute and these are SVG elements.
+  //
+  // So the real mechanism is parking each rect's `tabindex` and swallowing Enter/Space in the
+  // CAPTURE phase, and this test holds both — plus the absence of the thing that quietly did
+  // nothing, because a later reader "simplifying" back to `inert` would reproduce the same
+  // confident, silent hole.
+  const mod = readFileSync(new URL('./act2-tell.ts', import.meta.url), 'utf8');
+  const code = mod.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(
+    !/inert/.test(code),
+    '`inert` is back in the lock — measured 2026-09-01, it does not reach an SVG subtree',
+  );
+  assert.match(code, /setAttribute\('tabindex', '-1'\)/, 'nothing takes the map out of the tab order');
+  assert.match(code, /keydown', swallowMapKeys, true\)/, 'the key guard is not on the capture phase');
+  assert.match(code, /removeEventListener\('keydown', swallowMapKeys, true\)/, 'the key guard is never removed');
+  // The parked values are RESTORED rather than reset to a hard-coded "0": all 35 hit rects carry
+  // "0" today, and a lock that assumed that would silently rewrite a future map's keyboard order.
+  assert.match(code, /getAttribute\('tabindex'\)/, 'the previous tabindex is never recorded');
+  assert.match(code, /setAttribute\('tabindex', was\)/, 'the previous tabindex is never restored');
+});
+
+test('the lock is NOT applied on the reduced-motion path, where nothing would ever remove it', () => {
+  // The branch that only runs when something upstream changes is the branch nobody notices is wrong.
+  // Under reduced motion there is no schedule and therefore no `finish()`, so a lock applied at
+  // mount would be permanent — the exact shape of the no-script failure above, arriving through a
+  // different door. Asserted structurally: the lock lives inside the `else` arm, after the
+  // reduced-motion arm has returned its static column.
+  const mod = readFileSync(new URL('./act2-tell.ts', import.meta.url), 'utf8');
+  const reducedArm = mod.indexOf('  if (reducedMotion) {');
+  const elseArm = mod.indexOf('  } else {', reducedArm);
+  const endOfElse = mod.indexOf('\n  }\n', elseArm);
+  assert.ok(reducedArm > 0 && elseArm > reducedArm && endOfElse > elseArm, 'the branch has moved');
+  // The arms are read as text rather than by where one call happens to sit, so moving the lock into
+  // a helper (which is what happened once the keyboard half arrived) does not silently pass.
+  assert.ok(
+    !/\block\(\)/.test(mod.slice(reducedArm, elseArm)),
+    'the controls lock is applied on the reduced-motion path, where no finish() will ever remove it',
+  );
+  assert.ok(
+    /\block\(\)/.test(mod.slice(elseArm, endOfElse)),
+    'the timed path no longer locks the map at all',
+  );
 });
 
 // ── reading the map's own numbers ───────────────────────────────────────────

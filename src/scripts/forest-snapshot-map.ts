@@ -222,17 +222,18 @@ export function formatStampDate(generatedAt: string): string {
 /**
  * The line the page prints under the map. It states three things and no more: that this is
  * storytree's own system, WHEN the picture was taken, and that it is not live.
- *
- * ⚠ IT SAYS MICROSERVICES, NOT STORIES, AND IT SAID STORIES UNTIL 2026-09-01. ADR-0494 D5's
- * vocabulary pass rewrote every prose constant in `act2-tell.ts` and `act2-roam.ts` and left this
- * one standing, because `vocabulary.test.ts` scans strings it can IMPORT and this sentence is BUILT
- * here from two counts. So the single most-read line on the page — printed under the map, before
- * the visitor has clicked anything — was the last place our noun survived. It is scanned now.
  */
 export function renderStamp(snap: ForestSnapshot): string {
   const proven = `${snap.provenStoryCount} of ${snap.storyCount}`;
   return (
     `storytree's own system, as of ${formatStampDate(snap.generatedAt)}. ` +
+    // ⚠ MICROSERVICES, NOT STORIES (ADR-0494 D5). This is the single most prominent sentence under
+    // the map and it is the FIRST prose a visitor reads, seconds before TELL says "Every island is a
+    // microservice" — so our noun here made the page contradict itself inside ten seconds. Found by
+    // reading the LIVE site after the vocabulary pass landed: the fence covered TELL, ROAM and two
+    // strings in index.astro, and this fifth surface was generated here and scanned by nothing.
+    // `vocabulary.test.ts` now renders this stamp against the real snapshot and holds it to the same
+    // list.
     `${proven} microservices are proven — each one green because a signed test said so, not because ` +
     `anyone marked it done. This is a snapshot, refreshed from time to time. It is not live.`
   );
