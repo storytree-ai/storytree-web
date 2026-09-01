@@ -44,9 +44,11 @@ import {
   resolveScript,
   stateAt,
   totalDurationMs,
+  busiestIsland,
   type ForestFacts,
   type TellBeat,
 } from './act2-tell';
+import { ROAM_TRAIL_NOTE, edgeSentence } from './act2-roam';
 
 /** The corpus as published on 2026-08-28 — the numbers the live page is quoting today. */
 const TODAY: ForestFacts = {
@@ -55,6 +57,7 @@ const TODAY: ForestFacts = {
   capabilities: 215,
   selfIsland: SELF_STORY_ID,
   selfIsGreen: false,
+  busiestIsland: 'studio',
 };
 
 /** A DIFFERENT corpus. Not a smaller version of the same one — every count differs, so a line that
@@ -65,6 +68,7 @@ const LATER: ForestFacts = {
   capabilities: 260,
   selfIsland: SELF_STORY_ID,
   selfIsGreen: false,
+  busiestIsland: 'studio',
 };
 
 function renderAll(facts: ForestFacts, script: readonly TellBeat[] = TELL_SCRIPT): string[] {
@@ -186,10 +190,94 @@ test('every lens a beat asks for is one the runtime can honour', () => {
   for (const beat of TELL_SCRIPT) {
     assert.ok(known.has(beat.lens), `beat "${beat.id}" asks for an unknown lens: ${beat.lens}`);
   }
-  // Exactly one beat may move the camera. More than one and the sequence becomes a tour of the
-  // forest, which is ROAM's job and not TELL's.
-  const selfBeats = TELL_SCRIPT.filter((b) => b.lens === 'self');
-  assert.equal(selfBeats.length, 1);
+  // ⚠ EXACTLY TWO BEATS MAY MOVE THE CAMERA, NAMED RATHER THAN COUNTED. This asserted ONE until
+  // ADR-0494 D6 — "we should also zoom in on the edges" — because a third flight really would turn
+  // TELL into a tour of the forest, which is ROAM's job. Naming the two lenses is a tighter fence
+  // than the count it replaced: a count of two is satisfied by any two beats, including a third
+  // `self` beat someone added and a `trails` one they deleted.
+  const moving = TELL_SCRIPT.filter((b) => b.lens === 'self' || b.lens === 'trails');
+  assert.deepEqual(
+    moving.map((b) => b.id),
+    ['edges', 'self'],
+    'the camera moves on a different set of beats than the two decided ones',
+  );
+  // …and each of them exactly once. Two `self` beats would fly to the same island twice.
+  assert.equal(TELL_SCRIPT.filter((b) => b.lens === 'self').length, 1);
+  assert.equal(TELL_SCRIPT.filter((b) => b.lens === 'trails').length, 1);
+});
+
+// ── the edges beat (ADR-0494 D6) ────────────────────────────────────────────
+
+test('the edges beat names the relationship in the reader\'s vocabulary and says what they compose to', () => {
+  const beat = TELL_SCRIPT.find((b) => b.id === 'edges');
+  assert.ok(beat !== undefined, 'the edges beat has gone');
+  const text = beat.lines.join(' ');
+  assert.match(text, /\bdepends-on\b/, 'the beat never names the relationship');
+  assert.match(text, /\bDAG\b/, 'the beat never says what the edges compose to');
+  // It carries grounding, because "every trail is a depends-on" is a claim about what the picture
+  // means rather than a turn of phrase.
+  assert.ok((beat.grounds ?? []).length > 0, 'the edges beat asserts a product claim with no grounding');
+});
+
+test('TEETH: the edges beat states direction the same way the trail panel does', () => {
+  // ⚠ READ OFF THE OTHER MODULE, NOT TYPED IN HERE. `roam-falsify.mjs` seeds a REVERSED DEPENDENCY
+  // as one of its defects because that is a real, cheap mistake — and it is now assertable in three
+  // places that must agree. The convention is `data-edges`' `from->to`: `from` is depended ON, `to`
+  // depends on it, and the trail runs from the first to the second. An expectation typed into this
+  // file could go stale in the same edit that flipped the panel, which is the confound this suite's
+  // header exists to refuse.
+  //
+  // ⚠ AND THE PICTURE IS NOT ONE OF THE THREE. The map draws NO arrowheads — measured on the
+  // published SVG: zero `<marker>` elements, zero arrow classes, `marker-end: none` on every trail
+  // segment. So this test holds three SENTENCES to one convention; nothing here proves the reader
+  // can see which way a given trail runs, and no test in this repo can, because the map does not
+  // say. Whether it should is a look question for the owner, not something to assert into.
+  const beat = TELL_SCRIPT.find((b) => b.id === 'edges');
+  assert.ok(beat !== undefined);
+  const said = beat.lines.join(' ');
+  const neededAt = said.indexOf('is needed');
+  const needsAt = said.indexOf('needs it');
+  assert.ok(neededAt >= 0 && needsAt >= 0, `the edges beat does not state a direction at all: "${said}"`);
+  assert.ok(neededAt < needsAt, `the edges beat runs the dependency backwards: "${said}"`);
+
+  // The same order, in the panel a visitor reaches by clicking that trail: "X needs Y" puts the
+  // DEPENDENT first, so the trail's own note must read from-needed to needs-it exactly as above.
+  const panel = ROAM_TRAIL_NOTE.lines.join(' ');
+  assert.ok(
+    panel.indexOf('is needed') < panel.indexOf('needs it'),
+    `the panel and the prose disagree about which way a trail runs: "${panel}"`,
+  );
+  // And the sentence builder agrees with both: the thing that NEEDS comes first in "X needs Y".
+  assert.equal(edgeSentence({ from: 'needed', to: 'dependent' }, (id) => id), 'dependent needs needed.');
+});
+
+test('the busiest island is DEDUPED first — routed trails would inflate it 28x', () => {
+  // ⚠ THE MEASURED TRAP, AND IT IS THE KIND THAT SURVIVES REVIEW. A logical dependency is stamped on
+  // EVERY segment of its route, so counting raw mentions measures routing length rather than degree.
+  // On the published map that is 2547 mentions of 90 distinct edges. Both readings name `studio`
+  // today, which is exactly why the wrong one would have shipped.
+  //
+  // Here `a->b` is stamped on four segments and `c->d` on one. Undeduped, `a` and `b` score 4 each
+  // and the answer is `a`; deduped, everything scores 1 and the tie-break gives `a` too — so the
+  // fixture makes the counts VISIBLY different by giving `c` a second, distinct edge.
+  const routed = ['a->b', 'a->b', 'a->b', 'a->b', 'c->d,c->e'];
+  assert.equal(
+    busiestIsland(routed),
+    'c',
+    'the busiest island was picked from repeated route segments rather than distinct dependencies',
+  );
+});
+
+test('the busiest island is deterministic, and absent rather than invented', () => {
+  // A tie must not make the camera fly somewhere different between two loads of the same page.
+  assert.equal(busiestIsland(['a->b']), 'a');
+  assert.equal(busiestIsland(['b->a']), 'a');
+  assert.equal(busiestIsland([]), null);
+  assert.equal(busiestIsland([null, '', 'nonsense', '->', 'x->']), null);
+  // Degree counts both ends: a hub everything DEPENDS ON is as busy a junction as one that depends
+  // on everything, and the camera is being pointed at a picture, not at a direction.
+  assert.equal(busiestIsland(['hub->p,hub->q,r->s']), 'hub');
+  assert.equal(busiestIsland(['p->hub,q->hub,r->s']), 'hub');
 });
 
 // ── 4. the grounded claims are grounded ─────────────────────────────────────
@@ -354,7 +442,7 @@ test('the last line of a beat is credited the tail and the gap, not charged them
 test('TEETH: lengthening a line lengthens its beat — the cadence is derived, not hand-set', () => {
   // The failure this catches: someone replaces the derived dwell with a per-beat constant, and the
   // next person to edit the copy leaves a sentence on screen for less time than it takes to read.
-  const beat = TELL_SCRIPT.find((b) => b.id === 'trails');
+  const beat = TELL_SCRIPT.find((b) => b.id === 'edges');
   assert.ok(beat !== undefined);
   const asWritten = beatDwellMs(beat.lines);
   const doubled = beatDwellMs(beat.lines.map((l) => `${l} ${l}`));
@@ -420,6 +508,26 @@ test('SHORT AND LIGHT is measured, not asserted (ADR-0453 D1)', () => {
   // "Short and light is the binding constraint, not a style note." A ceiling is the only way that
   // sentence can survive future edits, and the number is deliberately generous: this fails when
   // someone adds a paragraph, not when they add a word.
+  //
+  // ⚠ 2026-09-01, THE VOCABULARY REWRITE (ADR-0494 D5): 71.9s → 64.8s, 773 characters → 681, on the
+  // SAME ten beats and the SAME 13 cps. Speaking the reader's language is what made it shorter, not
+  // a pace change: `Every island is one story — one thing the system does.` needed a gloss because
+  // `story` is our word, and `Every island is a microservice.` does not because `microservice` is
+  // theirs. The rest came from one compression — the binary beat's second line now names "the
+  // middle" and lets the NEXT beat show it rather than describing it twice.
+  //
+  // ⚠ 2026-09-01, THE EDGES BEAT (ADR-0494 D6): 64.8s → 71.1s, 681 characters → 747. A beat was
+  // ADDED and the sequence is still SHORTER than the 71.9s that was on the live site this morning —
+  // which is the whole point of spending the vocabulary rewrite's saving rather than banking it.
+  // Part of the 6.3s was paid back in the same edit: the turn beat said "storytree" twice in two
+  // lines and now says it once. If the next thing to land here cannot be paid for the same way, put
+  // the trade in front of the owner rather than quietly spending his open question about length.
+  //
+  // The 7.1s bought here is deliberately spent, not banked: it pays for the edges beat and the
+  // ending parked alongside this increment on `website-refresh-arc`, so the sequence ends up at or
+  // under where it started rather than growing. The owner has a live open question about the site's
+  // length; a lane that adds two beats and reports a shorter total is the only honest way to answer
+  // it. If a future edit needs room, CUT COPY — the ceiling is here to make the other move visible.
   //
   // ⚠ THE CEILING MOVED FROM 65s TO 85s ON 2026-08-29, AND THE COPY DID NOT GROW BY A WORD. The
   // pace repair raised the sequence from 54s to 72s on the SAME 779 characters, because the old

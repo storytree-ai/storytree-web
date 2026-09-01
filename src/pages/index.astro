@@ -239,7 +239,7 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
       class="storm-land"
       id="storm-land"
       tabindex="-1"
-      aria-label="storytree's own forest — every island a story. Drag to move around it."
+      aria-label="storytree's own forest — every island a microservice. Drag to move around it."
       hidden
     >
       <div class="storm-land-canvas" id="storm-land-canvas" set:html={forestArrival}></div>
@@ -266,7 +266,7 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
         <h1 set:html={home.headline} />
         <p class="lede" set:html={home.lede} />
         <p class="fallback__note">
-          storytree grows software as a living map of stories, watched as it happens. This is
+          storytree grows software as a living map of the system, watched as it happens. This is
           the plain-text door; the full guided experience needs JavaScript and motion.
         </p>
       </div>
@@ -915,7 +915,15 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   #storm-land .forest-arrival-svg .tw-trails {
     transition: opacity 0.75s ease, filter 0.75s ease;
   }
-  /* ⚠ THE TRAILS LENS EMPHASISES; IT DOES NOT REVEAL. The shared stylesheet hides `.tw-trails` and
+  /* ⚠ THE TRAILS LENS ALSO MOVES THE CAMERA NOW (ADR-0494 D6), and the CSS below is only half of
+     what the reader sees during that beat. `act2-tell` flies to the map's most-connected island for
+     the edges beat, because at the resting frame a trail is a few pixels of stroke and its ARROW is
+     not legible at all — so the rules here are read at roughly 4x the scale they were tuned at.
+     The line that used to sit here, "deliberately does not touch the resting frame", is no longer
+     true of the CAMERA and is still true of the STROKES: every rule below is scoped to the lens, so
+     the composition GROW settles on is byte-identical the moment the beat ends.
+
+     ⚠ THE TRAILS LENS EMPHASISES; IT DOES NOT REVEAL. The shared stylesheet hides `.tw-trails` and
      each host opts in — but GROW already opted this surface in (see `.storm-land-canvas .tw-trails`
      above), so the edges are on screen from the moment the visitor lands. An earlier draft here
      wrote `display: inline` under the lens and read like a reveal while doing nothing at all; worse,
