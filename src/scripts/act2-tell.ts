@@ -64,6 +64,7 @@
 // the script and the state machine are importable under `bun test`, which has no DOM.
 // ---------------------------------------------------------------------------
 
+import { buildLineageDiagram } from './act2-lineage-diagram';
 import { buildLoopDiagram, HONEST_LOOP } from './act2-loop-diagram';
 // ⚠ ONE PARSER FOR `data-edges`, NOT TWO. ROAM already owns the reading of a trail segment's edge
 // list, and the direction convention (`from` is depended ON) is the thing both movements now assert
@@ -118,8 +119,17 @@ export type TellLens =
   /** Fly to the island that is this website and ring it. */
   | 'self';
 
-/** The one drawing TELL is allowed. See `figure` on `TellBeat` for why there is exactly one. */
-export type TellFigure = 'none' | 'loop';
+/**
+ * The drawings TELL is allowed. See `figure` on `TellBeat` for the bar each one had to clear.
+ *
+ * ⚠ THERE ARE TWO NOW, AND THE SECOND ONE IS NOT A RELAXATION OF THE FIRST'S BAR. `loop` earns its
+ * place by carrying the single thing the forest structurally CANNOT show — who checks. `lineage`
+ * earns its place the same way, from the other direction: the map draws no arrowheads and will not
+ * (ADR-0501 D1), so which way a trail runs is a fact the picture is structurally silent about, and
+ * the figure is the owner's own chosen answer to it. A third figure needs the same argument; a
+ * drawing that only redraws what the forest already says is decoration.
+ */
+export type TellFigure = 'none' | 'loop' | 'lineage';
 
 export interface TellBeat {
   /** Stable id — the test names beats by this, and the DOM stamps it for the witness hook. */
@@ -234,8 +244,8 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     // for a sentence the reader was about to be shown rather than told.
     id: 'binary',
     lines: [
-      'That leaves two bad options: read every line yourself, or trust it and hope.',
-      'What was missing was the middle.',
+      'You either read every line yourself, or you trust it and hope.',
+      'There was no middle.',
     ],
     lens: 'none',
     figure: 'none',
@@ -247,12 +257,22 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     id: 'turn',
     lines: [
       'So storytree grows software as a map you can stand in front of.',
-      // ⚠ IT SAID "storytree" TWICE IN TWO LINES, AND THE SECOND ONE WAS DOING NOTHING. The line
-      // above has just named it; "its own" carries the referent. Dropping the repeat is a better
-      // sentence AND it pays for part of the edges beat this increment adds — which is the order
-      // those two considerations have to come in, because a cut made only for the clock is how
-      // copy gets sanded down to nothing.
-      'This one is real, drawn from its own records.',
+      // ⚠⚠ THE LINE THE OWNER STOPPED ON, AND WHY THE REPLACEMENT IS SHORTER RATHER THAN BETTER-
+      // ARGUED. It read "This one is real, drawn from its own records." He walked the live site on
+      // 2026-09-01 and said: *"this doesnt mean anything, i think what we mean to say is 'the map
+      // is derived from the code'."*
+      //
+      // He is right about the failure and the diagnosis is worth keeping. "This one is real" is an
+      // ASSERTION OF A PROPERTY the reader has no way to evaluate — every map on every product
+      // site claims to be real — and "drawn from its own records" answers "whose records?" with a
+      // pronoun. A reader with a sharp nose for vapour (ADR-0453 D2) discounts both by reflex.
+      //
+      // A MECHANISM is checkable where a property is not, so the line now states one. It is
+      // deliberately a CLAIM WITHOUT ITS PROOF: the `derived` beat four beats later is the proof,
+      // and separating them is what lets this beat stay two lines long. ADR-0501 D6 is the other
+      // half of D3 for exactly that reason — having claimed the map comes from the code, the page
+      // owes the reader the how.
+      'The map is drawn from the code.',
     ],
     lens: 'none',
     figure: 'none',
@@ -286,7 +306,10 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     id: 'proven',
     lines: [
       '{proven} of them are green.',
-      'Nothing goes green here because somebody said it was done.',
+      // Shorter than what it replaced ("Nothing goes green here because somebody said it was
+      // done") and saying the same thing — the comprehension pass's ordinary shape (ADR-0501 D2).
+      // ⚠ IT STILL REFUSES TO NAME THE SIGNER, for the reason above: not every green is a test's.
+      'Nothing turns green because someone said so.',
     ],
     lens: 'proven',
     figure: 'none',
@@ -304,6 +327,41 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     lens: 'none',
     figure: 'loop',
     grounds: ['ADR-0040'],
+  },
+  {
+    // THE MECHANISM (ADR-0501 D6). The owner, walking the live site on 2026-09-01: *"Be good if we
+    // explained how we derive the map from the code as well <- think this one will be a big
+    // question for alot of users."* He is almost certainly right: the `turn` beat asserts the map
+    // comes from the code, and until this beat the page never says how — which leaves the strongest
+    // claim on the site resting on the reader's goodwill.
+    //
+    // ⚠ IT SITS HERE, DIRECTLY AFTER THE LOOP, BECAUSE THE LOOP HAS JUST DRAWN ITS FIRST STEP.
+    // The figure the reader is still looking at opens with "Write a test that must pass", and the
+    // first line below is that same fact at map scale. Placed straight after `turn` — where the
+    // claim is made — it would have had to introduce islands, colour and proof before it could say
+    // anything, because the reader has met none of them yet. Placed here it names something they
+    // have just been shown.
+    //
+    // ⚠⚠ "SO IT CANNOT GO STALE" IS THE OVERCLAIM THIS BEAT ALMOST SHIPPED WITH, and it would
+    // have contradicted the stamp under the map in the same viewport. The forest IS a snapshot,
+    // refreshed from time to time, and `renderStamp` says so out loud precisely so the picture
+    // cannot read as a live feed. What is true is narrower and still worth the beat: nobody
+    // maintains this by hand, so it does not DRIFT from the system the way a drawn diagram does.
+    // Say the true thing.
+    //
+    // ⚠ AND IT DOES NOT SAY THE MAP IS PARSED OUT OF THE SOURCE, because it is not. The work is
+    // written down before it is built and the code is written against that; the map is that record
+    // published by a job (`forest-snapshot-map.ts`'s header owns the publishing half). "Derived
+    // from the code" is the owner's framing of a true thing — the map and the code come from one
+    // list — and the sentences below state that relation rather than inventing a static analyser.
+    id: 'derived',
+    lines: [
+      'The work is written down before the code, with the test that proves it.',
+      'The map is that list, drawn. Nobody updates it by hand.',
+    ],
+    lens: 'none',
+    figure: 'none',
+    grounds: ['ADR-0010', 'ADR-0020'],
   },
   {
     // THE EDGES BEAT (ADR-0494 D6). The owner: *"we should also zoom in on the edges and talk to how
@@ -327,13 +385,32 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     // their OWN system's shape in it, and a dependency graph is the one structure every one of them
     // already has. It is a sentence about the reader, not a claim about us — which is why the
     // grounding sits on the first line, where the claim actually is.
+    // ⚠⚠ AND IT NOW CARRIES THE FIGURE THAT CLOSES THE ARROWHEADS FORK (ADR-0501 D1). Everything
+    // above about the map drawing no arrowheads still holds and is still the decision; what changed
+    // is that the gap it leaves is now FILLED rather than noted. The owner declined both arrowhead
+    // options and chose this instead: *"dont add them to the paths, you can just explain it with an
+    // animated diagram that the linage flows from the bottom upwards."*
+    //
+    // ⚠ THE FIGURE RIDES THIS BEAT RATHER THAN GETTING ITS OWN, and that is a constraint rather
+    // than a preference. A second beat would need a lens, and the only honest one is `none`, which
+    // routes to `stage.resetView()` — so a lineage beat after this one would fly the camera OUT of
+    // the knot of trails it had just flown into, to explain the trails it was no longer showing.
+    // ADR-0501 D4's own escape hatch covers the extra line: *"anything more than 4 lines is too
+    // long for a single slide … or maybe its fine but it just needs an animated diagram to
+    // accumpany it."* This is the slide that has one.
     id: 'edges',
     lines: [
-      'Every trail is a depends-on: from what is needed to what needs it.',
+      // ⚠ "it runs from" IS THE WHOLE OF THE REWORD, AND THE PHRASES AROUND IT ARE PINNED. Three
+      // sentences in two modules have to state this direction identically and `act2-tell.test.ts`
+      // reads the other two rather than trusting them; `depends-on` and `DAG` are asserted too.
+      // So the comprehension pass here is limited to making it a sentence — "a depends-on: from
+      // X to Y" is a noun phrase doing a verb's work — and the DIAGRAM does the rest, which is
+      // what a diagram is for.
+      'Every trail is a depends-on: it runs from what is needed to what needs it.',
       'Together they make a DAG. So does yours.',
     ],
     lens: 'trails',
-    figure: 'none',
+    figure: 'lineage',
     grounds: ['ADR-0010'],
   },
   {
@@ -373,8 +450,12 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
  * that survives its own subject going green is the only copy that can be trusted to stay true.
  */
 export const SELF_CLAUSE = {
-  notGreen: 'It is not green. Nobody has signed it off, so the map does not say otherwise.',
-  green: 'It went green the way everything else does — a test proved it, and the system checked.',
+  notGreen: 'It is not green. Nobody signed it off, so the map does not say otherwise.',
+  // ⚠ IT NO LONGER SAYS "a test proved it", AND THE REASON IS THE ONE THE `proven` BEAT GIVES:
+  // green requires a signed verdict, but the signer is not always a test — an operator-attested
+  // journey goes green on a person's signature (ADR-0070 stage 2). The branch that ships when this
+  // island goes green must be as true as the branch that ships today.
+  green: 'It went green like everything else — something else checked, and signed.',
 } as const;
 
 // ── rendering the copy ──────────────────────────────────────────────────────
@@ -969,13 +1050,19 @@ export function mountTell(opts: TellOptions): TellHandle {
       );
       return;
     }
-    const { body, nodeEls } = buildLoopDiagram(HONEST_LOOP, reducedMotion);
+    // ⚠ BOTH BUILDERS RETURN THE SAME SHAPE ON PURPOSE — `{ body, nodeEls }`, parts already parked
+    // `is-hidden`, in REVEAL order — so the stagger below is written once and neither figure owns a
+    // clock. Each builder decides what its own order MEANS: the loop's is clockwise, so the reader
+    // watches the cycle close; the lineage's is bottom-to-top, so the reader watches it grow the way
+    // the lineage runs. That second one is the animation ADR-0501 D1 actually asked for, and it is a
+    // returned guarantee rather than a detail (`act2-lineage-diagram.ts` says so at its return).
+    const { body, nodeEls } =
+      figure === 'lineage' ? buildLineageDiagram(reducedMotion) : buildLoopDiagram(HONEST_LOOP, reducedMotion);
     figureSlot.append(body);
     figureSlot.classList.add('is-on');
     if (reducedMotion) return;
-    // `buildLoopDiagram` already parked each node `is-hidden` for exactly this — the reveal is the
-    // caller's to schedule. The four arrive in the loop's own clockwise order, so the reader watches
-    // the cycle assemble rather than meeting it finished.
+    // The builder already parked each part `is-hidden` for exactly this — the reveal is the
+    // caller's to schedule, so the figure module stays free of the timer the quiet rule forbids.
     nodeEls.forEach((node, i) => {
       timers.push(
         window.setTimeout(() => {

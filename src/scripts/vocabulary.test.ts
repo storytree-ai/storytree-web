@@ -24,6 +24,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { INTERNAL_NOUNS, findInternalNouns, speaksReaderVocabulary } from './vocabulary';
+import { LINEAGE_LOWER, LINEAGE_UPPER } from './act2-lineage-diagram';
 import { SELF_CLAUSE, SELF_STORY_ID, TELL_SCRIPT, renderLine, type ForestFacts } from './act2-tell';
 import { ASK_CTA, ASK_LINE } from './act2-ask';
 import {
@@ -142,6 +143,13 @@ function visitorProse(): Prose[] {
   for (const [branch, text] of Object.entries(SELF_CLAUSE)) {
     out.push({ where: `TELL self clause (${branch})`, text });
   }
+  // ⚠ THE FIGURE'S LABELS ARE PROSE TOO, AND A WORD LIST THAT STOPS AT THE SENTENCES IS THE BLIND
+  // SPOT THIS SUITE ALREADY PAID FOR ONCE. `renderStamp` built a string this fence never scanned
+  // and shipped "stories" under the map while the prose said "microservice" ten seconds later —
+  // found by reading the live site, not the build. Two words inside an SVG box are exactly the
+  // shape that escapes again.
+  out.push({ where: 'TELL lineage figure (upper box)', text: LINEAGE_UPPER });
+  out.push({ where: 'TELL lineage figure (lower box)', text: LINEAGE_LOWER });
 
   for (const note of ROAM_NOTES) {
     note.lines.forEach((text, i) => out.push({ where: `ROAM note ${note.id}[${i}]`, text }));

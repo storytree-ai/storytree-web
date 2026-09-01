@@ -49,6 +49,7 @@ import {
   type ForestFacts,
   type TellBeat,
 } from './act2-tell';
+import { LINEAGE_LOWER, LINEAGE_UPPER } from './act2-lineage-diagram';
 import { ROAM_TRAIL_NOTE, edgeSentence } from './act2-roam';
 
 /** `index.astro`'s source — the stylesheet and the markup this module cannot import. Several tests
@@ -494,18 +495,206 @@ test('nothing is said until the land is visible — the lead-in is not zero', ()
 test('the figure is a pure function of the beat — it is removed, not merely added', () => {
   // The measured defect: the first draft only ever ADDED the loop diagram, so it hung under the
   // three beats after its own and the rendered state stopped being a function of the index — which
-  // is the ONE property this module inherited from the retired sequencer. A single beat declares a
-  // figure; every other beat declares 'none', and the runtime must honour both directions.
+  // is the ONE property this module inherited from the retired sequencer. A beat that declares no
+  // figure must actively clear whatever the last one drew, and the runtime must honour both
+  // directions.
+  //
+  // ⚠ THIS TEST USED TO ASSERT `withFigure.length === 1`, AND THAT CLAUSE IS RETIRED BY ADR-0501
+  // D1 — deliberately, not worked around. The owner declined both arrowhead options for the map and
+  // chose a second, animated figure instead: *"you can just explain it with an animated diagram
+  // that the linage flows from the bottom upwards."* The count was never the property; it was a
+  // cheap proxy for "a figure has to earn the page", which no test can score. What IS mechanical is
+  // below, and it now holds for EVERY figure rather than for the only one there used to be.
   const withFigure = TELL_SCRIPT.filter((b) => b.figure !== 'none');
-  assert.equal(withFigure.length, 1, 'more than one beat draws — TELL is allowed exactly one figure');
-  const loopAt = TELL_SCRIPT.findIndex((b) => b.figure !== 'none');
-  assert.ok(loopAt < TELL_SCRIPT.length - 1, 'the figure beat is last, so removal is never exercised');
+  assert.deepEqual(
+    withFigure.map((b) => `${b.id}:${b.figure}`),
+    ['loop:loop', 'edges:lineage'],
+    'the set of drawing beats has changed — a new figure needs the argument ADR-0501 D1 made for this one',
+  );
+
   const script = resolveScript(TELL_SCRIPT, TODAY);
-  assert.equal(stateAt(loopAt, script, TODAY).figure, 'loop');
+  for (const beat of withFigure) {
+    const at = script.findIndex((b) => b.id === beat.id);
+    assert.ok(at >= 0, `${beat.id} did not survive resolveScript`);
+    assert.ok(
+      at < script.length - 1,
+      `the ${beat.id} figure is last in the sequence, so its removal is never exercised`,
+    );
+    assert.equal(stateAt(at, script, TODAY).figure, beat.figure);
+    assert.notEqual(
+      stateAt(at + 1, script, TODAY).figure,
+      beat.figure,
+      `the beat after ${beat.id} does not ask for its figure to go`,
+    );
+  }
+});
+
+test('TEETH: the lineage figure draws the edges beat OWN sentence, not a second one', () => {
+  // ⚠ THE FIGURE IS THE SENTENCE DRAWN, so the two have to be read off each other rather than
+  // trusted to agree. `roam-falsify.mjs` already seeds a REVERSED DEPENDENCY as a defect one surface
+  // along, because it is a real and cheap mistake — and a figure that says the opposite of the line
+  // beside it is the same defect wearing a picture. A reword of either side that does not reach the
+  // other reds here.
+  const beat = TELL_SCRIPT.find((b) => b.id === 'edges');
+  assert.ok(beat !== undefined);
+  const said = beat.lines.join(' ');
+  assert.ok(said.includes(LINEAGE_LOWER), `the figure lower box says "${LINEAGE_LOWER}" and the beat never does`);
+  assert.ok(said.includes(LINEAGE_UPPER), `the figure upper box says "${LINEAGE_UPPER}" and the beat never does`);
+  // And in the same ORDER the beat states, which is the half that can invert silently: the trail
+  // runs from what is needed (the LOWER box) to what needs it (the UPPER one).
+  assert.ok(
+    said.indexOf(LINEAGE_LOWER) < said.indexOf(LINEAGE_UPPER),
+    `the figure and the beat disagree about which end is which: "${said}"`,
+  );
+});
+
+test('TEETH: the lineage figure holds no clock, and assembles from the BOTTOM UP', () => {
+  // ⚠ THE QUIET RULE, ONE MOVEMENT ACROSS. `act2-roam.ts` is scanned for timers because a clock
+  // there would make ROAM a second TELL; the reason here is different and just as load-bearing. The
+  // reveal is the CALLER's to schedule — `applyFigure` owns every timer in this movement, and its
+  // teardown clears them — so a builder that scheduled its own would leak a timer past `unmount`
+  // and fire against a torn-down DOM. `buildLoopDiagram` holds the same floor.
+  const source = readFileSync(new URL('./act2-lineage-diagram.ts', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(source.includes('buildLineageDiagram'), 'the scan is not reading the module it claims to');
+  for (const timer of ['setTimeout', 'setInterval', 'requestAnimationFrame', 'Math.random', 'Date.now']) {
+    assert.equal(source.includes(timer), false, `the lineage figure calls ${timer} — it has acquired a clock`);
+  }
+  // ⚠ AND THE ORDER IS THE TEACHING, so it is asserted rather than left to the reader of the file.
+  // ADR-0501 D1 asks for a diagram showing that lineage flows from the bottom UPWARDS; the reveal
+  // order IS that animation, and `[upper, stem, lower]` would play it backwards while every other
+  // test here stayed green.
+  assert.match(
+    source,
+    /nodeEls:\s*Element\[\]\s*=\s*\[lower,\s*stem,\s*upper\]/,
+    'the lineage figure no longer assembles bottom-to-top',
+  );
+  // The dashes must flow toward the END of the path — the top. A positive offset runs them down.
+  const page_ = readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
+  const flow = /@keyframes act2-lineage-flow\s*\{[^}]*stroke-dashoffset:\s*(-?[0-9.]+)/.exec(page_);
+  assert.ok(flow !== null, 'the lineage stem has no flow animation');
+  assert.ok(
+    Number(flow[1]) < 0,
+    `the lineage dashes flow downward (offset ${flow[1]}) — the figure teaches the inverse`,
+  );
+});
+
+test('the MAP still draws no arrowheads — the figure is what replaced them (ADR-0501 D1)', () => {
+  // ⚠ THE FIGURE IS THE ALTERNATIVE TO ARROWHEADS, NOT A WARM-UP FOR THEM. The owner declined both
+  // options that put a glyph on the trails; landing the diagram and then adding them anyway would
+  // spend the decision twice. The map's renderer is the place that would do it.
+  const map = readFileSync(new URL('./forest-snapshot-map.ts', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  for (const glyph of ['marker-end', '<marker', 'marker-start']) {
+    assert.equal(map.includes(glyph), false, `the snapshot map now draws ${glyph} — ADR-0501 D1 declined that`);
+  }
+});
+
+// ── the four-line ceiling (ADR-0501 D4/D5) ──────────────────────────────────
+//
+// The owner, walking the live site on 2026-09-01: *"make the text smaller and a little more dense,
+// just not too dense, anything more than 4 lines is too long for a single slide i think, or maybe
+// its fine but it just needs an animated diagram to accumpany it."* Four WRAPPED lines, on screen,
+// is the rule — and it is a rule about LAYOUT, which is exactly the thing `bun test` cannot see.
+//
+// ⚠⚠ SO THIS IS A PROXY, AND SAYING SO IS THE POINT. It bounds two things that are exactly
+// checkable — how many prose lines a beat declares, and how long each one is — chosen so that
+// their product cannot exceed four wrapped lines at the SHIPPED measure. The calibration is a
+// browser measurement of the built site at 1280x720, where `.tell-column` resolves to 480px and
+// `.tell-line` to 21.44px:
+//
+//     74 chars → 2 wrapped lines      (the edges beat's first line, and the problem beat's second)
+//     75 chars → 3 wrapped lines      (the derived beat's first draft — the boundary, measured)
+//
+// So a line is capped at 74 and a beat at two lines. Measured on the built site afterwards, at the
+// two widths that matter:
+//
+//     1280x720 (column 480px, type 21.44px) — every beat 4 or fewer. name 1 · problem 3 ·
+//       binary 3 · turn 3 · islands 2 · proven 3 · loop 1 · derived 4 · edges 4 · self 4 ·
+//       handoff 2.
+//     390x844  (column 343px, type at its 16px floor) — every beat 4 or fewer EXCEPT `edges`,
+//       which reaches 5. name 1 · problem 4 · binary 3 · turn 3 · islands 2 · proven 3 · loop 1 ·
+//       derived 4 · edges 5 · self 3 · handoff 2.
+//
+// ⚠ THAT ONE EXCEPTION IS THE RULE'S OWN ESCAPE HATCH RATHER THAN A BREACH OF IT, and it is worth
+// writing down because the next reader will otherwise take the mobile number for a regression.
+// D4 in the owner's words: *"anything more than 4 lines is too long for a single slide i think, or
+// maybe its fine but it just needs an animated diagram to accumpany it."* `edges` is the slide
+// that has one. It is also the ONLY beat over the line at either width, which is the check on
+// whether that hatch is being leaned on.
+//
+// ⚠ THE PROXY FAILS IN ONE DIRECTION AND IT IS WORTH NAMING: a line of 74 unusually long words
+// could still wrap to three. The browser measurement is the real instrument and it is re-run on
+// the PR; this rung exists so that ADDING A PARAGRAPH reds without anyone having to remember.
+//
+// ⚠ AND IT READS THE RENDERED LINES, NOT THE AUTHORED ONES. `{selfClause}` is 12 characters in the
+// script and 71 on the screen. A check over `beat.lines` would have scored the placeholder and
+// passed the longest string on the page — which is the identical blind spot the vocabulary fence
+// hit when `renderStamp` built a string it never scanned, and it cost a fifth PR.
+
+/** The shipped measure this ceiling was calibrated against. If either moves, re-measure. */
+const CALIBRATED_FONT = 'clamp(1rem, 2.05vw, 1.34rem)';
+const CALIBRATED_COLUMN = 'min(30rem, 62vw)';
+const MAX_LINES_PER_BEAT = 2;
+const MAX_CHARS_PER_LINE = 74;
+
+test('NO SLIDE EXCEEDS FOUR WRAPPED LINES (ADR-0501 D4) — bounded by lines-per-beat x chars-per-line', () => {
+  // Both facts branches, because `{selfClause}` picks one at render time and the two differ by
+  // seven characters. A ceiling that only ever saw the shorter one is not a ceiling.
+  for (const green of [false, true]) {
+    const facts: ForestFacts = { ...TODAY, selfIsGreen: green };
+    const script = resolveScript(TELL_SCRIPT, facts);
+    script.forEach((_, i) => {
+      const state = stateAt(i, script, facts);
+      assert.ok(
+        state.lines.length <= MAX_LINES_PER_BEAT,
+        `beat "${state.id}" declares ${state.lines.length} lines — over the ${MAX_LINES_PER_BEAT} that fit in four wrapped ones`,
+      );
+      for (const line of state.lines) {
+        assert.ok(
+          line.length <= MAX_CHARS_PER_LINE,
+          `beat "${state.id}" has a ${line.length}-character line and wraps past four: "${line}"`,
+        );
+      }
+    });
+  }
+});
+
+test('TEETH: the ceiling is calibrated against the type it was measured at', () => {
+  // ⚠ THE JOINT THE CHARACTER BUDGET HANGS ON. 74 characters is two wrapped lines at 1.34rem over a
+  // 30rem column and nothing else — enlarge the face or narrow the column and the same copy wraps
+  // further while every assertion above stays green. Same shape as the acquisition constants two
+  // sections up, and for the same reason: the CSS is not reachable from this module, so the test
+  // reads the stylesheet.
+  const source = page();
+  const font = /\.tell-line\s*\{[^}]*font-size:\s*([^;]+);/.exec(source);
+  assert.ok(font !== null, 'the .tell-line font-size has moved');
   assert.equal(
-    stateAt(loopAt + 1, script, TODAY).figure,
-    'none',
-    'the beat after the figure does not ask for it to go',
+    (font[1] ?? '').trim(),
+    CALIBRATED_FONT,
+    'the prose type changed — re-measure the wrapped lines in a browser and re-calibrate MAX_CHARS_PER_LINE',
+  );
+  const column = /\.tell-column\s*\{[^}]*max-width:\s*([^;]+);/.exec(source);
+  assert.ok(column !== null, 'the .tell-column max-width has moved');
+  assert.equal(
+    (column[1] ?? '').trim(),
+    CALIBRATED_COLUMN,
+    'the prose column changed width — the character budget was measured against the old one',
+  );
+});
+
+test('TEETH: the ceiling would catch the paragraph it exists to stop', () => {
+  // A guard nothing can fail is not a guard. Both halves, since they fail differently: a third line
+  // added to a beat, and a line grown past the measured boundary.
+  const overLong = 'The work is written down before the code is written, together with the test that will later prove it.';
+  assert.ok(overLong.length > MAX_CHARS_PER_LINE, 'the sample line is not actually over the budget');
+  assert.ok(3 > MAX_LINES_PER_BEAT, 'a three-line beat would pass the per-beat bound');
+  // And the real script is not sitting on the limit by accident — at least one beat uses both lines.
+  assert.ok(
+    TELL_SCRIPT.some((b) => b.lines.length === MAX_LINES_PER_BEAT),
+    'no beat uses two lines, so the per-beat bound has never been exercised',
   );
 });
 

@@ -1089,10 +1089,27 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     transition: opacity 0.34s ease, translate 0.34s ease;
   }
   .tell-block.is-on { opacity: 1; translate: 0 0; }
+  /* ⚠ SMALLER AND A LITTLE DENSER (ADR-0501 D5), AND IT BUYS THE FOUR-LINE CEILING RATHER THAN
+     A LOOK. The owner: *"make the text smaller and a little more dense, just not too dense,
+     anything more than 4 lines is too long for a single slide."* The second half is the
+     operational form of the first, so the size is chosen against a MEASUREMENT: at the old
+     1.62rem over the 30rem column, three beats rendered five wrapped lines at 1280x720 (`binary`,
+     `turn`, `edges`). At 1.34rem none of them does.
+
+     ⚠⚠ AND IT CHANGES NO READING TIME WHATSOEVER. The dwell is characters over `CPS`, so a
+     smaller face moves the LAYOUT and the wrapped-line COUNT and moves the clock not at all —
+     which is exactly why it was the right lever and a faster `CPS` was not. The pace constant was
+     set against a published subtitle standard after the copy measured two to three times too fast
+     and drew *"couldnt read it"* from this same owner; nothing in D4/D5 licenses touching it, and
+     ADR-0501 says so in as many words.
+
+     The measure it produces is ~44 characters at 1280 — inside the typographic band a line is
+     read in one eye movement, which is the property `.tell-column`'s width comment is protecting
+     and the reason the column did NOT widen to spend the saving. */
   .tell-line {
-    margin: 0 0 0.55rem;
-    font-size: clamp(1.12rem, 2.5vw, 1.62rem);
-    line-height: 1.36;
+    margin: 0 0 0.5rem;
+    font-size: clamp(1rem, 2.05vw, 1.34rem);
+    line-height: 1.32;
     font-weight: 500;
     color: #2c2318;
     letter-spacing: -0.005em;
@@ -1102,8 +1119,10 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   }
   .tell-line.is-hidden { opacity: 0; translate: 0 6px; }
   /* The first beat is the name, alone. It gets the size that says so. */
+  /* The name beat comes down with the rest so the sequence reads as one voice — it is still by far
+     the largest thing said, which is the only job this rule has. */
   .tell-layer[data-tell-beat='name'] .tell-line {
-    font-size: clamp(1.7rem, 4.4vw, 2.9rem);
+    font-size: clamp(1.55rem, 4vw, 2.55rem);
     font-weight: 600;
   }
 
@@ -1823,6 +1842,48 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     transition: opacity 0.34s ease;
   }
   .act2-loop-node.is-hidden { opacity: 0; }
+
+  /* ---- the LINEAGE figure (act2-lineage-diagram.ts) — which way a trail runs ----
+
+     ⚠ THE ARROWHEAD HERE IS THE POINT, NOT AN OVERSIGHT. ADR-0501 D1 declined arrowheads on the
+     MAP's 90 trails and chose a figure instead; a figure that explains direction obviously draws
+     one, and the loop skin above has shipped `.act2-loop-arrowhead` beside this since it landed.
+     What must stay true of the map is unchanged: zero `<marker>` elements, `marker-end: none` on
+     every segment.
+
+     ⚠ IT IS NARROWER THAN THE LOOP ON PURPOSE. `.tell-figure` is sized for the loop's wide 308x250
+     ring; this one is a vertical stack, so its HEIGHT is what competes with the prose above it for
+     the viewport. Capping the body rather than the slot leaves the loop's own sizing untouched.
+
+     ⚠ THE FLOW IS `stroke-dashoffset`, THE SAME MECHANISM AS THE LOOP'S ARC, and the reason is the
+     quiet rule one movement along: a CSS animation is declarative, so the figure module holds no
+     timer, and the global `prefers-reduced-motion` block already collapses every animation on this
+     page to 0.001ms without this rule having to ask. */
+  .act2-lineage { margin: 0.15rem 0 0.1rem; max-width: 15rem; }
+  .act2-lineage-svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .act2-lineage-stem {
+    /* ⚠ HEAVIER THAN THE LOOP'S ARCS ON PURPOSE. There are four of those and they read as a ring;
+       there is ONE of these and it is the entire content of the figure. Measured on the built site
+       at 1280x720, the first draft's 1.8 landed as a hairline over the cream board and the
+       arrowhead — the thing that carries the direction — went with it. */
+    fill: none; stroke: #6f6450; stroke-width: 2.6; opacity: 0.95;
+    /* The dash period is 9, and the keyframe below offsets by exactly one period so the flow loops
+       seamlessly. A mismatched pair reads as a stutter, which on a figure about DIRECTION is the
+       one artefact a viewer would take for meaning. */
+    stroke-dasharray: 5 4;
+    /* NEGATIVE offset over time pulls the dashes toward the path's END, which is the top. The sign
+       is the whole teaching — flipped, the figure would say lineage runs downward. */
+    animation: act2-lineage-flow 1.1s linear infinite;
+  }
+  @keyframes act2-lineage-flow { to { stroke-dashoffset: -9; } }
+  .act2-lineage-arrowhead { fill: #8f846a; }
+  .act2-lineage-box { fill: #23201a; stroke: #453c29; stroke-width: 1.2; }
+  .act2-lineage-label {
+    fill: #e7debd; font: 650 9.4px 'SF Mono', Consolas, monospace;
+    letter-spacing: -0.2px;
+  }
+  .act2-lineage-node { transition: opacity 0.34s ease; }
+  .act2-lineage-node.is-hidden { opacity: 0; }
   @media (prefers-reduced-motion: reduce) {
     .act2-loop-arc { animation: none; }
     .act2-loop-node { transition: none; }
