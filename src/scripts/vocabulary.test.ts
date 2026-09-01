@@ -39,6 +39,15 @@ import {
   uatTally,
   type RoamStory,
 } from './act2-roam';
+import { legendProse } from './forest-legend';
+import {
+  arrivalLabel,
+  assertSnapshot,
+  nameplateTally,
+  provenTally,
+  renderStamp,
+} from './forest-snapshot-map';
+import snapshotJson from '../data/forest-snapshot.json';
 
 /** One labelled string, so a failure names the surface as well as the sentence. */
 interface Prose {
@@ -162,6 +171,35 @@ function visitorProse(): Prose[] {
     out.push({ where: `ROAM decisionTally(${n})`, text: decisionTally(decisionFixture(n)) });
   }
 
+  // ⚠ THE MAP'S OWN BUILT STRINGS, WHICH IS WHERE OUR NOUNS SURVIVED THE PASS THAT RETIRED THEM.
+  // The stamp under the picture, every island's nameplate, its hover title and the map's accessible
+  // description are all assembled from counts in `forest-snapshot-map.ts` — so there was no literal
+  // for this suite to read, and on 2026-09-01 the shipped page said "35 stories are proven" in its
+  // single most-read line and "9 capabilities" on every island, a day after the copy constants had
+  // all been rewritten. That is the failure mode this file's own header names ("a noun assembled at
+  // render time is invisible to any scan of the copy constants") arriving in the one module the
+  // scan did not reach. Both plural branches are exercised, because they carry two different words.
+  //
+  // ⚠ THE ISLAND'S TITLE IS DELIBERATELY NOT HERE. It is `${story.title} — ${provenTally(…)}`, and
+  // the title half is our real corpus name, which the fence must never read (ADR-0453 D3). Only the
+  // built half is exported, which is why only the built half can be scanned.
+  const snap = assertSnapshot(snapshotJson);
+  out.push({ where: 'MAP stamp', text: renderStamp(snap) });
+  out.push({ where: 'MAP arrival label', text: arrivalLabel(snap) });
+  for (const n of [0, 1, 6]) {
+    out.push({ where: `MAP nameplateTally(${n})`, text: nameplateTally(n) });
+    out.push({ where: `MAP provenTally(${n})`, text: provenTally(n, n + 1) });
+  }
+
+  // The KEY, which is the one surface on this page a visitor reads without asking for it and
+  // without clicking anything — so a noun that slipped in here would be met by everyone. Its strings
+  // are enumerated by the module itself rather than listed here, which is what keeps this covered
+  // when a row is added later. The status WORDS in it are `STATUS_READING`'s, already scanned above;
+  // they come through again because the key renders them and the double cost is nil.
+  for (const text of legendProse()) {
+    out.push({ where: `KEY ${text.slice(0, 24)}`, text });
+  }
+
   // The page's own two act-2 strings. Read out of the source the same way `act2-tell.test.ts` reads
   // the stylesheet — they are markup this module cannot import, and leaving them unscanned would
   // mean the label a screen reader announces was the one place our nouns could survive.
@@ -196,7 +234,7 @@ test('the surface is scanned WIDE — a fence over three sentences would pass va
   const prose = visitorProse();
   assert.ok(prose.length >= 40, `only ${prose.length} strings are being scanned`);
   const surfaces = new Set(prose.map((p) => p.where.split(' ')[0]));
-  assert.deepEqual([...surfaces].sort(), ['ROAM', 'TELL', 'index.astro']);
+  assert.deepEqual([...surfaces].sort(), ['KEY', 'MAP', 'ROAM', 'TELL', 'index.astro']);
 });
 
 test('TEETH: the fence catches each internal noun — it is not vacuous', () => {

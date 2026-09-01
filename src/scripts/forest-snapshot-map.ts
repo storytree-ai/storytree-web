@@ -222,13 +222,58 @@ export function formatStampDate(generatedAt: string): string {
 /**
  * The line the page prints under the map. It states three things and no more: that this is
  * storytree's own system, WHEN the picture was taken, and that it is not live.
+ *
+ * ⚠ IT SAYS MICROSERVICES, NOT STORIES, AND IT SAID STORIES UNTIL 2026-09-01. ADR-0494 D5's
+ * vocabulary pass rewrote every prose constant in `act2-tell.ts` and `act2-roam.ts` and left this
+ * one standing, because `vocabulary.test.ts` scans strings it can IMPORT and this sentence is BUILT
+ * here from two counts. So the single most-read line on the page — printed under the map, before
+ * the visitor has clicked anything — was the last place our noun survived. It is scanned now.
  */
 export function renderStamp(snap: ForestSnapshot): string {
   const proven = `${snap.provenStoryCount} of ${snap.storyCount}`;
   return (
     `storytree's own system, as of ${formatStampDate(snap.generatedAt)}. ` +
-    `${proven} stories are proven — each one green because a signed test said so, not because ` +
+    `${proven} microservices are proven — each one green because a signed test said so, not because ` +
     `anyone marked it done. This is a snapshot, refreshed from time to time. It is not live.`
+  );
+}
+
+// ── the strings the map BUILDS, which are the ones a fence forgets ──────────
+//
+// ⚠ EVERY STRING BELOW IS VISITOR-FACING AND NONE OF THEM IS A CONSTANT. A nameplate's second line,
+// an island's hover title and the map's own accessible description are assembled from counts at
+// render time, which is exactly the shape `vocabulary.test.ts` cannot see by reading copy: there is
+// no literal to scan. They are pulled out as named functions for that reason and no other — a word
+// a test cannot import is a word the fence does not cover, and all three of these said `capability`
+// or `story` for a day after the pass that was supposed to have retired both (ADR-0494 D5).
+//
+// ⚠ AND NONE OF THEM CARRIES A CORPUS NAME. `islandTitle` composes a story's real title with
+// {@link provenTally}; only the tally half is exported for scanning, because the map's own labels
+// are our untranslated ids ON PURPOSE (ADR-0453 D3) and a fence that read one would report the
+// substrate as a violation.
+
+/** A nameplate's second line: how many components the island holds. */
+export function nameplateTally(capCount: number): string {
+  return capCount === 1 ? '1 component' : `${capCount} components`;
+}
+
+/** An island's hover title, minus its name: how much of it is proven. */
+export function provenTally(proven: number, total: number): string {
+  return `${proven} of ${total} components proven`;
+}
+
+/**
+ * The whole map's accessible description — what a screen reader is told the picture IS.
+ *
+ * It carries the same three claims the stamp does (whose system, when, not live) plus the two
+ * gestures, because a reader who cannot see the map still has to know it can be moved.
+ */
+export function arrivalLabel(snap: ForestSnapshot): string {
+  return (
+    `A map of storytree's own system as of ${formatStampDate(snap.generatedAt)}: ` +
+    `${snap.storyCount} islands, one microservice each, ${snap.provenStoryCount} of them green ` +
+    `because a signed test proved them, connected by trails where one depends on another. ` +
+    `Not live. Drag to move around it; scroll to zoom.`
   );
 }
 
@@ -408,7 +453,7 @@ export function forestSceneInput(snap: ForestSnapshot): SceneInput & { width: nu
       coastPaths: disc.coastPaths,
       decor: disc.decor,
       plants: [],
-      treeTitle: `${story.title} — ${proven} of ${capCount} capabilities proven`,
+      treeTitle: `${story.title} — ${provenTally(proven, capCount)}`,
       // no wisps: a snapshot has no live session (see the file header)
       wisps: [],
       plate: {
@@ -418,7 +463,7 @@ export function forestSceneInput(snap: ForestSnapshot): SceneInput & { width: nu
         idY: 14,
         subY: 26,
         idText: story.id,
-        subText: capCount === 1 ? '1 capability' : `${capCount} capabilities`,
+        subText: nameplateTally(capCount),
         title: story.title,
       },
     });
@@ -648,11 +693,7 @@ export function roamPayload(snap: ForestSnapshot): RoamPayload {
  */
 export function forestArrivalSvg(snap: ForestSnapshot): string {
   const input = forestSceneInput(snap);
-  const label =
-    `A map of storytree's own system as of ${formatStampDate(snap.generatedAt)}: ` +
-    `${snap.storyCount} story islands, ${snap.provenStoryCount} of them green because a signed ` +
-    `test proved them, connected by trails where one depends on another. Not live. ` +
-    `Drag to move around it; scroll to zoom.`;
+  const label = arrivalLabel(snap);
   const frame = JSON.stringify({
     width: input.width,
     height: input.height,

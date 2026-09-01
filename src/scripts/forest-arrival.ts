@@ -310,8 +310,21 @@ export interface ArrivalHandle {
   onReaderTakeOver(cb: () => void): void;
 }
 
-/** How much of the frame's bottom the snapshot stamp occupies, in CSS px, measured off the element
- *  itself. Zero when there is no stamp — this surface must still frame correctly without one. */
+/**
+ * How much of the frame's bottom the docked furniture occupies, in CSS px, measured off the
+ * elements themselves. Zero when there is none — this surface must still frame correctly bare.
+ *
+ * ⚠ IT MEASURES THE STAMP, NOT THE WHOLE FOOTER, AND THAT IS A DELIBERATE SPLIT. The stamp is
+ * docked across the FULL WIDTH of the frame, so an island behind it is hidden wherever it sits and
+ * the only honest answer is to lift the world above it. The key beside it is a narrow card in one
+ * corner: reserving a full-width band tall enough to clear it would shrink every island in the
+ * picture by roughly a fifth (measured: `restingFrame` pins the scale to the frame's SHORT side, so
+ * 143px off a 900px-tall frame is 18% off the designed island size) to keep one corner clear —
+ * which trades the composition the arrival exists to open on for a problem that is better solved by
+ * putting the card where the islands are not. `.storm-land-key`'s own rules carry that placement,
+ * and the measurement that says it holds is in this increment's outcome rather than in a rung,
+ * because nothing in either repo can run a browser.
+ */
 function stampInset(container: HTMLElement): number {
   const layer = container.closest('#storm-land') ?? container;
   const stamp = layer.querySelector('.storm-land-stamp');
