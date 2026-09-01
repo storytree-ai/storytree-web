@@ -255,14 +255,35 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
       hidden
     >
       <div class="storm-land-canvas" id="storm-land-canvas" set:html={forestArrival}></div>
-      <!-- THE BOTTOM FURNITURE, AND IT IS ONE COLUMN RATHER THAN TWO ABSOLUTE BOXES ON PURPOSE.
+      <!-- THE BOTTOM FURNITURE, AND IT IS ONE COLUMN RATHER THAN THREE ABSOLUTE BOXES ON PURPOSE.
            The stamp's height depends on how far its copy wraps, which depends on the viewport; the
            key has to clear it at every width. Stacking them in one bottom-anchored flex column
            makes that a property of the layout instead of a magic offset that is right at 1440 and
            wrong at 900 — the same reason the ROAM panel pins its floor note with flex rather than a
-           `max-height`. Both are `pointer-events: none`, so the map underneath stays draggable
-           through them. -->
-      <div class="storm-land-footer">
+           `max-height`. All three are `pointer-events: none`, so the map underneath stays draggable
+           through them.
+
+           ⚠ THE ENDING IS THE THIRD MEMBER, AND IT WAS NOT — WHICH IS THE DEFECT THIS COMMENT
+           ALREADY DESCRIBED AND DID NOT COVER. `.ask-layer` was a fourth absolutely-positioned box
+           pinned to the same bottom-right corner the stamp's centred 46rem reaches into, so the two
+           were drawn over each other. Measured on the built site at 1280x720: the stamp occupied
+           x 272–1008 / y 631–702 and the ending x 716–1232 / y 644–699 — a 292x55 collision that
+           rendered live as "25 of 3One person, building this in the open."
+
+           ⚠ AND THE FIX IS THE COLUMN RATHER THAN A NARROWER STAMP, for the reason this comment
+           gives above: a `max-width` tuned until the two clear each other at 1280 is a magic offset
+           that depends on how far the stamp's copy wraps, and the copy is a snapshot reading that
+           changes when the corpus does. Flex children cannot overlap at any width, so the guarantee
+           is content-independent — which is what the ROAM panel learned the hard way when a
+           nine-capability list pushed its floor off and the check that was supposed to catch it
+           passed on `textContent`.
+
+           ⚠ IT STAYS OUT OF THE TIMED SEQUENCE (ADR-0493). This moves where the ending is DRAWN,
+           not when it is revealed: it is still mounted before TELL, still hidden until TELL's
+           `onDone`, and still costs the reading clock zero characters. `[data-ask-slot]` is what
+           `mountAsk` appends into; the attribute is on the column so the ending joins the furniture
+           rather than floating beside it. -->
+      <div class="storm-land-footer" data-ask-slot>
         <!-- THE KEY (ADR-0299 D3 — "the legend is kept because it is functional, not decorative").
              The owner, 2026-09-01: *"theres no legend atm, so a user can't tell whats each bit on
              the island is a signal for."* The colour chips are the statuses this snapshot actually
@@ -1156,12 +1177,27 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
      in the calm view instead.
 
      It sits opposite the skip control, which has left by the time this
-     appears, so the corner is never carrying two competing affordances. */
+     appears, so the corner is never carrying two competing affordances.
+
+     ⚠ IT IS A FLEX CHILD OF `.storm-land-footer`, NOT AN ABSOLUTE BOX, AND
+     THAT IS THE WHOLE FIX FOR THE CAPTION COLLISION. Pinned to the corner with
+     `position: absolute` it was drawn over the centred snapshot stamp, which
+     reaches x 272–1008 at 1280 while this reached x 716–1232. Flex children in
+     a column cannot overlap at ANY width, so the clearance is a property of the
+     layout rather than a number that happens to hold at one viewport — the same
+     argument the footer's own markup comment makes, now applied to all three
+     pieces of bottom furniture instead of two.
+
+     `align-self` + `margin-right` MIRROR THE KEY's `flex-start` +
+     `margin-left`, deliberately: it puts the ending back at exactly the inset
+     it had before (48px from the right edge at 1280, measured both ways), so
+     the corner the owner signed off is unchanged and only the stamp beneath it
+     moved. The old `right`/`bottom`/`z-index` are gone rather than overridden —
+     an absolute offset left behind on a flex child is dead code that reads as
+     live positioning. */
   .ask-layer {
-    position: absolute;
-    right: clamp(1.2rem, 4vw, 3rem);
-    bottom: clamp(1.2rem, 4vh, 2.6rem);
-    z-index: 9;
+    align-self: flex-end;
+    margin-right: clamp(0rem, 2.5vw, 2rem);
     display: flex;
     flex-direction: column;
     align-items: flex-end;
@@ -1191,7 +1227,10 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   .ask-link:hover { color: #2c2318; border-color: rgba(74, 58, 38, 0.85); }
   .ask-link:focus-visible { outline: 2px solid #4a3a26; outline-offset: 3px; }
   @media (max-width: 640px) {
-    .ask-layer { right: 0.9rem; bottom: 0.9rem; gap: 0.25rem; }
+    /* The offsets moved to the column when the ending joined it — the ending is no longer the
+       thing anchored to the edge, and leaving `right`/`bottom` here would have silently done
+       nothing. Same note as the stamp's own narrow-width rule, for the same reason. */
+    .ask-layer { gap: 0.25rem; margin-right: 0; }
     .ask-line { font-size: 0.78rem; }
   }
 
@@ -1400,12 +1439,46 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     text-align: left;
     cursor: pointer;
   }
-  .roam-row:hover { border-color: rgba(122, 98, 62, 0.45); }
+  .roam-row:hover {
+    border-color: rgba(122, 98, 62, 0.45);
+    /* A hover that moves the FILL as well as the border. The border alone was the whole resting
+       signal, and a 1px edge tint is not one a reader notices before they have already clicked. */
+    background: rgba(122, 98, 62, 0.07);
+  }
   .roam-row[aria-expanded='true'] {
     border-color: var(--amber);
     background: var(--amber-soft);
   }
   .roam-row:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+
+  /* ⚠ THE MARK THAT SAYS THE ROW OPENS — and its absence cost a shipped feature being reported as
+     missing. These rows have always been buttons with `aria-expanded`, so a screen reader was told
+     they disclosed something; a sighted reader was shown a bordered chip with a count in it and had
+     no reason to try. The owner clicked an island, read the count, and said the thing behind it had
+     not been built — the morning after it shipped.
+
+     ⚠ IT IS DRAWN FROM `aria-expanded`, WHICH IS ALREADY THE TRUTH OF THE ROW'S STATE. A second
+     class would be a second copy of that fact, and the way two copies fail is a chevron pointing
+     the wrong way — a signal that lies, which is strictly worse than the one that was missing.
+
+     `margin-left: auto` rather than a fixed offset: the labels are counts read from the snapshot
+     ("no acceptance test recorded" against "26 components, 26 proven"), so the row's own width is
+     the only thing that knows where its far end is. */
+  .roam-row-mark {
+    margin-left: auto;
+    flex: none;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-right: 1.6px solid currentColor;
+    border-bottom: 1.6px solid currentColor;
+    opacity: 0.5;
+    /* Closed points RIGHT ("there is more this way"), open points DOWN ("it is below you"). */
+    rotate: -45deg;
+    translate: 0 -1px;
+    transition: rotate 0.18s ease, opacity 0.18s ease;
+  }
+  .roam-row:hover .roam-row-mark { opacity: 0.85; }
+  .roam-row[aria-expanded='true'] .roam-row-mark { rotate: 45deg; opacity: 0.85; }
 
   /* The status dot, in the SAME hues the island's own crown is painted with —
      the panel and the picture read one value, so they cannot disagree.

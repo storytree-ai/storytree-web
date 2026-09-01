@@ -158,9 +158,21 @@ export const ASK_FORBIDDEN = [
 ] as const;
 
 export interface AskOptions {
-  /** The land layer the ending mounts into (`#storm-land`) — the same host TELL and ROAM use. */
+  /**
+   * The land layer the ending belongs to (`#storm-land`) — the same host TELL and ROAM use.
+   *
+   * ⚠ IT IS APPENDED TO `[data-ask-slot]` INSIDE THIS HOST WHEN ONE EXISTS, and that is not a
+   * detail: the slot is the bottom-furniture flex column, and being a CHILD of it is the only
+   * reason the ending cannot be drawn over the snapshot stamp. Mounted straight onto the host it
+   * was an absolutely-positioned box sharing a corner with a centred one, and the two collided.
+   * The fallback to `host` is kept so a caller with no column still gets an ending rather than
+   * nothing — the site's one outbound link is not something to lose to a missing attribute.
+   */
   readonly host: HTMLElement;
 }
+
+/** Where the ending goes: the bottom-furniture column when the page has one, else the host. */
+export const ASK_SLOT_SELECTOR = '[data-ask-slot]';
 
 export interface AskHandle {
   /** Show the ending. Idempotent: TELL's `finish` runs once, but a caller that also reveals on a
@@ -200,7 +212,7 @@ export function mountAsk(opts: AskOptions): AskHandle {
   link.tabIndex = -1;
 
   layer.append(line, link);
-  host.append(layer);
+  (host.querySelector<HTMLElement>(ASK_SLOT_SELECTOR) ?? host).append(layer);
 
   let shown = false;
   return {

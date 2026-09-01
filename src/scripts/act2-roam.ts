@@ -894,6 +894,44 @@ function noteBlock(note: RoamNote): HTMLElement {
   return block;
 }
 
+/**
+ * ONE OF THE FIVE ROWS THAT OPEN — built here rather than five times, because the AFFORDANCE has to
+ * be on all of them or it is on none of them.
+ *
+ * ⚠ THE DEFECT THIS EXISTS TO FIX COST A LANDED FEATURE BEING REPORTED AS MISSING. The rows were
+ * already `<button>`s carrying `aria-expanded`, so a screen reader was told they opened; a sighted
+ * reader was not. They render as summary chips — a border, a count, no mark — and the owner clicked
+ * an island, read `26 components, 26 proven`, and reported that there was nothing behind it. The
+ * morning after the thing behind it shipped. **Disclosure without an affordance is indistinguishable
+ * from absence**, and the person who commissioned the feature is the one who could not find it.
+ *
+ * ⚠ THE MARK IS DRAWN FROM `aria-expanded`, NOT FROM A SECOND FLAG. The attribute is already the
+ * truth of whether this row is open; a parallel class would be a second copy of that fact, and the
+ * failure mode of two copies is a chevron pointing the wrong way — which is worse than no chevron,
+ * because it is a signal that lies rather than one that is missing.
+ *
+ * ⚠ AND IT IS NOT A CAPABILITY GRAPH. The rows reveal a NAMED, COLOUR-CODED LIST; making the list
+ * findable is all this does. The owner's "pretty dag graph" — the capability tree drawn with its
+ * dependency edges, as the app draws it — is not on this surface at any depth and is not made
+ * discoverable by a chevron.
+ */
+function expandRow(section: string, open: boolean): HTMLButtonElement {
+  const row = el('button', 'roam-row');
+  row.type = 'button';
+  row.setAttribute('data-roam-row', section);
+  row.setAttribute('aria-expanded', String(open));
+  return row;
+}
+
+/** The chevron that says a row opens, appended LAST so it sits at the far end of the row whatever
+ *  the label is. `aria-hidden` because `aria-expanded` on the button already carries this to a
+ *  screen reader, and announcing it twice would be the same fact read out in two voices. */
+function rowMark(): HTMLElement {
+  const mark = el('span', 'roam-row-mark');
+  mark.setAttribute('aria-hidden', 'true');
+  return mark;
+}
+
 /** A status dot plus its word — the panel's smallest honest unit, and the only place a colour is
  *  turned into language. The class is the SAME `st-*` vocabulary the island carries. */
 function statusChip(status: RoamStatus): HTMLElement {
@@ -1003,11 +1041,8 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     body.append(noteBlock(ROAM_STORY_NOTE));
 
     // target 2 · its colour
-    const colourRow = el('button', 'roam-row');
-    colourRow.type = 'button';
-    colourRow.setAttribute('data-roam-row', 'colour');
-    colourRow.setAttribute('aria-expanded', String(openSection === 'colour'));
-    colourRow.append(statusChip(story.status));
+    const colourRow = expandRow('colour', openSection === 'colour');
+    colourRow.append(statusChip(story.status), rowMark());
     body.append(colourRow);
     if (openSection === 'colour') {
       // The reading of THIS island's own status, chosen by the data — never written down.
@@ -1020,11 +1055,8 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     }
 
     // target 3 · inside the island
-    const insideRow = el('button', 'roam-row');
-    insideRow.type = 'button';
-    insideRow.setAttribute('data-roam-row', 'inside');
-    insideRow.setAttribute('aria-expanded', String(openSection === 'inside'));
-    insideRow.append(el('span', 'roam-row-word', capabilityTally(story)));
+    const insideRow = expandRow('inside', openSection === 'inside');
+    insideRow.append(el('span', 'roam-row-word', capabilityTally(story)), rowMark());
     body.append(insideRow);
     if (openSection === 'inside') {
       body.append(noteBlock(ROAM_CAPABILITY_NOTE));
@@ -1040,11 +1072,8 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     // target 6 · the proof — the acceptance journey. This is the level the owner opened the map to
     // on 2026-09-01, and it is where the picture stops being a diagram: everything above claims the
     // green is earned, and this is where a stranger can check the claim step by step.
-    const proofRow = el('button', 'roam-row');
-    proofRow.type = 'button';
-    proofRow.setAttribute('data-roam-row', 'proof');
-    proofRow.setAttribute('aria-expanded', String(openSection === 'proof'));
-    proofRow.append(el('span', 'roam-row-word', uatTally(story)));
+    const proofRow = expandRow('proof', openSection === 'proof');
+    proofRow.append(el('span', 'roam-row-word', uatTally(story)), rowMark());
     body.append(proofRow);
     if (openSection === 'proof') {
       if (story.uat.length === 0) {
@@ -1073,11 +1102,8 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     }
 
     // target 7 · the decisions behind it — reachable at their NAME, never their reasoning.
-    const decisionRow = el('button', 'roam-row');
-    decisionRow.type = 'button';
-    decisionRow.setAttribute('data-roam-row', 'decisions');
-    decisionRow.setAttribute('aria-expanded', String(openSection === 'decisions'));
-    decisionRow.append(el('span', 'roam-row-word', decisionTally(story)));
+    const decisionRow = expandRow('decisions', openSection === 'decisions');
+    decisionRow.append(el('span', 'roam-row-word', decisionTally(story)), rowMark());
     body.append(decisionRow);
     if (openSection === 'decisions') {
       const decisions = adrsOf(story.decisions);
@@ -1103,11 +1129,8 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     // target 5 · the arc drawer — the initiative layer ABOVE the code, which is why it sits below
     // the capability row rather than inside it: the visitor has just reached the bottom of the
     // structure, and this is the one direction that is still up.
-    const arcRow = el('button', 'roam-row');
-    arcRow.type = 'button';
-    arcRow.setAttribute('data-roam-row', 'arcs');
-    arcRow.setAttribute('aria-expanded', String(openSection === 'arcs'));
-    arcRow.append(el('span', 'roam-row-word', arcTally(story)));
+    const arcRow = expandRow('arcs', openSection === 'arcs');
+    arcRow.append(el('span', 'roam-row-word', arcTally(story)), rowMark());
     body.append(arcRow);
     if (openSection === 'arcs') {
       const arcs = story.arcs.map((id) => arcById.get(id)).filter((a): a is RoamArc => a !== undefined);
