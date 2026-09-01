@@ -442,10 +442,17 @@ export const MS_BEAT_GAP = 470;
  * gone by the time there was a forest to say it over. The first thing the site says was the one
  * thing nobody could read.
  *
- * It now also has a second job: `forest-growth` reveals the islands from the foundation row upward
+ * It now also has a second job: `forest-growth` grows the forest outward from its base islands
  * starting at `MS_GROWTH_LEAD_IN`, and the name beat is deliberately timed to land while the last
- * ranks are still arriving. The name over a forest still assembling itself is the opening; waiting
+ * of them are still arriving. The name over a forest still assembling itself is the opening; waiting
  * for the growth to finish first would be two events queued rather than one.
+ *
+ * ⚠ AND THIS BEAT SCHEDULE IS NOW LOAD-BEARING FOR THE FOREST'S HONESTY FENCE (ADR-0491). The
+ * arrival's ceiling is anchored to where THIS SEQUENCE stops being a picture and starts being an
+ * argument: the growth must be over before the visitor has finished reading the first sentence of
+ * the SECOND beat, because motion behind prose that keeps going while you read is what makes a
+ * dated snapshot read as a live feed. Re-time the pitch and `forest-growth.test.ts` will tell you
+ * whether the fence still holds — it reads `TELL_SCRIPT` rather than a copied number.
  */
 export const MS_LEAD_IN = 2600;
 /** The beat holds after its last line lands, so the final sentence is not yanked mid-read. */
