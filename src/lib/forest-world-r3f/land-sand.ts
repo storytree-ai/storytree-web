@@ -27,6 +27,7 @@
 // on the shipped mesh and had to be built.
 
 import {
+  SHIPPED_ISLAND_SPAN,
   grassScalar,
   rampLinear,
   type CyclesNoise,
@@ -38,6 +39,7 @@ import {
   rampGlsl,
 } from './land-grass';
 import { linearToSrgb255 } from './land-grain';
+import { LAND_SCALE } from './land-per-capability';
 import { AUTHORED_SHORE_WIDTH } from './shore-fall';
 import type { Rgb255 } from './shade-ladder';
 
@@ -52,6 +54,16 @@ import type { Rgb255 } from './shade-ladder';
 export const SAND_EDGE: CyclesNoise = { scale: 7.5, detail: 6, roughness: 0.5 };
 
 /**
+ * HOW FAR THE EDGE NOISE DISPLACES THE SHORE DISTANCE, in ground units per unit of noise — the
+ * recipe's MULTIPLY_ADD multiplier at `build_land.py:872-876` is 1.0 in ITS units, so the noise
+ * moves the sand line by up to one recipe unit.
+ * ⚠ × LAND_SCALE (`land-per-capability.ts`): a displacement ADDED to a distance is a distance, and
+ * it follows the island like the beach width it is divided by — unscaled it would wander the sand
+ * line 2.65× further relative to the (scaled) beach than the recipe's does.
+ */
+export const SAND_EDGE_AMPLITUDE = 1.0 * LAND_SCALE;
+
+/**
  * THE DIVISOR, `build_land.py:880`: `div.inputs[1] = BEACH + 0.9`, with `BEACH = 3.1` at `:96`.
  *
  * ⚠ IT READS `AUTHORED_SHORE_WIDTH` RATHER THAN SPELLING 3.1, because `shore-fall.ts` already
@@ -63,7 +75,7 @@ export const SAND_BEACH_WIDTH = AUTHORED_SHORE_WIDTH;
 
 /** The recipe's own divisor — the transcribed value, kept as the reference every widened band is
  *  stated against. */
-export const SAND_DIVISOR = SAND_BEACH_WIDTH + 0.9;
+export const SAND_DIVISOR = SAND_BEACH_WIDTH + 0.9 * LAND_SCALE;
 
 /**
  * HOW WIDE THE SHIPPED BEACH IS, in ground units — an OWNER-DIRECTED DEPARTURE from the recipe's
@@ -87,12 +99,14 @@ export const SAND_DIVISOR = SAND_BEACH_WIDTH + 0.9;
  * width and then steps — visibly, and looking like a bug in the noise rather than in a constant.
  * `SAND_FIELD_WIDTH` is derived from this, not written beside it.
  */
-export const SAND_SHIPPED_BEACH_WIDTH = 9;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the literal is the value judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, and this stays the same fraction of it.
+export const SAND_SHIPPED_BEACH_WIDTH = 9 * LAND_SCALE;
 
 /** The divisor the SHIPPED band uses — the same `BEACH + 0.9` arithmetic the recipe applies, over
  *  the owner-directed width. Stated as the recipe's expression rather than a bare number so the
  *  0.9 stays visibly the script's and not a second magic constant. */
-export const SAND_SHIPPED_DIVISOR = SAND_SHIPPED_BEACH_WIDTH + 0.9;
+export const SAND_SHIPPED_DIVISOR = SAND_SHIPPED_BEACH_WIDTH + 0.9 * LAND_SCALE;
 
 /**
  * THE BAND RAMP, `build_land.py:878`: `_ramp([(0.34, black), (0.70, white)])`.
@@ -121,7 +135,7 @@ export const SAND_RAMP: readonly RampStop[] = [
 /** The lattice spacing the edge noise delivers, in ground units — the same conversion
  *  `land-grass.ts` makes, through the island's 233.8-unit span. */
 export function sandEdgeLattice(): number {
-  return 233.8 / SAND_EDGE.scale;
+  return SHIPPED_ISLAND_SPAN / SAND_EDGE.scale;
 }
 
 /**
@@ -138,7 +152,7 @@ export function sandBandFactor(
   z: number,
   divisor: number = SAND_DIVISOR,
 ): number {
-  const edge = grassNoiseField(SAND_EDGE, x, z);
+  const edge = grassNoiseField(SAND_EDGE, x, z) * SAND_EDGE_AMPLITUDE;
   const t = (shoreDistance + edge) / divisor;
   const [lo, hi] = SAND_BAND_RAMP;
   return clamp01((t - lo) / (hi - lo));
@@ -212,7 +226,7 @@ export function sandGlsl(): string {
     // property that makes a difference between two arms attributable to the width their captions
     // name.
     'float st_sandBand(vec2 p, float shore, float width) {',
-    '  float t = (shore + st_sandEdge(p)) / width;',
+    `  float t = (shore + ${SAND_EDGE_AMPLITUDE.toFixed(6)} * st_sandEdge(p)) / width;`,
     `  return clamp((t - ${SAND_BAND_RAMP[0].toFixed(6)}) / ${(
       SAND_BAND_RAMP[1] - SAND_BAND_RAMP[0]
     ).toFixed(6)}, 0.0, 1.0);`,
