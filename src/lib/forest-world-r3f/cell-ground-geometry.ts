@@ -45,6 +45,7 @@ import {
   skirtLedges,
   type GroundSkirt,
 } from './stepped-skirt';
+import { LAND_SCALE } from './land-per-capability';
 import type { InstanceDescriptor } from './world-to-3d';
 
 /** A linear-space colour triple. ⚠ LINEAR, not sRGB: three converts a hex string through
@@ -65,7 +66,9 @@ export interface LinearRgb {
  *  were the same ground in two representations. `TILE_HEIGHT` was deleted along with the classic
  *  prism (`retire-the-old-land-path`); this value is unchanged and is now the ONLY ground
  *  thickness the shipped canvas draws. */
-export const CELL_GROUND_DEPTH = 3;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the literal is the value judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, and this stays the same fraction of it.
+export const CELL_GROUND_DEPTH = 3 * LAND_SCALE;
 
 /**
  * A PARCEL'S GROUND, AS THE TWO BOUNDARIES A PRISM ACTUALLY NEEDS — which are the same loop
