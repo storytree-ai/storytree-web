@@ -32,6 +32,7 @@ import {
   hexCenter,
   rand01,
   type Axial,
+  tileUnits,
 } from '../lib/forest-world';
 import { discGround, discTiles } from './act2-walkthrough';
 
@@ -118,8 +119,10 @@ test('TEETH — the fixture really foreshortens, and the OLD screen-space predic
       const c = hexCenter(tile, { elevationDeg });
       const roll = rollOf(seed, tile);
       // screen-space: the ORIGINAL, DEFECTIVE form, reproduced here as a control and nowhere else.
-      const nearTree = Math.hypot(c.x - cx, c.y - (cy - 6)) < 42;
-      const inGarden = c.y > cy + 8;
+      // Its lengths were authored on the radius-27 tile and re-base with it (ADR-0528) — the defect
+      // being pinned is the SPACE the gap is measured in, not the size of the keep-out.
+      const nearTree = Math.hypot(c.x - cx, c.y - (cy - tileUnits(6))) < tileUnits(42);
+      const inGarden = c.y > cy + tileUnits(8);
       if (roll < 0.42 && !nearTree && !inGarden) out.push(tile);
     }
     return keysOf(out);

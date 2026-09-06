@@ -30,6 +30,8 @@
 
 import {
   HEX_R,
+  tileQuota,
+  tileUnits,
   buildScene,
   descendantCounts,
   estRadius,
@@ -283,20 +285,25 @@ export function arrivalLabel(snap: ForestSnapshot): string {
 /** Margin around the laid-out forest. The top clears a story tree's crown, the bottom its
  *  nameplate; the frame itself is DERIVED from the layout rather than declared, so adding a
  *  story grows the picture instead of clipping it off the edge. */
-const MARGIN_TOP = 150;
-const MARGIN_BOTTOM = 130;
-const MARGIN_SIDE = 90;
+// ⚠ Every length below is authored on the pre-ADR-0528 tile (hex radius 27) and RE-BASED through the
+// engine's `tileUnits()`: the engine's tile is now derived from the land ratio (one hex per
+// capability, radius ≈ 11.06 — `packages/forest-world/src/hex.ts`), and this page's gaps and
+// margins keep meaning "so much of a tile". A uniform re-basing keeps the composition this page
+// had at its fit; the numbers stay this repo's own look decision.
+const MARGIN_TOP = tileUnits(150);
+const MARGIN_BOTTOM = tileUnits(130);
+const MARGIN_SIDE = tileUnits(90);
 /** Gap between rank rows and between islands within a row (scene units). */
-const RANK_GAP = 40;
-const ISLAND_GAP = 190;
+const RANK_GAP = tileUnits(40);
+const ISLAND_GAP = tileUnits(190);
 /** A lone island in a row swings off the column so its roads sweep as diagonals. */
-const RANK_SWING = 300;
+const RANK_SWING = tileUnits(300);
 /** Nameplate baseline, below the island's centre. */
-const PLATE_Y = 62;
+const PLATE_Y = tileUnits(62);
 
-/** Tile quota for a story — the studio's own curve: capability count plus headroom. */
+/** Tile quota for a story — the engine's rule since ADR-0528: one tile per capability. */
 function quotaOf(story: SnapshotStory): number {
-  return Math.max(3, story.capabilities.length + 2);
+  return tileQuota(story.capabilities.length);
 }
 
 /**
@@ -402,8 +409,8 @@ export function placeStories(stories: readonly SnapshotStory[]): Placed[] {
       const w = widths[k] ?? HEX_R;
       const seed = hash(story.id);
       const centre: Pt = {
-        x: cursor + w + (rand01(seed) - 0.5) * 40,
-        y: (rowY[r] ?? 0) + (rand01(seed + 1) - 0.5) * 26,
+        x: cursor + w + (rand01(seed) - 0.5) * tileUnits(40),
+        y: (rowY[r] ?? 0) + (rand01(seed + 1) - 0.5) * tileUnits(26),
       };
       placed.set(story.id, centre);
       out.push({ story, centre, radius: w, rings: ringsOf(quotaOf(story)) });

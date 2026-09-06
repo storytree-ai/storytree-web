@@ -67,6 +67,8 @@
 import {
   AXIAL_DIRS,
   HEX_R,
+  COAST_OUTSET_ON_TILE,
+  tileUnits,
   LAND_CAMERA_ELEVATION_DEG,
   axialKey,
   buildRelaxedCells,
@@ -332,9 +334,11 @@ export function discGround(
     const roll = rand01(hash(`${seedId}:dec:${key}`));
     // ground-space: how far this tile stands from the tree ACROSS THE GROUND — unproject the
     // separation before measuring it, or the camera silently culls conifers (ADR-0367 D1).
-    const toTree = unprojectGround({ x: c.x - cx, y: c.y - (cy - 6) }, elevationDeg);
-    const nearTree = Math.hypot(toTree.x, toTree.y) < 42;
-    const inGarden = c.y > cy + 8; // SCREEN: the band the limbs + name plate own (see above)
+    // ADR-0528: the keep-out (42), the sprite's anchor nudge (6) and the garden band (8) were authored
+    // on the radius-27 tile and re-base with it — the same lengths, on the derived tile.
+    const toTree = unprojectGround({ x: c.x - cx, y: c.y - (cy - tileUnits(6)) }, elevationDeg);
+    const nearTree = Math.hypot(toTree.x, toTree.y) < tileUnits(42);
+    const inGarden = c.y > cy + tileUnits(8); // SCREEN: the band the limbs + name plate own (see above)
     if (roll < 0.42 && !nearTree && !inGarden) decor.push(tile);
     else if (roll >= 0.42 && roll < 0.62 && !nearTree) wheat.add(key);
   }
@@ -388,7 +392,7 @@ export function buildDisc(centre: Pt, rings: number, seedId: string): DiscGeomet
       if (a && b) segs.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
     });
   }
-  const rawCoast = smoothCoast(segs, seedId).loops;
+  const rawCoast = smoothCoast(segs, seedId, COAST_OUTSET_ON_TILE).loops; // the beach on the shipped tile (ADR-0528)
   const coastPaths = rawCoast.map(
     (loop) =>
       loop.map((p, i) => `${i === 0 ? 'M' : 'L'} ${f(p.x + dx)} ${f(p.y + dy)}`).join(' ') + ' Z',
