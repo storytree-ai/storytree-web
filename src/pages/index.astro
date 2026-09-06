@@ -1368,7 +1368,14 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     z-index: 9;
     top: clamp(1rem, 4vh, 2.4rem);
     right: clamp(0.9rem, 3vw, 2.2rem);
-    width: min(23rem, 42vw);
+    /* ⚠ 28rem, NOT 23 — the second of ADR-0522 D3's two named remedies (the first is the frame's
+       aspect, above). The label lands on screen at `font x frameWidth / graphWidth`, so on an island
+       whose graph is wider than it is deep the panel's own width is the ONLY thing left to give:
+       `drive-machinery`, the densest picture the site draws, is width-bound and reads at 6.0px in a
+       23rem panel against 8.1px in this one (both measured live, scrollbar included). It is the smallest widening that gets the busiest case
+       to a size that reads, which is why it is not larger — the panel is an overlay on the map, and
+       every rem of it is forest the reader cannot see. */
+    width: min(30rem, 44vw);
     max-height: min(82vh, 46rem);
     /* ⚠ A COLUMN WHOSE ONLY FLEXIBLE PART IS THE CAPABILITY LIST. The floor note and the snapshot
        date sit at the bottom and are the two things that must never be scrolled away — one is the
@@ -1576,9 +1583,24 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
        flexible child does not grow, it collapses to its minimum: measured at 136px on
        `drive-machinery`, which put a 26-node graph in a strip two cards tall. The historical
        overflow this file warns about was content escaping the PANEL; that failure mode is closed by
-       the body's own scroll, and a definite height here cannot reopen it. */
+       the body's own scroll, and a definite height here cannot reopen it.
+
+       ⚠ THE HEIGHT IS NOW THE GRAPH'S OWN ASPECT, SET INLINE BY `act2-roam.ts` (ADR-0522). The flat
+       13rem this replaces letterboxed every island that was not 1.6:1, and the letterbox was where
+       most of the label size went: `studio` — twelve cards across, three deep — was drawn into a
+       45px strip inside a 208px box, wasting 78% of the frame and shrinking its type by the same
+       factor. An `aspect-ratio` is resolved at LAYOUT time, so this costs no measurement and steps
+       into none of the traps that module records about measuring an unsettled panel.
+
+       ⚠ THE TWO BOUNDS ARE BOTH LOAD-BEARING, IN OPPOSITE DIRECTIONS. `max-height` is what stops a
+       deep island (`drive-machinery`, eight ranks) from taking the whole panel — ADR-0522 D3 accepts
+       that a taller frame pushes the acceptance-test and decisions rows down the body's scroll, and
+       this is how far that goes. `min-height` stops a single-rank island (`cli`: seven components,
+       no edges) collapsing to the 42px slot its own aspect would ask for. Neither changes the type size; both keep the
+       box a sensible shape. */
     flex: none;
-    height: 13rem;
+    min-height: 7rem;
+    max-height: min(30rem, 52vh);
     margin: 0 0 0.75rem;
     border-radius: 8px;
     background: rgba(255, 252, 246, 0.5);
@@ -1603,8 +1625,11 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     stroke: rgba(122, 98, 62, 0.3);
     stroke-width: 1;
   }
-  /* The strip is the status, and it is the one thing on a card meant to read at the resting fit —
-     the labels are our real corpus names and stay illegible by design (ADR-0453 D3). */
+  /* The strip is the status, carried as colour so it reads before the words do. ⚠ IT USED TO BE
+     "the one thing on a card meant to read at the resting fit", because the labels stayed
+     "illegible by design (ADR-0453 D3)". That is withdrawn: ADR-0522 settles that D3's "illegible"
+     means semantically opaque, not optically unreadable, and the labels are now rendered to be
+     read. The names themselves are unchanged — still our real corpus ids, untranslated. */
   .roam-dag-strip { fill: var(--st-unknown); }
   .roam-dag-node.st-healthy .roam-dag-strip { fill: var(--st-healthy); }
   .roam-dag-node.st-proposed .roam-dag-strip { fill: var(--st-proposed); }
@@ -1612,10 +1637,16 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   .roam-dag-node.st-building .roam-dag-strip { fill: var(--st-building); }
   .roam-dag-node.st-unhealthy .roam-dag-strip { fill: var(--st-unhealthy); }
 
+  /* ⚠ `font-size` HERE IS IN LAYOUT UNITS, NOT SCREEN PIXELS — the text lives inside the SVG's
+     `viewBox`, so what a reader measures is this times the resting scale. It must equal
+     `LABEL_FONT` in `capability-dag.ts`, which is what sizes the card around it and what
+     `labelPxAtRest` computes with; `capability-dag.test.ts` reads this rule and fails if the two
+     drift. Raising it ALONE would change nothing — the card grows with it and the graph is then
+     scaled down by the same factor. See that module's header for the arithmetic. */
   .roam-dag-label {
-    font-size: 7.5px;
+    font-size: 11px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    fill: rgba(60, 48, 32, 0.78);
+    fill: rgba(60, 48, 32, 0.86);
   }
 
   /* ⚠ THE REPLACEMENT FOR WHAT A SCROLLBAR USED TO SAY. A bar carried two things pan does not:
