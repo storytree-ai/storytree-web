@@ -839,9 +839,17 @@ export function tileArt(hexR: number = HEX_R, rungs: ArtRungs = {}): TileArt {
     hexR,
     scale,
     units,
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE THE RUNG SHIPS AT 1 — the four
+    // art rungs are the owner's dials (ADR-0528 D2) and every one of them is 1 today, so `× rung`
+    // and `÷ rung` compute the same number and no test can separate them. This is the ONE shape of
+    // equivalence here that expires: ship a rung off 1 and the mutant becomes killable, so the
+    // landing that moves one owes this line its test rather than this comment.
     tree: scale * TREE_ART_RUNG * (rungs.tree ?? 1),
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE PLATE_ART_RUNG IS 1 — see `tree`.
     plate: scale * PLATE_ART_RUNG * (rungs.plate ?? 1),
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE FLORA_ART_RUNG IS 1 — see `tree`.
     flora: scale * FLORA_ART_RUNG * (rungs.flora ?? 1),
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT WHILE TRAIL_ART_RUNG IS 1 — see `tree`.
     trailStroke: scale * TRAIL_ART_RUNG * (rungs.trail ?? 1),
     markerSpacing: units(15),
     markerTreeWell: units(36),
@@ -1259,6 +1267,8 @@ function buildUatMarkers(
   const onLand = (x: number, y: number): boolean =>
     !land || land.some((c) => pointInPoly(x, y, c.poly));
   const clearsSpacing = (placed: Pt[], x: number, y: number): boolean =>
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — a ground gap is a continuous
+    // measurement, so `>` and `>=` differ only on an exact float tie, which no fixture can author.
     placed.every((p) => groundGap({ x, y }, p, elevationDeg) > art.markerSpacing);
   const placed: Pt[] = [];
   const out: Array<{ y: number; node: SceneG }> = [];
@@ -1273,7 +1283,9 @@ function buildUatMarkers(
       const off = groundPolarOffset(ang, rr, elevationDeg);
       x = t.centroid.x + off.x;
       y = t.centroid.y + off.y;
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous gap, no authorable tie.
       const clearsTree = groundGap({ x, y }, t.treeSpot, elevationDeg) > art.markerTreeWell;
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
       const clearsPlate = y < t.labelY - art.units(14);
       if (clearsTree && clearsPlate && clearsSpacing(placed, x, y) && onLand(x, y)) {
         settled = true;
@@ -2592,25 +2604,33 @@ function buildTerritorySurface(
   // deterministic and reaches only the islands where a parcel actually starved; every other
   // partition is byte-for-byte what the Voronoi gave it. It cannot run dry while there are at least
   // as many cells as parcels, which the mesh guarantees (several cells per hex).
-  parcels.forEach((_parcel, i) => {
-    if (groups[i]!.length > 0) return;
-    const seed = seeds[i]!;
-    let from = -1;
-    let at = -1;
+  /** The cell nearest `seed` in any group that can SPARE one (holds two or more), as the group it
+   *  sits in and its index there — or null when no group can spare a cell, which is the only way the
+   *  repair declines. Returning the pair rather than filling two pre-seeded locals is deliberate: a
+   *  sentinel initialiser is dead by construction here (both locals are written together, and the
+   *  guard that reads them tests the sentinel), so it can be neither exercised nor observed. */
+  const nearestSpare = (seed: Pt): { from: number; at: number } | null => {
+    let found: { from: number; at: number } | null = null;
     let bd = Infinity;
     groups.forEach((cells, j) => {
       if (cells.length < 2) return;
       cells.forEach((cell, k) => {
         const d = (cell.cx - seed.x) ** 2 + (cell.cy - seed.y) ** 2;
+        // Stryker disable next-line EqualityOperator: EQUIVALENT — `<=` differs only when two cells
+        // sit at exactly the same distance from the seed, and the mesh never places two centroids there.
         if (d < bd) {
           bd = d;
-          from = j;
-          at = k;
+          found = { from: j, at: k };
         }
       });
     });
-    if (from < 0) return;
-    groups[i]!.push(groups[from]!.splice(at, 1)[0]!);
+    return found;
+  };
+  parcels.forEach((_parcel, i) => {
+    if (groups[i]!.length > 0) return;
+    const spare = nearestSpare(seeds[i]!);
+    if (!spare) return;
+    groups[i]!.push(groups[spare.from]!.splice(spare.at, 1)[0]!);
   });
   const ground: SceneNode[] = [];
   const flora: ParcelFloraMark[] = [];
@@ -2780,6 +2800,7 @@ export function placeGardenHeroes(
       const off = groundPolarOffset(ang, rr, elevationDeg); // a GROUND disc, projected
       x = t.centroid.x + off.x;
       y = t.centroid.y + off.y;
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — continuous y, no authorable tie.
       const clearsPlate = y < t.labelY - art.units(18);
       const clearsOthers = placed.every((p) => groundGap({ x, y }, p, elevationDeg) > t.groundRadius * 0.55);
       if (clearsTreeSampler(x, y) && clearsPlate && clearsOthers && footprintOnLand(x, y, hw)) {
