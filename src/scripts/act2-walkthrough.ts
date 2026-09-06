@@ -332,11 +332,11 @@ export function discGround(
     const key = axialKey(tile);
     const c = hexCenter(tile, { elevationDeg });
     const roll = rand01(hash(`${seedId}:dec:${key}`));
-    // ground-space: how far this tile stands from the tree ACROSS THE GROUND — unproject the
-    // separation before measuring it, or the camera silently culls conifers (ADR-0367 D1).
     // ADR-0528: the keep-out (42), the sprite's anchor nudge (6) and the garden band (8) were authored
     // on the radius-27 tile and re-base with it — the same lengths, on the derived tile.
     const toTree = unprojectGround({ x: c.x - cx, y: c.y - (cy - tileUnits(6)) }, elevationDeg);
+    // ground-space: how far this tile stands from the tree ACROSS THE GROUND — unproject the
+    // separation before measuring it, or the camera silently culls conifers (ADR-0367 D1).
     const nearTree = Math.hypot(toTree.x, toTree.y) < tileUnits(42);
     const inGarden = c.y > cy + tileUnits(8); // SCREEN: the band the limbs + name plate own (see above)
     if (roll < 0.42 && !nearTree && !inGarden) decor.push(tile);
