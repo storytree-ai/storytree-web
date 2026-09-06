@@ -27,9 +27,12 @@
 //      MAP geometry — islands, coasts, hexes, camera — which both surfaces draw as the same
 //      picture. A side-panel widget is not map geometry, and promoting one would drag dagre into
 //      the render core and therefore into the desktop app, which does not draw this.
-//   3. The two pictures are decided to be different: this one's labels are illegible BY DESIGN
-//      (ADR-0453 D3) and its box PANS rather than scrolls (ADR-0502); the studio's is a working
-//      tool with legible cards.
+//   3. The two pictures are decided to be different: this one's box PANS rather than scrolls
+//      (ADR-0502), and it draws a whole island at rest where the studio's is a working tool the
+//      reader drives. ⚠ THE THIRD DIFFERENCE THIS LIST USED TO CLAIM IS GONE: it said this one's
+//      labels were "illegible BY DESIGN (ADR-0453 D3)". ADR-0522 (accepted 2026-09-05) settles
+//      that D3's "illegible" means SEMANTICALLY opaque, never optically unreadable — the names
+//      stay our real corpus ids, and they are RENDERED to be read.
 //
 // So the drift the fork warns about is bounded to ~90 lines of layering that this file's own tests
 // pin. That was judged the cheaper side. The studio's scrollbars are fixed in the same increment
@@ -82,14 +85,128 @@ export interface DagMetrics {
   readonly pad: number;
 }
 
+// ── how big the type is, and why the card is sized from it rather than the other way round ──────
+//
+// ⚠ THE ARITHMETIC THAT GOVERNS THIS WHOLE SECTION, because it is counter-intuitive and it is what
+// an earlier version got wrong. The label lands on screen at
+//
+//     px = LABEL_FONT x min(frameW / boxW, frameH / boxH)
+//
+// and the box is the CARDS, so `boxW` grows with the card, which grows with the font. **Raising the
+// font alone changes NOTHING** — measured: font 14 and font 22 both land within 4% of each other.
+// The only two levers that move the number are the RATIO of type to card (fewer characters per
+// line, so the card can be narrow for the same type) and the FRAME. Everything below is one or the
+// other, and neither is a licence to re-shrink the type (ADR-0522 D3).
+
+/** The label's type size, in LAYOUT UNITS — the SVG's own coordinate system, not CSS pixels. What a
+ *  reader sees is this multiplied by the resting scale; `labelPxAtRest` is the number that matters. */
+export const LABEL_FONT = 11;
+
 /**
- * The default box size. Small ON PURPOSE: ADR-0453 D3 decided the map's labels stay illegible, so
- * the message this picture carries is the SHAPE and the COLOUR, not the words. Sizing the cards for
- * readable text would make every graph too wide to fit its panel at rest, and the resting view is
- * the one that has to mean something (`legible-at-the-resting-view`). Zoom is what makes a label
- * readable; fit is what makes the shape readable.
+ * How many characters a wrapped line AIMS to hold, the width it may not exceed, and how many lines
+ * a card gives them.
+ *
+ * ⚠ 11 IS A TARGET AND 13 IS A CEILING, AND THE GAP IS THE WHOLE POINT. A word wider than the
+ * target takes its own line rather than being cut in half; the ceiling is what stops a future
+ * forty-character word from widening every card on its island. Measured over the 203 published
+ * capability ids, the two together elide 15 labels (7%) and cut NONE of them mid-word — against 98
+ * (48%) under the two-line 13 this replaces. The tighter targets read very slightly larger and cost
+ * three times the elisions: 10/10 lands `drive-machinery` at 8.4px against 8.5px here while eliding
+ * 47 labels, which is a worse picture, not a better one.
  */
-export const DAG_METRICS: DagMetrics = { nodeW: 84, nodeH: 30, gapX: 16, gapY: 26, pad: 10 };
+export const LABEL_CHARS = 11;
+export const LABEL_CHARS_MAX = 13;
+export const LABEL_LINES = 3;
+
+/** Advance width of one monospace character, in ems. `ui-monospace`/Menlo/SFMono all sit at 0.6;
+ *  the card carries `CARD_PAD_X` of slack on top, so a font whose advance is slightly wider still
+ *  fits rather than spilling over the card's edge. */
+const ADVANCE = 0.6;
+const LINE_HEIGHT = 1.25;
+const CARD_PAD_X = 10;
+const CARD_PAD_Y = 10;
+
+/**
+ * The card size a PARTICULAR island needs — derived from the labels it actually holds, not fixed.
+ *
+ * ⚠ THIS IS THE CHANGE ADR-0522 ASKED FOR, and the reason it is per-graph. A uniform card has to be
+ * wide enough for the longest id anywhere in the corpus (35 characters), which every island then
+ * pays for whether or not it holds one — and since the type lands on screen at `font x frameW/boxW`,
+ * every unused character of card width is type size thrown away. `forest-world`'s single component
+ * needs a 6-character card; sizing it for `transcript-decision-read-extraction` would draw its label
+ * at half the size for nothing.
+ *
+ * It is sizing, not naming: the ids that come in are the ids that go out (ADR-0453 D3, restated by
+ * ADR-0522 D4 — no renames, no public-facing labels, no glossary).
+ */
+export function cardMetricsFor(ids: readonly string[]): DagMetrics {
+  let chars = 1;
+  let lines = 1;
+  for (const id of ids) {
+    const wrapped = idLines(id);
+    lines = Math.max(lines, wrapped.length);
+    for (const line of wrapped) chars = Math.max(chars, line.length);
+  }
+  return {
+    nodeW: Math.round(chars * ADVANCE * LABEL_FONT) + CARD_PAD_X,
+    nodeH: Math.round(lines * LINE_HEIGHT * LABEL_FONT) + CARD_PAD_Y,
+    gapX: 13,
+    gapY: 24,
+    pad: 10,
+  };
+}
+
+/**
+ * The fallback card size, for a caller that has no ids to measure. `cardMetricsFor` is what the
+ * panel uses; this is what the shape looks like for the widest label the corpus can hold, so a
+ * graph laid out with it is never too SMALL for its own text.
+ */
+export const DAG_METRICS: DagMetrics = cardMetricsFor(['x'.repeat(LABEL_CHARS)]);
+
+/** A rectangle in layout space — the SVG `viewBox`, in the order it is written. */
+export interface DagBox {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/**
+ * The floor on the resting view's WIDTH, in layout units.
+ *
+ * ⚠ WITHOUT IT THE SMALLEST ISLANDS BREAK THE OTHER WAY. A two-component island is one card across;
+ * fitted to the frame it draws that card the width of the panel and its label at heading size, which
+ * reads as a different surface rather than as the same graph with less in it. The floor pads the
+ * viewBox instead, so a small graph is drawn at a sane size and CENTRED, with the slack as margin.
+ * Only the width needs it: the frame takes the graph's own aspect, so nothing balloons vertically.
+ */
+export const MIN_RESTING_SPAN = 300;
+
+/**
+ * The resting view — the whole graph, centred, with the small-island floor applied.
+ *
+ * This is the at-rest camera the panel opens on, and the property it holds is the one that must not
+ * regress: the ENTIRE graph is inside it, so nothing is off-frame and no "fit" control is owed until
+ * the reader moves away from it.
+ */
+export function restingBox(layout: DagLayout): DagBox {
+  const w = Math.max(layout.width, MIN_RESTING_SPAN);
+  return { x: (layout.width - w) / 2, y: 0, w, h: layout.height };
+}
+
+/**
+ * What a label MEASURES on screen, in CSS pixels, once this graph is at rest in a frame this size.
+ *
+ * ⚠ THIS FUNCTION IS THE INCREMENT. ADR-0522 is about a number a reader can or cannot read, and
+ * every earlier statement about label size in this file was a claim about intent rather than about
+ * millimetres. Making it a function makes it assertable: `capability-dag.test.ts` holds the
+ * published corpus to a floor, so an export that widened an island until its type stopped reading
+ * fails a test instead of shipping.
+ */
+export function labelPxAtRest(layout: DagLayout, frameW: number, frameH: number): number {
+  const box = restingBox(layout);
+  return LABEL_FONT * Math.min(frameW / box.w, frameH / box.h);
+}
 
 /** How many barycentre sweeps to run. Fixed rather than convergence-tested, so the result is a
  *  pure function of the input — see the determinism note in the header. Four is where the measured
@@ -265,20 +382,64 @@ export function layoutCapabilityDag(
 }
 
 /**
- * Wrap a kebab-case id across up to two lines, breaking at a hyphen.
+ * Wrap a kebab-case id across up to `lines` lines, packing whole hyphen-separated words onto each.
  *
  * ⚠ THIS IS NOT A TRANSLATION, AND MUST NEVER BECOME ONE. ADR-0453 D3 decided the map's own labels
- * stay our real corpus names — the visitor is meant to project their own system onto an unreadable
- * shape, and our names are the substrate rather than the message. This only decides where the
- * string breaks.
+ * stay our real corpus names, and ADR-0522 D4 restates it word for word while widening the type:
+ * no renames, no public-facing labels, no glossary. This only decides where the string breaks.
+ *
+ * ⚠ IT PACKS, IT DOES NOT CUT AT A FIXED OFFSET. The version this replaces sliced the first `max`
+ * characters and looked BACKWARDS for a hyphen, which threw away a whole word whenever the break
+ * landed just past one — `live-author-accounting-override` came out as `live-author` +
+ * `accounting-o…`, eliding a tail that fits comfortably on a third line. Filling greedily instead
+ * costs nothing and is why the shorter 10-character line still shows more of the name.
+ *
+ * ⚠ `max` IS THE WRAP TARGET, NOT THE CEILING, AND A WORD IS NOT CUT IN HALF TO MEET IT. An earlier version
+ * of this change did cut, and its own fence caught what that costs: `verification-decay-instruments`
+ * came out `verificat…` / `decay` / `instrumen…` — three elisions in a name that fits in three lines,
+ * and a first line that is no longer any word we published. A word wider than the target simply takes
+ * its own over-long line; `cardMetricsFor` measures what this returns, so the card grows to hold it
+ * and only the island containing the long word pays for it. `ceiling` is where that generosity
+ * stops — a word past it IS cut, so a future runaway id cannot widen every card on its island. The
+ * longest single word in the corpus today is 13 characters, which is the ceiling exactly, so no
+ * published label is cut mid-word at all.
+ *
+ * A tail that will not fit in the lines available is elided with a `…`, so a truncated label always
+ * SAYS it is truncated — the authored title is on the card's hover `<title>` either way.
  */
-export function idLines(id: string, max = 13): readonly string[] {
+export function idLines(
+  id: string,
+  max = LABEL_CHARS,
+  lines = LABEL_LINES,
+  ceiling = Math.max(max, LABEL_CHARS_MAX),
+): readonly string[] {
   if (id.length <= max) return [id];
-  const head = id.slice(0, max);
-  let cut = head.lastIndexOf('-');
-  if (cut < Math.floor(max * 0.4)) cut = max;
-  const first = id.slice(0, cut);
-  const rest = id.slice(cut).replace(/^-/, '');
-  if (rest === '') return [first];
-  return [first, rest.length > max ? `${rest.slice(0, max - 1)}…` : rest];
+  const words = id.split('-');
+  const out: string[] = [];
+  let line = '';
+  let taken = 0;
+  for (const word of words) {
+    const merged = line === '' ? word : `${line}-${word}`;
+    if (merged.length <= max || line === '') {
+      line = merged;
+      taken += 1;
+      continue;
+    }
+    if (out.length === lines - 1) break; // the last line is full; whatever is left gets elided
+    out.push(line);
+    line = word;
+    taken += 1;
+  }
+  out.push(line);
+  // A word past the CEILING is cut — the only place a name is ever broken mid-word, and it exists so
+  // one runaway id cannot widen every card on its island. Nothing in today's corpus reaches it: the
+  // longest single word published is 13 characters.
+  const drawn = out.map((text) => (text.length > ceiling ? `${text.slice(0, ceiling - 1)}…` : text));
+  if (taken === words.length) return drawn;
+  // Something did not fit at all. Elide the LAST line so the label says so — the card is sized from
+  // the longest line this returns, so the extra character costs nothing but honesty.
+  const i = drawn.length - 1;
+  const tail = drawn[i] ?? '';
+  if (!tail.endsWith('…')) drawn[i] = tail.length >= ceiling ? `${tail.slice(0, ceiling - 1)}…` : `${tail}…`;
+  return drawn;
 }

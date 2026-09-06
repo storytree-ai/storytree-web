@@ -70,7 +70,7 @@
 // The ONLY import this module has, and it is deliberately a pure one: `capability-dag.ts` is
 // geometry with no DOM, so importing it costs this module nothing of what makes it testable —
 // everything here is still inert until `mountRoam` is called.
-import { DAG_METRICS, idLines, layoutCapabilityDag } from './capability-dag';
+import { cardMetricsFor, idLines, LABEL_FONT, layoutCapabilityDag, restingBox } from './capability-dag';
 
 // ── the payload ─────────────────────────────────────────────────────────────
 
@@ -1031,10 +1031,24 @@ interface DagView {
 function capabilityGraph(story: RoamStory): HTMLElement | null {
   if (story.capabilities.length === 0) return null;
 
-  const layout = layoutCapabilityDag(story.capabilities);
-  const { nodeW, nodeH } = DAG_METRICS;
+  // ⚠ THE CARD IS SIZED FROM THIS ISLAND'S OWN LABELS (ADR-0522). A uniform card had to be wide
+  // enough for the longest id in the corpus, and every unused character of width came straight off
+  // the type size, because the label lands on screen at `font x frameWidth / graphWidth`.
+  const metrics = cardMetricsFor(story.capabilities.map((c) => c.id));
+  const layout = layoutCapabilityDag(story.capabilities, metrics);
+  const { nodeW, nodeH } = metrics;
+  const rest = restingBox(layout);
 
   const frame = el('div', 'roam-dag');
+  // ⚠ THE FRAME TAKES THE GRAPH'S OWN ASPECT, AND THAT IS WHERE MOST OF THE LEGIBILITY CAME FROM.
+  // A fixed 13rem box letterboxed every graph that was not 1.6:1 — `studio`, twelve cards across and
+  // three deep, was drawn into a 45px strip inside a 208px frame, throwing away 78% of the frame and
+  // with it 78% of the type size. Declaring the ratio lets CSS give each graph the box it needs, and
+  // it needs NO MEASUREMENT to do it: the trap this file already records — a one-shot fit reading
+  // 317x232 before the panel had settled, and a `ResizeObserver` that never fires in a non-painting
+  // context — is avoided entirely, because the browser resolves an `aspect-ratio` at layout time.
+  // `max-height` in the stylesheet is what stops a deep island from taking the whole panel.
+  frame.style.aspectRatio = `${rest.w.toFixed(2)} / ${rest.h.toFixed(2)}`;
   const svg = svgEl('svg', 'roam-dag-svg');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   // The whole graph, described once for anyone not seeing it. The counts are read from the picture
@@ -1093,15 +1107,18 @@ function capabilityGraph(story: RoamStory): HTMLElement | null {
     // fit, because it is the only thing on it that carries meaning to a stranger.
     const strip = svgEl('rect', 'roam-dag-strip');
     strip.setAttribute('width', String(nodeW));
-    strip.setAttribute('height', '4');
-    strip.setAttribute('rx', '2');
+    strip.setAttribute('height', '5');
+    strip.setAttribute('rx', '2.5');
     group.append(strip);
 
+    // The label, at a size meant to be READ (ADR-0522). The lines are centred as a block on the
+    // card, and the leading follows the type rather than a literal, so the two cannot drift apart.
     const lines = idLines(node.id);
+    const leading = LABEL_FONT * 1.25;
     lines.forEach((line, i) => {
       const text = svgEl('text', 'roam-dag-label');
       text.setAttribute('x', String(nodeW / 2));
-      text.setAttribute('y', String(nodeH / 2 + 4 + (i - (lines.length - 1) / 2) * 9));
+      text.setAttribute('y', (nodeH / 2 + LABEL_FONT * 0.36 + (i - (lines.length - 1) / 2) * leading).toFixed(2));
       text.setAttribute('text-anchor', 'middle');
       text.textContent = line;
       group.append(text);
@@ -1126,7 +1143,14 @@ function capabilityGraph(story: RoamStory): HTMLElement | null {
   // sees the entire shape, and nothing is off-frame for a scrollbar to have hinted at). The gesture
   // handlers below then do the letterbox arithmetic explicitly, so they are correct at any frame
   // size, on first paint, and with no observer to keep alive.
-  const fitView = (): DagView => ({ x: 0, y: 0, w: layout.width, h: layout.height });
+  //
+  // ⚠ WHAT CHANGED UNDER ADR-0522 IS THE FRAME, NOT THIS RULE. The frame now DECLARES the graph's
+  // aspect rather than being fixed at 13rem, so the letterbox is usually nil instead of most of the
+  // box — but it is declared in CSS and resolved by layout, so nothing here measures anything and
+  // the trap above stays avoided. The resting view is `restingBox`, which is the whole graph plus
+  // the small-island margin; it is still the WHOLE graph, so the fit control is still owed nothing
+  // until the reader leaves it.
+  const fitView = (): DagView => ({ x: rest.x, y: rest.y, w: rest.w, h: rest.h });
 
   let view: DagView = fitView();
   const apply = (): void => {
@@ -1215,11 +1239,12 @@ function capabilityGraph(story: RoamStory): HTMLElement | null {
       const scale = scaleIn(box);
       if (!(scale > 0)) return;
 
-      // Bounded both ways: never wider than the whole graph (there is nothing further out to see,
+      // Bounded both ways: never wider than the RESTING view (there is nothing further out to see,
       // and zooming out past the fit only shrinks it into the middle), and never closer than about
-      // three cards across.
+      // three of this graph's own cards — which is a different number per island now that the card
+      // is sized from the island's own labels.
       const step = ev.deltaY > 0 ? 1.12 : 1 / 1.12;
-      const w = Math.min(layout.width, Math.max(DAG_METRICS.nodeW * 3, view.w * step));
+      const w = Math.min(rest.w, Math.max(nodeW * 3, view.w * step));
       const factor = w / view.w;
       const h = view.h * factor;
 
@@ -1234,7 +1259,7 @@ function capabilityGraph(story: RoamStory): HTMLElement | null {
       const offs = letterbox(box, after, w, h);
       view = { x: ux - (px - offs.ox) / after, y: uy - (py - offs.oy) / after, w, h };
       apply();
-      markMoved(w < layout.width - 0.5 || Math.abs(view.x) > 0.5 || Math.abs(view.y) > 0.5);
+      markMoved(w < rest.w - 0.5 || Math.abs(view.x - rest.x) > 0.5 || Math.abs(view.y - rest.y) > 0.5);
     },
     { passive: false },
   );
