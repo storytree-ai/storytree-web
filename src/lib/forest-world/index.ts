@@ -43,6 +43,14 @@ export {
   type Axial,
   HEX_R,
   HEX_W,
+  HEX_AREA,
+  HEX_UNIT_AREA,
+  HEX_TILES_PER_CAPABILITY,
+  LAND_AREA_PER_CAPABILITY,
+  PRE_ADR0528_TILE,
+  TILE_QUOTA_RULE,
+  TILE_SCALE,
+  tileUnits,
   TILE_DEPTH,
   TILE_DEPTH_WORLD,
   axialKey,
@@ -55,7 +63,19 @@ export {
   polyPath,
 } from './hex';
 
-export { ringsOf, estRadius, crownRadius, storyTreeReach } from './sizing';
+export {
+  ringsOf,
+  estRadius,
+  tileQuota,
+  TREE_ART_RUNG,
+  PLATE_ART_RUNG,
+  FLORA_ART_RUNG,
+  TRAIL_ART_RUNG,
+  TREE_SCALE,
+  crownRadius,
+  crownRadiusWorld,
+  storyTreeReach,
+} from './sizing';
 
 export {
   type RankStory,
@@ -70,6 +90,7 @@ export {
 export {
   type BoundarySeg,
   COAST_OUTSET,
+  COAST_OUTSET_ON_TILE,
   COAST_SMOOTH_ITERS,
   boundaryRingLoops,
   jitteredOutset,
@@ -140,6 +161,13 @@ export {
   type SceneEmptyHex,
   BAKED_STONE_DEF,
   buildScene,
+  type TileArt,
+  type ArtRungs,
+  tileArt,
+  SHIPPED_TILE_ART,
+  PLATE_SCALE,
+  FLORA_SCALE,
+  TRAIL_STROKE_SCALE,
   landCellId,
   buildTrails,
   buildTree,
