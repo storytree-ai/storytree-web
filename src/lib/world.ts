@@ -9,9 +9,8 @@
 // cluster of hex tiles and grows ONE central tree whose SIZE scales with its
 // capability count, so a richer story is a visibly bigger tree. Garden flora are
 // its capabilities; procedurally routed "trails" (ADR-0169, hidden by default on
-// the public map) are dependency edges; a signpost marks a
-// human-witnessed story; "blooms" announce fresh passing verdicts; "wisps" are
-// the sessions working right now. Each story also carries a laid-out capability
+// the public map) are dependency edges; a signpost marks a human-witnessed story;
+// "wisps" are the sessions working right now. Each story also carries a laid-out capability
 // sub-DAG for the drill-down.
 //
 // The GEOMETRY (hex math, sizing curves, the Townscaper mesh, the organic coast)
@@ -96,10 +95,13 @@ export interface Dataset {
   sessions?: Session[];
 }
 
-// The instant the demo world is "as of" — fresh passing verdicts within
-// BLOOM_WINDOW of this bloom on the map (a one-shot game-feel layer).
+// The instant the demo world is "as of".
+//
+// It used to also seed a transient "just passed" bloom over any story whose verdict landed within
+// BLOOM_WINDOW of it; storytree ADR-0529 retired that drawable from the shared engine and ADR-0536
+// settled its last consumer, so the window and the per-territory `bloom` flag went with it. A
+// signed pass is shown by the island's proven-green status hue and nothing else.
 const DEMO_NOW = Date.parse('2026-06-14T09:30:00Z');
-const BLOOM_WINDOW = 60 * 60 * 1000 * 48; // 48h
 
 // ---------- graph helpers ----------
 
@@ -144,7 +146,7 @@ const contractsOf = (c: Capability): number => c.contracts ?? 2 + (hash(c.id) % 
 
 // ---------- view structures ----------
 
-export interface CapSpot { id: string; title: string; status: Status; x: number; y: number; variant: number; bloom: boolean; contracts: number; }
+export interface CapSpot { id: string; title: string; status: Status; x: number; y: number; variant: number; contracts: number; }
 interface DecorSpot { x: number; y: number; seed: number; }
 interface WispView { id: string; band: 'fresh' | 'stale'; workingOn: string; phase?: BuildPhase; }
 
@@ -160,7 +162,7 @@ export interface Territory {
   treeX: number; treeY: number; labelY: number; plateW: number;
   coastPaths: string[];
   caps: CapSpot[]; decor: DecorSpot[]; wisps: WispView[]; capDag: CapDag;
-  bloom: boolean; sapling: boolean; young: boolean; withered: boolean;
+  sapling: boolean; young: boolean; withered: boolean;
   sealFilled: boolean;
   deps: string[]; ancestors: string[]; descendants: string[];
   sessions: { id: string; workingOn: string; band: string }[];
@@ -394,10 +396,7 @@ export function buildWorld(data: Dataset): World {
         x += (tp.x - x) * 0.28; y += (tp.y - y) * 0.28;
       }
       const cv = display(cap.status);
-      // Capability-level blooms are disabled: the mock verdicts cluster at each
-      // story's timestamp, so per-cap sparkles bunch up. The crown bloom alone
-      // carries "this story just passed" cleanly.
-      return { id: cap.id, title: cap.title, status: cv, x, y, variant: hash(`${cap.id}:v`) % 3, bloom: false, contracts: contractsOf(cap) };
+      return { id: cap.id, title: cap.title, status: cv, x, y, variant: hash(`${cap.id}:v`) % 3, contracts: contractsOf(cap) };
     });
 
     const decor: DecorSpot[] = [];
@@ -421,16 +420,13 @@ export function buildWorld(data: Dataset): World {
       id: se.id, band: se.band, workingOn: se.workingOn,
       ...(se.phase ? { phase: se.phase } : {}),
     }));
-    const bloom = vis !== 'unhealthy' && !!story.verdict && story.verdict.outcome === 'pass'
-      && DEMO_NOW - Date.parse(story.verdict.at) >= 0 && DEMO_NOW - Date.parse(story.verdict.at) < BLOOM_WINDOW;
-
     return {
       i, id: story.id, title: story.title, outcome: story.outcome,
       status: story.status, vis, witness: story.witness, capCount: caps.length, contractTotal: weight, weight, crownR, verdict: story.verdict,
       cx, cy, radius, treeX: tp.x, treeY: tp.y, labelY, plateW: Math.max(110, story.title.length * 7.6 + 26),
       coastPaths: [],
       caps: capSpots, decor, wisps, capDag: layoutCapDag(story),
-      bloom, sapling: caps.length === 0 && vis !== 'unhealthy', young: vis === 'proposed' && caps.length > 0, withered: vis === 'unhealthy',
+      sapling: caps.length === 0 && vis !== 'unhealthy', young: vis === 'proposed' && caps.length > 0, withered: vis === 'unhealthy',
       sealFilled: story.witness === 'human' && !!story.verdict && story.verdict.outcome === 'pass',
       deps: depsOf.get(story.id) ?? [],
       ancestors: transitiveClosure(story.id, depsOf),

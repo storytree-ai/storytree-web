@@ -9,7 +9,7 @@
    the /how-it-works map that hosted it retired 2026-07-07.)
 
    This is the WORLD paint only — the ground cells, the smoothed shore, the story
-   trees, garden flora, trails, wisps, blooms, signposts, nameplates, and their
+   trees, garden flora, trails, wisps, signposts, nameplates, and their
    status colours + gentle idle animations. It carries NONE of the retired
    TreeWorld component's shell chrome (toolbar, filters, inspector, legend). All
    colours resolve against the site tokens in global.css
@@ -124,11 +124,8 @@
 }
 .tw-sign.seal-blank .head { stroke: #b9a489; stroke-dasharray: 3 3; }
 
-/* fresh-verdict bloom */
-.tw-bloom { transform-box: fill-box; transform-origin: center; animation: tw-pulse 2.6s ease-in-out infinite; }
-.tw-bloom .ring { fill: none; stroke: #6fbf86; stroke-width: 2; opacity: 0.85; }
-.tw-bloom .spark { fill: #a9ebbf; }
-@keyframes tw-pulse { 0%, 100% { opacity: 0.45; transform: scale(0.88); } 50% { opacity: 1; transform: scale(1.12); } }
+/* the fresh-verdict bloom's rules stood here until storytree ADR-0529/0536 retired the drawable
+   from the shared engine — a signed pass is the island's proven-green hue and nothing else. */
 
 /* live-session wisps (phase-banded per ADR-0048 §3) */
 .tw-wisp .glow { fill: #2f9e8f; opacity: 0.2; animation: tw-glow 3s ease-in-out infinite; animation-delay: var(--d, 0s); }
@@ -161,5 +158,5 @@
 .tw-terr, .tw-ground, .tw-isle { transition: opacity 0.18s ease; }
 
 @media (prefers-reduced-motion: reduce) {
-  .tw-bloom, .tw-wisp, .tw-crown { animation: none; }
+  .tw-wisp, .tw-crown { animation: none; }
 }
