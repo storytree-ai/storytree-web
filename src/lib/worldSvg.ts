@@ -35,7 +35,7 @@ const esc = (s: unknown): string =>
 // ---------------------------------------------------------------------------
 //
 // The website folds ONLY presentation facts it owns — the status is already
-// folded into each territory's `vis`, blooms/wisps/signpost are the demo's
+// folded into each territory's `vis`, wisps/signpost are the demo's
 // marks, nameplate text + tooltips are the website's vocabulary. The core
 // derives every hash-seeded variant/jitter from the ids. The mesh branch:
 // `relaxedCells` is the computed mesh, so `empties`/`drawTiles`/`wheatSets`
@@ -53,8 +53,6 @@ function capToSceneInput(c: CapSpot): SceneInput['territories'][number]['plants'
     x: c.x,
     y: c.y,
     title: `${c.title} — ${c.status === 'unhealthy' ? 'failing' : c.status}`,
-    // Capability-level blooms are disabled in the demo layout (world.ts), so the
-    // crown bloom alone carries "just passed" — never emit a plant bloom here.
   };
 }
 
@@ -82,11 +80,6 @@ function territoryToSceneInput(t: Territory): SceneInput['territories'][number] 
     // A human-witness story shows the signpost; outcome null = a blank seal.
     ...(t.witness === 'human'
       ? { signpost: { outcome: t.sealFilled ? ('pass' as const) : null } }
-      : {}),
-    // Crown bloom: the demo seeds bloom by id only (no age decay over time), so a
-    // present bloom rides at full age.
-    ...(t.bloom && !t.sapling
-      ? { bloom: { ageRatio: 1, outcome: (t.verdict?.outcome ?? 'pass') as 'pass' | 'fail' } }
       : {}),
     wisps: t.wisps.map((w) => ({
       runId: `${t.id}:${w.id}`,
@@ -129,7 +122,7 @@ export function worldToSceneInput(w: World): SceneInput {
 // Role → the website's base class(es). A kind absent here (or mapped to '')
 // renders an unclassed element (a structural <g>, or a child the website styles
 // via its group's class, e.g. crown blobs styled by `.tw-terr .lo circle`).
-// Composed kinds (status / variant / trail / tree / bloom / wisp) are handled in
+// Composed kinds (status / variant / trail / tree / wisp) are handled in
 // the walk below, NOT here.
 const BASE: Partial<Record<SceneKind, string>> = {
   'coast-shore': 'tw-shore',
@@ -157,9 +150,6 @@ const BASE: Partial<Record<SceneKind, string>> = {
   // conifer
   'conifer-body': 'body',
   'conifer-snow': 'snow',
-  // bloom internals
-  'bloom-ring': 'ring',
-  'bloom-spark': 'spark',
   // wisp internals
   'wisp-hit': 'wisp-hit',
   'wisp-glow': 'glow',
@@ -248,9 +238,8 @@ const childrenSvg = (node: Extract<SceneNode, { el: 'g' }>, storyId?: string): s
  *  - the hit layer becomes focusable `<rect>`s (the website renders it — the
  *    studio skips it);
  *  - the tree splits its translate (outer <g>) from a swaying `.tw-crown` (inner
- *    <g>), with the bloom + signpost kept OUTSIDE `.tw-crown` so the CSS rotate
- *    can't clobber them;
- *  - a bloom keeps the translate on the wrapper, the pulse on inner `.tw-bloom`;
+ *    <g>), with the signpost kept OUTSIDE `.tw-crown` so the CSS rotate
+ *    can't clobber it;
  *  - a wisp carries `--phase` so the website's CSS can orbit it.
  */
 export function sceneToSvg(node: SceneNode, storyId?: string): string {
@@ -326,8 +315,8 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
         const id = node.id ?? storyId ?? '';
         const sway = (6 + (hashStr(id) % 30) / 10).toFixed(1);
         const delay = ((hashStr(id) % 40) / 10).toFixed(1);
-        // crown shapes sway; the bloom + signpost must sit OUTSIDE .tw-crown so
-        // its CSS rotate keyframe can't clobber their own translates.
+        // crown shapes sway; the signpost must sit OUTSIDE .tw-crown so
+        // its CSS rotate keyframe can't clobber its own translate.
         const sway_kinds = node.children.filter((c) => !isOutsideCrown(c.kind));
         const outside = node.children.filter((c) => isOutsideCrown(c.kind));
         return (
@@ -375,14 +364,6 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
         const band = body ? body.variant ?? 0 : 0;
         return `<g class="tw-conifer c-${band}"${node.transform ? ` transform="${node.transform}"` : ''}>${childrenSvg(node, storyId)}</g>`;
       }
-
-      // ---- bloom: translate + age-decay opacity on the wrapper, pulse on the
-      //      inner .tw-bloom (the CSS pulse can't clobber the wrapper's attrs) ----
-      case 'bloom-anchor':
-        return `<g${commonAttrs(node)}>${childrenSvg(node, storyId)}</g>`;
-      case 'bloom-crown':
-      case 'bloom-plant':
-        return `<g class="tw-bloom">${childrenSvg(node, storyId)}</g>`;
 
       // ---- wisp orbit: --phase drives the CSS rotation; phaseBand → the band-*
       //      colour class (red cast / green pulse / teal building, ADR-0048 §3 v2,
@@ -434,10 +415,12 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
 }
 
 /** Kinds that, inside a tree group, must be rendered OUTSIDE the swaying
- *  `.tw-crown` (their own translate/pulse can't survive a parent CSS rotate). */
+ *  `.tw-crown` (their own translate can't survive a parent CSS rotate).
+ *
+ *  The transient verdict bloom's `bloom-anchor` stood here too, until storytree ADR-0529/0536
+ *  retired the drawable and deleted the five `bloom-*` kinds from the shared engine. */
 function isOutsideCrown(k: SceneKind | undefined): boolean {
   return (
-    k === 'bloom-anchor' ||
     k === 'sign-blank' ||
     k === 'sign-pass' ||
     k === 'sign-fail'

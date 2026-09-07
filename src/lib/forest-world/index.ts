@@ -173,6 +173,5 @@ export {
   buildTree,
   buildPlant,
   buildConifer,
-  buildBloom,
   buildTerritoryFlora,
 } from './scene';
