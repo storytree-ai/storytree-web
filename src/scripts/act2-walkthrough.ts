@@ -275,7 +275,7 @@ const f = (n: number): string => n.toFixed(1);
  *  changes when a beat renames or greens the territory. */
 export interface DiscGeometry {
   cells: RelaxedCell[];
-  coastPaths: string[];
+  coastGroundLoops: Pt[][];
   treeSpot: Pt;
   decor: { x: number; y: number; seed: number }[];
   /** Ground bounds (scene space, pre-offset, already translated to centre). */
@@ -393,9 +393,19 @@ export function buildDisc(centre: Pt, rings: number, seedId: string): DiscGeomet
     });
   }
   const rawCoast = smoothCoast(segs, seedId, COAST_OUTSET_ON_TILE).loops; // the beach on the shipped tile (ADR-0528)
-  const coastPaths = rawCoast.map(
-    (loop) =>
-      loop.map((p, i) => `${i === 0 ? 'M' : 'L'} ${f(p.x + dx)} ${f(p.y + dy)}`).join(' ') + ' Z',
+  // ⚠ THE LOOPS THIS SURFACE HANDS OVER ARE UN-PROJECTED AT THE BOUNDARY, and that is a temporary
+  // faithfulness measure rather than the end state (ADR-0527 D1). The core now draws the coast at
+  // the camera it is asked for, so it must be given GROUND coordinates — but this surface builds
+  // its coast from `hexCenter`/`hexCorners` at the DECLARED camera, i.e. already in screen space,
+  // and its outset + Chaikin smoothing therefore run in screen space too. The studio runs them in
+  // GROUND space (`TreeView.tsx`, ADR-0367's "fourth named cost": the outset is a beach WIDTH, so
+  // an isotropic push is only a real width on the ground). Un-projecting here reproduces exactly
+  // the coast this page draws today; rebuilding it in ground space would change the beach's SHAPE
+  // on a live public page, which is an owner LOOK and not this landing's to take. That rebuild is
+  // ADR-0527 end-state item 6 — "the two maps agree by construction" — and it is named as residue
+  // on `the-painters-project-and-the-un-projection-is-deleted`.
+  const coastGroundLoops = rawCoast.map((loop) =>
+    loop.map((p) => unprojectGround({ x: p.x + dx, y: p.y + dy })),
   );
 
   // ground bounds (translated): a disc of `rings` spans ± (rings*HEX_W + HEX_R)
@@ -409,7 +419,7 @@ export function buildDisc(centre: Pt, rings: number, seedId: string): DiscGeomet
     h: halfH * 2,
   };
 
-  return { cells, coastPaths, treeSpot, decor, rect };
+  return { cells, coastGroundLoops, treeSpot, decor, rect };
 }
 
 /**
@@ -564,7 +574,7 @@ export function foldWorldToScene(world: WorldState, _script: Beat[]): FoldedWorl
       screenRadius: t.radius,
       treeSpot: t.treeSpot,
       labelY: t.centre.y + t.plateY,
-      coastPaths: disc.coastPaths,
+      coastGroundLoops: disc.coastGroundLoops,
       decor: disc.decor,
       plants,
       treeTitle,
@@ -604,7 +614,7 @@ export function foldWorldToScene(world: WorldState, _script: Beat[]): FoldedWorl
       screenRadius: ISLAND_R,
       treeSpot: disc.treeSpot,
       labelY: PLATE_Y,
-      coastPaths: disc.coastPaths,
+      coastGroundLoops: disc.coastGroundLoops,
       decor: disc.decor,
       plants: [],
       treeTitle: '',
