@@ -73,7 +73,7 @@ function territoryToSceneInput(t: Territory): SceneInput['territories'][number] 
     screenRadius: t.radius,
     treeSpot: { x: t.treeX, y: t.treeY },
     labelY: t.labelY,
-    coastPaths: t.coastPaths,
+    coastGroundLoops: t.coastGroundLoops,
     decor: t.decor.map((d) => ({ x: d.x, y: d.y, seed: d.seed })),
     plants: t.caps.map(capToSceneInput),
     treeTitle: `${t.title} — ${t.vis === 'unhealthy' ? 'failing' : t.vis}`,

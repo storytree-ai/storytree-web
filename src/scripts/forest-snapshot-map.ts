@@ -458,7 +458,7 @@ export function forestSceneInput(snap: ForestSnapshot): SceneInput & { width: nu
       screenRadius: radius,
       treeSpot: disc.treeSpot,
       labelY: centre.y + PLATE_Y,
-      coastPaths: disc.coastPaths,
+      coastGroundLoops: disc.coastGroundLoops,
       decor: disc.decor,
       plants: [],
       treeTitle: `${story.title} — ${provenTally(proven, capCount)}`,

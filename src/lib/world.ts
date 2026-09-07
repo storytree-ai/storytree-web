@@ -32,6 +32,7 @@ import {
   type BuildPhase,
   type TrailNetwork,
   routeTrails,
+  unprojectGround,
   HEX_R,
   HEX_W,
   TILE_DEPTH,
@@ -160,7 +161,7 @@ export interface Territory {
   capCount: number; contractTotal: number; weight: number; crownR: number; verdict?: Verdict;
   cx: number; cy: number; radius: number;
   treeX: number; treeY: number; labelY: number; plateW: number;
-  coastPaths: string[];
+  coastGroundLoops: Pt[][];
   caps: CapSpot[]; decor: DecorSpot[]; wisps: WispView[]; capDag: CapDag;
   sapling: boolean; young: boolean; withered: boolean;
   sealFilled: boolean;
@@ -424,7 +425,7 @@ export function buildWorld(data: Dataset): World {
       i, id: story.id, title: story.title, outcome: story.outcome,
       status: story.status, vis, witness: story.witness, capCount: caps.length, contractTotal: weight, weight, crownR, verdict: story.verdict,
       cx, cy, radius, treeX: tp.x, treeY: tp.y, labelY, plateW: Math.max(110, story.title.length * 7.6 + 26),
-      coastPaths: [],
+      coastGroundLoops: [],
       caps: capSpots, decor, wisps, capDag: layoutCapDag(story),
       sapling: caps.length === 0 && vis !== 'unhealthy', young: vis === 'proposed' && caps.length > 0, withered: vis === 'unhealthy',
       sealFilled: story.witness === 'human' && !!story.verdict && story.verdict.outcome === 'pass',
@@ -459,7 +460,11 @@ export function buildWorld(data: Dataset): World {
         if (a && b) segs.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
       });
     }
-    territories[i].coastPaths = smoothCoast(segs, stories[i].id).paths;
+    // Un-projected at the boundary for the same reason as `act2-walkthrough.ts` — see the note
+    // there. (This fold is row 7 of the deletion list: `renderWorld` has no caller.)
+    territories[i].coastGroundLoops = smoothCoast(segs, stories[i].id).loops.map((loop) =>
+      loop.map((p) => unprojectGround(p)),
+    );
   }
 
   // trails (dep -> dependent): the shared core's deterministic cost-grid router
