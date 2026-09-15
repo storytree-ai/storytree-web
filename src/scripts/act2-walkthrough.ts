@@ -70,6 +70,7 @@ import {
   COAST_OUTSET_ON_TILE,
   tileUnits,
   LAND_CAMERA_ELEVATION_DEG,
+  PLAN_VIEW_ELEVATION_DEG,
   axialKey,
   buildRelaxedCells,
   buildScene,
@@ -376,15 +377,28 @@ export function buildDisc(centre: Pt, rings: number, seedId: string): DiscGeomet
     poly: c.poly.map(tr),
   }));
 
-  // the smoothed organic coastline of the disc (the exact home-map recipe), seeded
-  // by the FIXED disc id — the coast belongs to the land, not the story, so it
-  // cannot pop when a beat renames the territory. Built at origin then translated
-  // (smoothCoast works on raw segments).
+  // the smoothed organic coastline of the disc, seeded by the FIXED disc id — the coast belongs to
+  // the land, not the story, so it cannot pop when a beat renames the territory.
+  //
+  // BUILT ON THE GROUND, BY THE STUDIO'S RECIPE (ADR-0554). The hex-edge boundary comes from
+  // PLAN-VIEW centres and corners, exactly as the studio's packer builds it
+  // (`packages/forest-layout/src/pack.ts`, the boundary above its `smoothCoast` call), so the beach
+  // outset and the Chaikin rounding run on the ground: the outset is a beach WIDTH, and an isotropic
+  // push is only a real width on the ground (ADR-0367's "fourth named cost"). The core projects the
+  // loops at the camera it draws at, so both maps draw one coastline from one arithmetic rather than
+  // this surface building a screen-space coast and un-projecting it to fit (ADR-0527 end-state
+  // item 6). `act2-walkthrough.coast.test.ts` holds it.
+  //
+  // Built at the ground origin, then given the disc's move. The tiles move by (dx, dy) on the SCREEN
+  // (`tr`, above), and the same move across the ground is that offset un-projected. It is an ANCHOR —
+  // this surface still hands the core screen anchors (`SceneTerritoryInput.anchorSpace`, the
+  // remainder ADR-0554 leaves standing) — so it is the one thing un-projected here, never the
+  // coast's shape.
   const mine = new Set(tiles.map(axialKey));
   const segs: BoundarySeg[] = [];
   for (const tile of tiles) {
-    const c = hexCenter(tile);
-    const cor = hexCorners(c.x, c.y, HEX_R);
+    const g = hexCenter(tile, { elevationDeg: PLAN_VIEW_ELEVATION_DEG });
+    const cor = hexCorners(g.x, g.y, HEX_R, PLAN_VIEW_ELEVATION_DEG);
     AXIAL_DIRS.forEach((d, e) => {
       if (mine.has(axialKey({ q: tile.q + d.q, r: tile.r + d.r }))) return;
       const a = cor[e];
@@ -392,20 +406,10 @@ export function buildDisc(centre: Pt, rings: number, seedId: string): DiscGeomet
       if (a && b) segs.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
     });
   }
-  const rawCoast = smoothCoast(segs, seedId, COAST_OUTSET_ON_TILE).loops; // the beach on the shipped tile (ADR-0528)
-  // ⚠ THE LOOPS THIS SURFACE HANDS OVER ARE UN-PROJECTED AT THE BOUNDARY, and that is a temporary
-  // faithfulness measure rather than the end state (ADR-0527 D1). The core now draws the coast at
-  // the camera it is asked for, so it must be given GROUND coordinates — but this surface builds
-  // its coast from `hexCenter`/`hexCorners` at the DECLARED camera, i.e. already in screen space,
-  // and its outset + Chaikin smoothing therefore run in screen space too. The studio runs them in
-  // GROUND space (`TreeView.tsx`, ADR-0367's "fourth named cost": the outset is a beach WIDTH, so
-  // an isotropic push is only a real width on the ground). Un-projecting here reproduces exactly
-  // the coast this page draws today; rebuilding it in ground space would change the beach's SHAPE
-  // on a live public page, which is an owner LOOK and not this landing's to take. That rebuild is
-  // ADR-0527 end-state item 6 — "the two maps agree by construction" — and it is named as residue
-  // on `the-painters-project-and-the-un-projection-is-deleted`.
-  const coastGroundLoops = rawCoast.map((loop) =>
-    loop.map((p) => unprojectGround({ x: p.x + dx, y: p.y + dy })),
+  const groundMove = unprojectGround({ x: dx, y: dy });
+  // the beach on the shipped tile (ADR-0528)
+  const coastGroundLoops = smoothCoast(segs, seedId, COAST_OUTSET_ON_TILE).loops.map((loop) =>
+    loop.map((p) => ({ x: p.x + groundMove.x, y: p.y + groundMove.y })),
   );
 
   // ground bounds (translated): a disc of `rings` spans ± (rings*HEX_W + HEX_R)
