@@ -460,8 +460,10 @@ export function buildWorld(data: Dataset): World {
         if (a && b) segs.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
       });
     }
-    // Un-projected at the boundary for the same reason as `act2-walkthrough.ts` — see the note
-    // there. (This fold is row 7 of the deletion list: `renderWorld` has no caller.)
+    // Un-projected at the boundary: the SCREEN-built coast this fold has always drawn. NOT ported
+    // when `act2-walkthrough.ts` moved its coast onto the ground (ADR-0554) — `renderWorld` has no
+    // caller, and this fold is row 7 of the forest-geometry deletion list, to be deleted rather than
+    // migrated when it is reached.
     territories[i].coastGroundLoops = smoothCoast(segs, stories[i].id).loops.map((loop) =>
       loop.map((p) => unprojectGround(p)),
     );
