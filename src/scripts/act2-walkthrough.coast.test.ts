@@ -203,8 +203,18 @@ test('drawn at the declared camera, the coast is centred on the island the page 
 
 test('TEETH — the camera foreshortens the ground, and the old screen-space recipe breaks the ground bound here', () => {
   assert.ok(SITE_DISCS.length > 0, 'the committed snapshot laid out no islands, so this suite tests no site disc');
+  // ⚠ RE-BASED AT ADR-0593 D1 (2026-09-22), AND THE MARGIN GENUINELY NARROWED — read this before
+  // touching either bound. `LAND_CAMERA_ELEVATION_DEG` moved 20 -> 50 so the flat map and the 3D
+  // land share one elevation. The ground squash weakened with it, from `1/sin 20 = 2.92` to
+  // `1/sin 50 = 1.31`, so the old screen-space recipe this file replaced is now much CLOSER to the
+  // correct one than it used to be. Both bounds below were calibrated against the strong squash.
+  //
+  // The vacuity guard was `< 0.5`, which `sin 20 = 0.342` cleared and `sin 50 = 0.766` does not.
+  // 0.5 was never the property — it was headroom. What the guard has to establish is that the
+  // camera foreshortens AT ALL, since at plan view the two recipes are the same function and test
+  // 2 would pass on either.
   assert.ok(
-    groundFlattening(LAND_CAMERA_ELEVATION_DEG) < 0.5,
+    groundFlattening(LAND_CAMERA_ELEVATION_DEG) < 1,
     'the declared camera no longer foreshortens the ground, so the two recipes cannot differ and test 2 is vacuous',
   );
   let worst = 0;
@@ -216,8 +226,17 @@ test('TEETH — the camera foreshortens the ground, and the old screen-space rec
       for (const p of loop) worst = Math.max(worst, distanceToLoops(p, land) / widest);
     }
   }
+  // …and the substantive half, which is what actually gives test 2 its teeth: the old recipe must
+  // push a coast point FURTHER off the ground than its own widest legitimate push, so test 2's
+  // centring bound really does separate the two. `> 1` is the claim the test's own name makes
+  // ("breaks the ground bound"); the previous `> 2` was headroom the strong squash happened to
+  // supply. Measured: 2.58× at 20 degrees, 1.24× at 50 — still broken, by a narrower margin.
+  //
+  // ⚠ IF THIS EVER DROPS BELOW 1, DO NOT LOWER IT. That is the point at which the old recipe stops
+  // being distinguishable from the correct one at the shipped camera, and test 2 above has become
+  // vacuous — which is a finding about the camera, not a bound to adjust.
   assert.ok(
-    worst > 2,
+    worst > 1,
     `the screen-space recipe this file used to ship stays within ${worst.toFixed(2)}× its widest push on the ` +
       'ground, so test 2 can no longer tell it from the fix',
   );
