@@ -42,7 +42,8 @@
 import { groundCasters, placementCasters } from './ground-casters';
 import type { ShadowCaster } from './land-shadow';
 import type { KitPlacement, RoleFootprints, RoleHeights } from './kit-vocabulary';
-import { dressMapWithCover } from './map-dressing';
+import { dressMapWithCoverAttribution } from './map-dressing';
+import { islandGrowthLayout, type IslandGrowthLayout } from './ForestWorldCanvas.causal';
 import type { Descriptor3D, InstanceDescriptor, InstanceKind } from './world-to-3d';
 
 /**
@@ -225,6 +226,11 @@ export interface GroundInput {
   readonly strips: InstanceDescriptor[];
   /** The kit's placement, made once: the SAME list reaches the casters and the props. */
   readonly placements: KitPlacement[];
+  /** The island that owns each placement. Cover has no capability id, so this provenance is
+   * carried from the one dressing pass rather than guessed from geometry downstream. */
+  readonly islandByPlacement: ReadonlyMap<KitPlacement, string>;
+  /** Stable atlas-like slots and common growth anchors for the immutable ground buffers. */
+  readonly growthLayout: ReadonlyMap<string, IslandGrowthLayout>;
   /** Everything that stands on the land and therefore darkens it. */
   readonly casters: ShadowCaster[];
 }
@@ -248,13 +254,16 @@ export function groundInput(
   opts: GroundInputOptions,
   revision: number,
 ): GroundInput {
-  const placements = dressMapWithCover(descriptors, { relief: opts.relief, footprint: opts.footprint });
+  const cells = byKind(descriptors, 'cell-ground');
+  const dressed = dressMapWithCoverAttribution(descriptors, { relief: opts.relief, footprint: opts.footprint });
   return {
     revision,
-    cells: byKind(descriptors, 'cell-ground'),
+    cells,
     strips: byKind(descriptors, 'trail-strip'),
-    placements,
-    casters: [...groundCasters(descriptors), ...placementCasters(placements, opts.footprint, opts.height)],
+    placements: dressed.placements,
+    islandByPlacement: dressed.islandByPlacement,
+    growthLayout: islandGrowthLayout(cells),
+    casters: [...groundCasters(descriptors), ...placementCasters(dressed.placements, opts.footprint, opts.height)],
   };
 }
 
