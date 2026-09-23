@@ -193,6 +193,9 @@ export interface CellGroundGeometryInput {
    *  interpolator returns it exactly — the argument `banded-ground-material.ts` already makes
    *  about the ramp row. */
   atlasOrigin?: ((island: string | undefined) => AtlasOrigin) | undefined;
+  /** Island id → the discrete slot the material uses to identify that island. Like the atlas
+   *  origin, this is constant for every vertex emitted from one parcel. */
+  islandSlot?: ((island: string | undefined) => number) | undefined;
   /** THE STEPPED CLIFF SKIRT — the sixth and last component of the approved land treatment.
    *
    *  ⚠ OPTIONAL, AND OMITTING IT IS THE SINGLE-QUAD WALL VERBATIM — the same argument
@@ -277,6 +280,8 @@ export interface CellGroundGeometry {
    *  empty rather than zero-filled applies here verbatim: (0, 0) is a real corner of a real
    *  atlas. */
   atlasOrigins: Float32Array;
+  /** Per-vertex discrete island identity. Empty when no island-slot resolver was supplied. */
+  islandSlots: Float32Array;
   /** Parcels actually built (rings of fewer than three vertices bound no area and are dropped). */
   cells: number;
   /** Triangles in the merged buffer — the authored count `harness/baseline-measure.mjs`
@@ -523,6 +528,8 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
   // many vertices there are.
   const atlasOrigins =
     input.atlasOrigin === undefined ? new Float32Array(0) : new Float32Array(triangles * 6);
+  const islandSlots =
+    input.islandSlot === undefined ? new Float32Array(0) : new Float32Array(triangles * 3);
   let w = 0;
 
   /** Write one triangle with an EXPLICIT normal per vertex — the top face's route, because the
@@ -538,6 +545,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     colour: LinearRgb,
     row: number,
     origin: AtlasOrigin,
+    islandSlot: number,
   ): void => {
     for (let i = 0; i < 3; i += 1) {
       const p = vertices[i]!;
@@ -568,6 +576,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       // typed array — the honest outcome, because the caller asked for no origins.
       atlasOrigins[(w / 3) * 2] = origin.u;
       atlasOrigins[(w / 3) * 2 + 1] = origin.v;
+      islandSlots[w / 3] = islandSlot;
       w += 3;
     }
   };
@@ -581,6 +590,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     colour: LinearRgb,
     row: number,
     origin: AtlasOrigin,
+    islandSlot: number,
   ): void => {
     const ux = b.x - a.x;
     const uy = b.y - a.y;
@@ -604,7 +614,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       nz /= len;
     }
     const n: P3 = { x: nx, y: ny, z: nz };
-    pushTriangleWithNormals([a, b, c], [n, n, n], colour, row, origin);
+    pushTriangleWithNormals([a, b, c], [n, n, n], colour, row, origin, islandSlot);
   };
 
   for (const ring of rings) {
@@ -616,6 +626,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     // its own material, and ZERO_ORIGIN when the caller asked for no origins — a value that
     // reaches only a zero-length array.
     const origin = input.atlasOrigin?.(ring.island) ?? ZERO_ORIGIN;
+    const islandSlot = input.islandSlot?.(ring.island) ?? 0;
     const pts = normalisedRing(ring.wall);
     const n = pts.length;
 
@@ -633,6 +644,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
           colour,
           row,
           origin,
+          islandSlot,
         );
       }
     }
@@ -721,8 +733,8 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
         const pick = shaded ? skirt.shaded : skirt.lit;
         const ledgeColour = rock ? pick.colour : colour;
         const ledgeRow = rock ? pick.row : row;
-        pushTriangle(upperNext, upper, lowerNext, ledgeColour, ledgeRow, origin);
-        pushTriangle(lowerNext, upper, lower, ledgeColour, ledgeRow, origin);
+        pushTriangle(upperNext, upper, lowerNext, ledgeColour, ledgeRow, origin, islandSlot);
+        pushTriangle(lowerNext, upper, lower, ledgeColour, ledgeRow, origin, islandSlot);
         upper = lower;
         upperNext = lowerNext;
       }
@@ -735,6 +747,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     colors,
     statuses,
     atlasOrigins,
+    islandSlots,
     cells: rings.length,
     triangles,
   };
