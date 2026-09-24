@@ -97,7 +97,12 @@ const stamp = renderStamp(snapshot);
   .forest-map :global(.tw-trails) {
     display: inline;
   }
-  .forest-map :global(.tw-trail-shadow),
+  /* The land's own message (loading / unsupported / failed, ADR-0608 D5) sits clear of the fixed
+     site header — at the shared stylesheet's `top: 1rem` the header covered all but its last line,
+     which is the one message a browser without WebGL 2 is ever shown. */
+  .forest-map :global(.forest-land-status) {
+    top: 5rem;
+  }
   .forest-map :global(.tw-trail-casing) {
     display: none;
   }

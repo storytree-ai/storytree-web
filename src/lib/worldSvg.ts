@@ -237,8 +237,42 @@ function emitPrimitive(node: SceneNode, cls: string): string {
   }
 }
 
-const childrenSvg = (node: Extract<SceneNode, { el: 'g' }>, storyId?: string): string =>
-  node.children.map((c) => sceneToSvg(c, storyId)).join('');
+const childrenSvg = (node: Extract<SceneNode, { el: 'g' }>, storyId?: string, opts?: SceneSvgOptions): string =>
+  node.children.map((c) => sceneToSvg(c, storyId, opts)).join('');
+
+/** How a scene is serialised. `land: true` — the public forests, where the 3D land draws the forest
+ *  under this SVG (ADR-0608 D4). */
+export interface SceneSvgOptions {
+  readonly land?: boolean;
+}
+
+/**
+ * ADR-0608: the scene kinds the 3D land draws, which a `land` serialisation therefore never emits —
+ * the flat forest PICTURE, retired rather than hidden. The island ground cells, the hero tree's crown
+ * and shadow, the flat UAT flowers, the plant ring and conifers, and the road's contact-shadow and
+ * under-island ghost passes. What stays is what a reader acts through or reads: nameplates, the hit
+ * discs, the witness signposts, the wisps, the coast outline (ROAM's selection ring and TELL's island
+ * lens), and the road fill and casing (TELL's trail lens and ROAM's wide trail hit stroke) — the last
+ * two drawn only when selected or lensed (`tree-world-map.css`).
+ */
+const LAND_DRAWN_KINDS: ReadonlySet<SceneKind> = new Set<SceneKind>([
+  'empties-layer',
+  'ground-mesh',
+  'ground-hex',
+  'trail-shadow-pass',
+  'trail-ghost-pass',
+  'tall-flower-proven',
+  'tall-flower-pending',
+  'tall-flower-failing',
+  'flora',
+  'conifer',
+  'shadow',
+]);
+
+/** The public forests' interaction layer over the 3D land (ADR-0608 D4) — see {@link LAND_DRAWN_KINDS}. */
+export function sceneToLandSvg(node: SceneNode): string {
+  return sceneToSvg(node, undefined, { land: true });
+}
 
 /**
  * Walk a scene node → SVG string. Most nodes map straight through their role
@@ -255,22 +289,23 @@ const childrenSvg = (node: Extract<SceneNode, { el: 'g' }>, storyId?: string): s
  *    can't clobber it;
  *  - a wisp carries `--phase` so the website's CSS can orbit it.
  */
-export function sceneToSvg(node: SceneNode, storyId?: string): string {
+export function sceneToSvg(node: SceneNode, storyId?: string, opts?: SceneSvgOptions): string {
   const k = node.kind;
+  if (opts?.land && k !== undefined && LAND_DRAWN_KINDS.has(k)) return '';
 
   // ---- structural layers: the website's named wrappers (or a bare <g>) ----
   if (node.el === 'g') {
     switch (k) {
       case 'world':
-        return `<g transform="${node.transform ?? ''}">${childrenSvg(node, storyId)}</g>`;
+        return `<g transform="${node.transform ?? ''}">${childrenSvg(node, storyId, opts)}</g>`;
       case 'empties-layer':
         // the website's mesh branch passes no empties — nothing to draw.
         return '';
       case 'coast-layer':
-        return `<g class="tw-coast-layer">${childrenSvg(node, storyId)}</g>`;
+        return `<g class="tw-coast-layer">${childrenSvg(node, storyId, opts)}</g>`;
       case 'ground-mesh':
       case 'ground-hex':
-        return `<g class="tw-land">${childrenSvg(node, storyId)}</g>`;
+        return `<g class="tw-land">${childrenSvg(node, storyId, opts)}</g>`;
       // ---- the trail network (ADR-0169 §2): fixed-order full passes (shadow >
       //      casing > fill > ghost) so merged trunks read as ONE trail, plus the
       //      non-visual per-edge reveal metadata (`trail-edges`). HIDDEN BY
@@ -278,14 +313,14 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
       //      interaction, so default-hidden degrades gracefully to clean
       //      islands); the Act 2 diorama opts back in with a scoped class. ----
       case 'trails-layer':
-        return `<g class="tw-trails">${childrenSvg(node, storyId)}</g>`;
+        return `<g class="tw-trails">${childrenSvg(node, storyId, opts)}</g>`;
       case 'trail-shadow-pass':
       case 'trail-casing-pass':
       case 'trail-fill-pass':
       case 'trail-ghost-pass':
-        return `<g class="tw-${k}">${childrenSvg(node, storyId)}</g>`;
+        return `<g class="tw-${k}">${childrenSvg(node, storyId, opts)}</g>`;
       case 'trail-edges':
-        return `<g class="tw-trail-edges">${childrenSvg(node, storyId)}</g>`;
+        return `<g class="tw-trail-edges">${childrenSvg(node, storyId, opts)}</g>`;
       case 'trail-edge':
         // pure metadata (no geometry): the edge's endpoints + its ordered
         // segment chain, so a surface can reveal-by-selection without
@@ -297,16 +332,16 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
           `</g>`
         );
       case 'flora-layer':
-        return `<g class="tw-flora-layer">${childrenSvg(node, storyId)}</g>`;
+        return `<g class="tw-flora-layer">${childrenSvg(node, storyId, opts)}</g>`;
       case 'hits-layer':
         return `<g class="tw-hits">${node.children.map((c) => hitRect(c)).join('')}</g>`;
 
       // ---- coast / ground per-territory groups (focus + filter hooks) ----
       case 'coast':
-        return `<g class="tw-isle st-${node.status ?? 'unknown'}" data-id="${esc(node.id)}">${childrenSvg(node, node.id)}</g>`;
+        return `<g class="tw-isle st-${node.status ?? 'unknown'}" data-id="${esc(node.id)}">${childrenSvg(node, node.id, opts)}</g>`;
       case 'ground':
       case 'tile':
-        return `<g class="tw-ground st-${node.status ?? 'unknown'}" data-id="${esc(node.id)}">${childrenSvg(node, node.id)}</g>`;
+        return `<g class="tw-ground st-${node.status ?? 'unknown'}" data-id="${esc(node.id)}">${childrenSvg(node, node.id, opts)}</g>`;
 
       // ---- a cave portal (ADR-0169 §2): where a forced route disappears under
       //      an island. Rides the flora layer (the core appends it there so the
@@ -315,16 +350,26 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
         return (
           `<g class="tw-cave st-${node.status ?? 'unknown'}" data-island="${esc(node.island)}"` +
           ` data-edges="${esc(node.edges ?? '')}"${node.transform ? ` transform="${node.transform}"` : ''}>` +
-          childrenSvg(node, storyId) +
+          childrenSvg(node, storyId, opts) +
           `</g>`
         );
 
       // ---- a whole island's flora group (the delegation hook) ----
       case 'territory':
-        return `<g class="tw-terr st-${node.status ?? 'unknown'}" data-id="${esc(node.id)}">${childrenSvg(node, node.id)}</g>`;
+        return `<g class="tw-terr st-${node.status ?? 'unknown'}" data-id="${esc(node.id)}">${childrenSvg(node, node.id, opts)}</g>`;
 
       // ---- the central tree: translate outside, sway inside, marks outside ----
       case 'tree': {
+        if (opts?.land) {
+          // The crown is the land's; only the human-witness signpost is a reading, and it stays.
+          const signs = node.children.filter((c) => isOutsideCrown(c.kind));
+          if (signs.length === 0) return '';
+          return (
+            `<g${node.transform ? ` transform="${node.transform}"` : ''}>` +
+            signs.map((c) => sceneToSvg(c, storyId, opts)).join('') +
+            `</g>`
+          );
+        }
         const id = node.id ?? storyId ?? '';
         const sway = (6 + (hashStr(id) % 30) / 10).toFixed(1);
         const delay = ((hashStr(id) % 40) / 10).toFixed(1);
@@ -335,9 +380,9 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
         return (
           `<g${node.transform ? ` transform="${node.transform}"` : ''}>` +
           `<g class="tw-crown" style="--sway:${sway}s;--d:${delay}s">` +
-          sway_kinds.map((c) => sceneToSvg(c, storyId)).join('') +
+          sway_kinds.map((c) => sceneToSvg(c, storyId, opts)).join('') +
           `</g>` +
-          outside.map((c) => sceneToSvg(c, storyId)).join('') +
+          outside.map((c) => sceneToSvg(c, storyId, opts)).join('') +
           `</g>`
         );
       }
@@ -356,7 +401,7 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
         return (
           `<g class="tw-sign ${cls}"${node.transform ? ` transform="${node.transform}"` : ''}>` +
           `<title>${titleTxt}</title>` +
-          childrenSvg(node, storyId) +
+          childrenSvg(node, storyId, opts) +
           tick +
           `</g>`
         );
@@ -367,7 +412,7 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
         return (
           `<g class="tw-flora st-${node.status ?? 'unknown'}" data-id="${esc(node.id)}"${node.transform ? ` transform="${node.transform}"` : ''}>` +
           (node.title ? `<title>${esc(node.title)}</title>` : '') +
-          childrenSvg(node, storyId) +
+          childrenSvg(node, storyId, opts) +
           `</g>`
         );
 
@@ -375,19 +420,19 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
       case 'conifer': {
         const body = node.children.find((c) => c.kind === 'conifer-body');
         const band = body ? body.variant ?? 0 : 0;
-        return `<g class="tw-conifer c-${band}"${node.transform ? ` transform="${node.transform}"` : ''}>${childrenSvg(node, storyId)}</g>`;
+        return `<g class="tw-conifer c-${band}"${node.transform ? ` transform="${node.transform}"` : ''}>${childrenSvg(node, storyId, opts)}</g>`;
       }
 
       // ---- wisp orbit: --phase drives the CSS rotation; phaseBand → the band-*
       //      colour class (red cast / green pulse / teal building, ADR-0048 §3 v2,
       //      folded by the core so the public demo can't drift from the studio) ----
       case 'wisps':
-        return `<g class="tw-wisps"${node.transform ? ` transform="${node.transform}"` : ''}>${childrenSvg(node, storyId)}</g>`;
+        return `<g class="tw-wisps"${node.transform ? ` transform="${node.transform}"` : ''}>${childrenSvg(node, storyId, opts)}</g>`;
       case 'wisp':
         return (
           `<g class="tw-wisp band-${node.phaseBand ?? 'building'}" style="--phase:${(node.phase ?? 0).toFixed(1)}deg">` +
           (node.title ? `<title>${esc(node.title)}</title>` : '') +
-          childrenSvg(node, storyId) +
+          childrenSvg(node, storyId, opts) +
           `</g>`
         );
 
@@ -395,7 +440,7 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
       case 'plate':
         return (
           `<g class="tw-plate"${node.transform ? ` transform="${node.transform}"` : ''}>` +
-          childrenSvg(node, storyId) +
+          childrenSvg(node, storyId, opts) +
           `</g>`
         );
 
@@ -403,7 +448,7 @@ export function sceneToSvg(node: SceneNode, storyId?: string): string {
       //      flora `body` wrapper) — forward transform/opacity/stroke-width ----
       default: {
         const cls = classOf(node);
-        return `<g${cls ? ` class="${cls}"` : ''}${commonAttrs(node)}>${childrenSvg(node, storyId)}</g>`;
+        return `<g${cls ? ` class="${cls}"` : ''}${commonAttrs(node)}>${childrenSvg(node, storyId, opts)}</g>`;
       }
     }
   }

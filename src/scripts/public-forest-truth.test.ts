@@ -20,6 +20,7 @@ import {
   assertSnapshot,
   forestArrivalSvg,
   forestSceneInput,
+  forestSvg,
   nameplateTally,
   nameplateWidth,
   toSceneStatus,
@@ -29,27 +30,52 @@ import snapshotJson from '../data/forest-snapshot.json';
 
 const SNAP = assertSnapshot(snapshotJson);
 
-test('no mark on the published map is left without a class — unclassed SVG paints black', () => {
-  // Read off the markup the page ships: every flower part carries a class the stylesheet paints.
-  const svg = forestArrivalSvg(SNAP);
+test('the public forests emit no flat picture — the 3D land stands its own flowers, ground and trees', () => {
+  // ADR-0608 D2/D4 (and ADR-0600 D1: the land stands a flower per criterion). The first land picture
+  // carried the flat map's classless criterion flowers, painting in SVG's default BLACK over the
+  // land. The fix is not a class on them but their absence: the public serialisation never emits
+  // the flat look at all, so there is nothing to hide and nothing to paint black.
   const criteria = SNAP.stories.reduce((n, s) => n + s.uat.length, 0);
-  assert.ok(criteria > 0, 'the published snapshot carries criteria, so flowers are drawn');
+  assert.ok(criteria > 0, 'the published snapshot carries criteria — so a flat drawing WOULD have flowers');
+  for (const [name, svg] of [
+    ['forestArrivalSvg', forestArrivalSvg(SNAP)],
+    ['forestSvg', forestSvg(SNAP)],
+  ] as const) {
+    for (const cls of ['tw-uat', 'tw-cell', 'tw-crown', 'tw-bg', 'tw-ground', 'tw-land', 'tw-flora', 'tw-conifer']) {
+      assert.ok(!new RegExp(`class="(?:[^"]* )?${cls}[ "]`).test(svg), `${name} still emits the flat ${cls}`);
+    }
+    assert.ok(!svg.includes('tall-flower-'), `${name} still emits a flat criterion flower part`);
+    assert.ok(!svg.includes('id="tw-board"'), `${name} still carries the retired board gradient`);
+    // …while keeping what a reader reads and acts through: one nameplate and one hit disc per island.
+    const plates = svg.match(/class="tw-plate"/g) ?? [];
+    const hits = svg.match(/class="tw-hit"/g) ?? [];
+    assert.equal(plates.length, SNAP.stories.length, `${name}: one nameplate per island`);
+    assert.equal(hits.length, SNAP.stories.length, `${name}: one hit disc per island`);
+  }
+});
+
+test('the Act 2 walk still draws the flat flowers, and every flower part is classed — unclassed SVG paints black', () => {
+  // ⚠ The wrapper carries a `transform` after its class; an earlier `class="tw-uat[^"]*">` pattern
+  // matched no wrapper at all and passed on zero parts — hence the count guard below.
+  // The walk serialises through plain `sceneToSvg` and keeps its flat drawing, so the black-spike
+  // defect is still possible THERE: every primitive inside a flower wrapper must carry a class.
+  const svg = sceneToSvg(buildScene(forestSceneInput(SNAP)));
+  const criteria = SNAP.stories.reduce((n, s) => n + s.uat.length, 0);
   const wrappers = svg.match(/class="tw-uat tall-flower-(proven|pending|failing)"/g) ?? [];
   assert.equal(wrappers.length, criteria, 'one classed flower per criterion');
-  // Every primitive inside a flower wrapper has a class — the black spikes were classless ones.
-  for (const m of svg.matchAll(/<g class="tw-uat[^"]*">([\s\S]*?)<\/g>/g)) {
+  let parts = 0;
+  for (const m of svg.matchAll(/<g class="tw-uat[^"]*"[^>]*>([\s\S]*?)<\/g>/g)) {
     for (const el of (m[1] ?? '').matchAll(/<(path|circle|ellipse)(\s[^>]*)?\/>/g)) {
+      parts += 1;
       assert.match(el[2] ?? '', /class="/, `an unclassed <${el[1]}> inside a criterion flower`);
     }
   }
-  // …and the stylesheet paints what it is given, and hides it once the land stands its own.
+  assert.ok(parts >= criteria, `only ${parts} flower parts examined — the extractor has gone blind`);
+  // …and the stylesheet paints what it is given.
   const css = readFileSync(new URL('../styles/tree-world-map.css', import.meta.url), 'utf8');
   for (const part of ['stem', 'leaf', 'bud', 'glow', 'petal', 'center']) {
     assert.ok(css.includes(`.tall-flower-${part}`), `no paint for .tall-flower-${part}`);
   }
-  assert.match(css, /\.has-land \.tw-uat,/);
-  // The scene's other kinds reach the same emitter; this is the whole scene, not a sample.
-  assert.ok(sceneToSvg(buildScene(forestSceneInput(SNAP))).includes('tw-uat'));
 });
 
 test('every nameplate says whether its microservice is proven, in ROAM\'s own words', () => {
