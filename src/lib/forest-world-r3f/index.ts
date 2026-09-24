@@ -117,3 +117,5 @@ export {
 // surface whose scene was built at the declared land camera comes through, and the three-step
 // pipeline that turns such a scene into the shipped 3D stream in the one order that is correct.
 export { landStreamFromDrawing, trueGroundFromDrawing } from './true-ground';
+
+export { deriveNativePropHitRecords, type NativePropHitRecord } from './native-prop-hit-records';
