@@ -7,9 +7,12 @@
 // into chapter 2's arrival — where the visitor lands out of the storm onto it — is the next
 // increment's work, and it consumes this module rather than replacing it.
 //
-// ⚠ ZERO WebGL and zero client JS. The map is an SVG string computed at build time, exactly
-// like every other map on this site, so nothing here can enter the Act 1 static import
-// closure the parent's `check:web-experience-closure` guards.
+// The map is an SVG string computed at build time — nameplates, trails and the stamp — and,
+// since ADR-0608 D4, the real 3D land is mounted UNDER it in the browser, from the SAME drawing
+// (`publicForestDrawing`, streamed as `/forest-land.json`). The land's WebGL chunk arrives through
+// a dynamic import in the page script below, so nothing here enters the Act 1 static import
+// closure the parent's `check:web-experience-closure` guards. A browser without WebGL 2 is told
+// so in a visible message (ADR-0608 D5); there is no second map.
 import Base from '../layouts/Base.astro';
 import '../styles/tree-world-map.css';
 import snapshotJson from '../data/forest-snapshot.json';
@@ -43,6 +46,27 @@ const stamp = renderStamp(snapshot);
     <p class="forest-stamp">{stamp}</p>
   </section>
 </Base>
+
+<script>
+  // The 3D land under the poster (ADR-0608 D4). A settled forest — the poster has no growth — so
+  // the land is handed no plan and simply draws. Dynamic, so three.js is fetched only here.
+  const host = document.querySelector<HTMLElement>('.forest-map');
+  const svg = host?.querySelector('svg');
+  if (host && svg instanceof SVGSVGElement) {
+    import('../scripts/forest-land-mount')
+      .then((mod) => mod.mountForestLandLayer({ host, svg }))
+      .catch(async (err: unknown) => {
+        console.error('forest-land:', err);
+        const { LAND_MESSAGES } = await import('../scripts/forest-land-layer');
+        const status = document.createElement('p');
+        status.className = 'forest-land-status';
+        status.setAttribute('role', 'status');
+        status.textContent = LAND_MESSAGES.failed;
+        host.dataset.landState = 'failed';
+        host.appendChild(status);
+      });
+  }
+</script>
 
 <style>
   .forest-page {
@@ -81,6 +105,8 @@ const stamp = renderStamp(snapshot);
     stroke-width: 3;
   }
   .forest-map {
+    position: relative;
+    background: radial-gradient(ellipse 80% 80% at 50% 40%, #fbf3ea 0%, #edd9c9 100%);
     border-radius: 14px;
     overflow: hidden;
     box-shadow: 0 1px 2px rgba(40, 30, 20, 0.08), 0 12px 34px rgba(40, 30, 20, 0.1);
