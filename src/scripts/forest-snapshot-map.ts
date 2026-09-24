@@ -48,7 +48,7 @@ import {
   type SceneInput,
   type SceneStatus,
 } from '../lib/forest-world';
-import { sceneToSvg } from '../lib/worldSvg';
+import { sceneToLandSvg } from '../lib/worldSvg';
 import { escXml } from './act2-walkthrough';
 import { STATUS_READING } from './act2-roam';
 
@@ -755,13 +755,7 @@ export function forestArrivalSvg(snap: ForestSnapshot): string {
     `preserveAspectRatio="xMidYMid slice" role="img" aria-label="${escXml(label)}" ` +
     `data-forest-frame="${escXml(frame)}" data-forest-counts="${escXml(counts)}" ` +
     `data-forest-roam="${escXml(roam)}">` +
-    `<defs>` +
-    `<radialGradient id="tw-board" cx="50%" cy="40%" r="80%">` +
-    `<stop offset="0" stop-color="#fbf3ea"/><stop offset="1" stop-color="#edd9c9"/>` +
-    `</radialGradient>` +
-    `</defs>` +
-    `<rect class="tw-bg" x="0" y="0" width="${input.width}" height="${input.height}"/>` +
-    sceneToSvg(buildScene(input)) +
+    sceneToLandSvg(buildScene(input)) +
     `</svg>`
   );
 }
@@ -776,15 +770,10 @@ export function forestSvg(snap: ForestSnapshot): string {
   return (
     `<svg class="tw-svg forest-snapshot-svg" viewBox="0 0 ${input.width} ${input.height}" ` +
     `preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escXml(label)}">` +
-    // the board backdrop the shared stylesheet's `.tw-bg` fills from — each host supplies
-    // its own defs (the home map uses `#tw-board`, the Act 2 stage `#a2-board`).
-    `<defs>` +
-    `<radialGradient id="tw-board" cx="50%" cy="40%" r="80%">` +
-    `<stop offset="0" stop-color="#fbf3ea"/><stop offset="1" stop-color="#edd9c9"/>` +
-    `</radialGradient>` +
-    `</defs>` +
-    `<rect class="tw-bg" x="0" y="0" width="${input.width}" height="${input.height}"/>` +
-    sceneToSvg(buildScene(input)) +
+    // ADR-0608 D4: the 3D land under this SVG draws the forest — the board, ground, crowns and
+    // flat flowers are not emitted at all (`sceneToLandSvg`); what remains is what a reader reads
+    // and acts through.
+    sceneToLandSvg(buildScene(input)) +
     `</svg>`
   );
 }

@@ -1557,7 +1557,7 @@ export function mountRoam(opts: RoamOptions): RoamHandle {
     if (story === undefined) return;
     if (openStoryId !== id) openSection = null;
     openStoryId = id;
-    select(`.tw-isle[data-id="${CSS.escape(id)}"], .tw-ground[data-id="${CSS.escape(id)}"]`);
+    select(`.tw-isle[data-id="${CSS.escape(id)}"]`);
     renderStory(story);
   };
 

@@ -214,14 +214,16 @@
    not left to DOM order — and it is pointer-inert: every click, drag, focus and hit-test reaches
    straight through it to the map.
 
-   ⚠ ONLY THE FLAT PICTURE THE LAND REPLACES GOES, AND ONLY WHILE THE LAND IS DRAWN. The board,
-   the painted ground and coast, the hero tree and the flat roads are hidden; nameplates, hit
-   targets, ROAM's selection ring and TELL's highlighted trails stay (ADR-0608 D2). Until `.has-land`
-   is set — loading, unsupported, failed — the map is untouched.
+   ⚠ THE FLAT PICTURE IS NOT IN THE PUBLIC FORESTS' SVG AT ALL (`sceneToLandSvg`): no board, no
+   ground cells, no crowns, no flat flowers, no road shadows. What the SVG still carries is what a
+   reader reads and acts through — nameplates, hit discs, signposts, and two pieces of geometry that
+   are FEEDBACK rather than picture: the coast outline (ROAM's selection ring, TELL's island lens)
+   and the road fill (ROAM's selected road, TELL's trail lens). Those two draw nothing at rest,
+   whether or not the land has drawn — a browser that cannot run the land gets the message and the
+   names, never a flat map (ADR-0608 D5).
 
-   ⚠ `visibility` IS USED WHERE GROWTH ANIMATES THE ELEMENT. The growth keyframes animate opacity
-   and transform on islands, crowns and roads, and an animation outranks a normal rule — an
-   `opacity: 0` would lose to it and paint the flat look over the land for the whole growth. */
+   ⚠ `visibility` IS USED BECAUSE GROWTH ANIMATES THESE ELEMENTS. An animation outranks a normal
+   rule, so an `opacity: 0` would lose to the growth keyframes and paint them for the whole run. */
 .forest-land-layer {
   position: absolute;
   z-index: 0;
@@ -231,30 +233,22 @@
   position: relative;
   z-index: 1;
 }
-.has-land .tw-bg,
-.has-land .tw-land {
-  opacity: 0;
-}
-.has-land .tw-isle:not(.roam-selected),
-.has-land .tw-crown,
-.has-land .tw-uat,
-.has-land .tw-terr .sh,
-.has-land .tw-trail-fill:not(.roam-selected) {
+.forest-snapshot-svg .tw-isle:not(.roam-selected),
+.forest-arrival-svg .tw-isle:not(.roam-selected),
+.forest-snapshot-svg .tw-trail-fill:not(.roam-selected),
+.forest-arrival-svg .tw-trail-fill:not(.roam-selected) {
   visibility: hidden;
 }
-/* ⚠ THE FLAT FLOWERS AND THE HERO TREE'S SHADOW GO TOO. The land stands its own flower for every
-   criterion (the kit's, ADR-0600 D1) and its own trees, so the flat ones are a second drawing of
-   the same mark — and, unstyled, they read as black spikes floating off the islands (2026-09-24).
-   They sit inside `.tw-terr` beside the nameplate, which stays, so they are hidden by name. */
-/* The selected island keeps a RING: its own coast, unfilled — the selection feedback the painted
-   ground's drop-shadow gave, drawn over the land instead of as a patch of flat ground. */
-.has-land .tw-isle.roam-selected .tw-shore {
+/* The selected island keeps a RING: its own coast, unfilled — selection feedback drawn over the
+   land, never a patch of flat ground. */
+.forest-snapshot-svg .tw-isle.roam-selected .tw-shore,
+.forest-arrival-svg .tw-isle.roam-selected .tw-shore {
   fill: none;
   stroke: rgba(74, 58, 38, 0.9);
   stroke-width: 3;
 }
 /* TELL's trail lens highlights every road; the land keeps them readable under it. */
-#storm-land.tell-lens-trails .has-land .tw-trail-fill {
+#storm-land.tell-lens-trails .forest-arrival-svg .tw-trail-fill {
   visibility: visible;
 }
 

@@ -26,6 +26,7 @@ import {
   GROWING_CLASS,
   GROWTH_TUNING,
   ISLAND_LAYERS,
+  ISLAND_LIST_LAYER,
   LAND_LAYERS,
   MS_GROWTH_CEILING,
   MS_GROWTH_LEAD_IN,
@@ -33,10 +34,42 @@ import {
   TRAIL_PASSES,
   deriveGrowthPlan,
   parseSegmentChain,
+  readGrowthGraph,
   type GrowthEdge,
   type GrowthGraph,
 } from './forest-growth';
 import { TELL_SCRIPT, beatStarts } from './act2-tell';
+import { assertSnapshot, forestArrivalSvg } from './forest-snapshot-map';
+import snapshotJson from '../data/forest-snapshot.json';
+
+const SNAP = assertSnapshot(snapshotJson);
+/** The markup the home page actually serves — since ADR-0608 the land serialisation, which carries
+ *  fewer layers than the engine's emitter can write. What the growth animates is read off THIS. */
+const served = (): string => forestArrivalSvg(SNAP);
+
+/**
+ * A minimal stand-in for the served `<svg>` element: enough of `querySelectorAll` to answer the
+ * `.class[attr][attr]` selectors `readGrowthGraph` issues, over the real markup. No DOM library is
+ * installed here, and a hand-written list of ids would agree with whatever the reader assumed.
+ */
+function fakeMap(svg: string): Element {
+  const tags = [...svg.matchAll(/<([a-zA-Z]+)(\s[^>]*?)?\/?>/g)].map((m) => {
+    const attrs = new Map<string, string>();
+    for (const a of (m[2] ?? '').matchAll(/([a-zA-Z-]+)="([^"]*)"/g)) attrs.set(a[1] ?? '', a[2] ?? '');
+    return {
+      classes: new Set((attrs.get('class') ?? '').split(/\s+/)),
+      getAttribute: (name: string): string | null => attrs.get(name) ?? null,
+    };
+  });
+  return {
+    querySelectorAll(sel: string) {
+      const m = /^\.([a-z-]+)((?:\[[a-z-]+\])*)$/.exec(sel);
+      if (m === null) throw new Error(`fakeMap cannot answer ${sel}`);
+      const need = [...(m[2] ?? '').matchAll(/\[([a-z-]+)\]/g)].map((a) => a[1] ?? '');
+      return tags.filter((t) => t.classes.has(m[1] ?? '') && need.every((a) => t.getAttribute(a) !== null));
+    },
+  } as unknown as Element;
+}
 
 const page = (): string => readFileSync(new URL('../pages/index.astro', import.meta.url), 'utf8');
 /**
@@ -98,16 +131,21 @@ test('TEETH: every per-island layer the ENGINE emits is animated — none is lef
   // hides a shore and leaves the island exactly where it was, and NOTHING THROWS: the page looks
   // like it has no growth, which is the report that started this increment.
   //
-  // ⚠ AND THE EXPECTATION IS DERIVED FROM THE EMITTER, NOT FROM A LIST TYPED HERE. A hand-copied
+  // ⚠ AND THE EXPECTATION IS DERIVED FROM THE SERVED MAP, NOT FROM A LIST TYPED HERE. A hand-copied
   // list would have been copied from the same wrong belief as the code (the first draft's own
-  // probe counted `.tw-isle` too, and agreed with it). This reads `worldSvg.ts` — the function
-  // that writes these groups — and asks which classes it stamps a `data-id` onto, because
-  // `data-id` is exactly the marker that says "this group belongs to one story".
+  // probe counted `.tw-isle` too, and agreed with it). This reads the markup the home page ships
+  // (`forestArrivalSvg`) and asks which groups carry a `data-id`, because `data-id` is exactly the
+  // marker that says "this group belongs to one story". It reads the SERVED markup rather than the
+  // emitter's source since ADR-0608: the emitter can still write `tw-ground` (the Act 2 walk draws
+  // it), but the public map never carries it, and animating a layer that is not there does nothing.
   const emitted = new Set<string>();
-  for (const m of emitter().matchAll(/<g class="(tw-[a-z-]+)[^"]*"[^`]*?data-id=/g)) {
+  for (const m of served().matchAll(/<g class="(tw-[a-z-]+)[^"]*"[^>]*?data-id=/g)) {
     if (m[1] !== undefined) emitted.add(m[1]);
   }
-  assert.ok(emitted.size >= 3, `only found ${emitted.size} per-island layers in worldSvg.ts — the extractor has gone blind`);
+  assert.ok(emitted.size >= 2, `only found ${emitted.size} per-island layers on the served map — the extractor has gone blind`);
+  // The retired flat layers must not come back unannounced either: a `tw-ground` reappearing here
+  // would be the flat picture over the land again (ADR-0608).
+  assert.ok(!emitted.has('tw-ground'), 'the served map carries tw-ground again — the flat ground is back');
   // Covered = animated directly, or a descendant of something animated and named as such. The
   // second set is what stops this test being satisfiable by animating everything blindly: an
   // exclusion has to be written down with its reason before it counts.
@@ -167,7 +205,7 @@ test('TEETH: the island growth no longer overshoots — an overshoot reads as la
   // `cubic-bezier(0.34, 1.32, 0.44, 1)`: it passes final size and comes back. That is the shape of
   // something arriving, and no amount of extra duration removes it — a slow pop is still a pop.
   const css = page();
-  const rule = /\.forest-arrival-svg\.is-growing \.tw-ground \{([^}]*)\}/.exec(css);
+  const rule = /\.forest-arrival-svg\.is-growing \.tw-isle \{([^}]*)\}/.exec(css);
   assert.ok(rule !== null, 'no growth rule for the land');
   const curve = /cubic-bezier\(([^)]*)\)/.exec(rule[1] ?? '');
   assert.ok(curve !== null, 'the land growth has no named easing curve');
@@ -194,24 +232,45 @@ test('TEETH: the emitter still stamps everything the schedule reads off the DOM'
       `worldSvg.ts no longer stamps ${attr} on tw-trail-edge — the schedule reads it`,
     );
   }
-  // ⚠ THE PASS LIST IS DERIVED, NOT TYPED HERE — same reason as the island layers above. The
-  // emitter writes all four passes through ONE branch (`class="tw-${k}"`), so the literal class
-  // names never appear next to `data-id`; what identifies them is the kind guard. A FIFTH pass
-  // added upstream would otherwise arrive unscheduled and jump into place mid-arrival.
-  const passBranch = /\(\s*((?:k === 'trail-[a-z]+'\s*\|\|\s*)*k === 'trail-[a-z]+')\s*\)\s*\)\s*\{[\s\S]{0,400}?data-id=/.exec(src);
-  assert.ok(passBranch !== null, 'could not find the trail-pass emit branch in worldSvg.ts');
-  const emittedPasses = [...(passBranch[1] ?? '').matchAll(/'(trail-[a-z]+)'/g)].map((m) => `tw-${m[1]}`);
-  assert.ok(emittedPasses.length >= 3, `only found ${emittedPasses.length} trail passes — the extractor has gone blind`);
-  const unscheduled = emittedPasses.filter((p) => !(TRAIL_PASSES as readonly string[]).includes(p));
-  assert.deepEqual(
-    unscheduled,
-    [],
-    `worldSvg.ts emits trail pass(es) the schedule never stamps: ${unscheduled.join(', ')}`,
-  );
+  // ⚠ THE PASS LIST IS DERIVED FROM THE SERVED MAP, NOT TYPED HERE — same reason as the island
+  // layers above. Since ADR-0608 the public map carries only the casing and fill passes (the land
+  // draws the road's shadow and ghost), so the list is read off `forestArrivalSvg`: a pass that
+  // came back — or a new one added upstream — would otherwise arrive unscheduled and jump into
+  // place mid-arrival.
+  const servedPasses = new Set<string>();
+  for (const m of served().matchAll(/<path class="(tw-trail-[a-z]+)[^"]*"[^>]*?data-id=/g)) {
+    if (m[1] !== undefined) servedPasses.add(m[1]);
+  }
+  assert.ok(servedPasses.size >= 2, `only found ${servedPasses.size} trail passes on the served map — the extractor has gone blind`);
+  const unscheduled = [...servedPasses].filter((p) => !(TRAIL_PASSES as readonly string[]).includes(p));
+  assert.deepEqual(unscheduled, [], `the served map carries trail pass(es) the schedule never stamps: ${unscheduled.join(', ')}`);
+  const unserved = TRAIL_PASSES.filter((p) => !servedPasses.has(p));
+  assert.deepEqual(unserved, [], `TRAIL_PASSES names pass(es) the served map no longer carries: ${unserved.join(', ')}`);
+});
+
+test('TEETH: the island list is read from a layer the served map carries for EVERY island', () => {
+  // ⚠ THE FAILURE THIS EXISTS FOR SHIPPED WITH ADR-0608. The list used to be read from `tw-ground`,
+  // which the land serialisation no longer emits — so `readGrowthGraph` would find ZERO islands,
+  // `mountForestGrowth` would return inert, and the arrival would silently never run. Nothing
+  // throws. `tw-isle` is not a safe substitute either: it is skipped for an island with no coast
+  // loops. This reads the real served markup and requires every published story to be found.
+  const graph = readGrowthGraph(fakeMap(served()), () => null);
+  const expected = SNAP.stories.map((s) => s.id).sort();
+  assert.ok(expected.length > 0, 'the published snapshot has no stories');
+  assert.deepEqual([...graph.storyIds].sort(), expected, `the island list (read from .${ISLAND_LIST_LAYER}) is not the published stories`);
+  assert.ok(graph.edges.length > 0, 'no dependency edge read off the served map — every island would be a base island');
   assert.ok(
-    /class="tw-ground[^"]*" data-id=/.test(src),
-    'worldSvg.ts no longer stamps data-id on tw-ground — the island list is read from it',
+    graph.edges.every((e) => e.segments.length > 0),
+    'an edge on the served map has no segment chain — its road would never draw',
   );
+  // Every segment an edge names has a pass on the served map to draw.
+  const svg = served();
+  const segs = new Set(graph.edges.flatMap((e) => e.segments.map((s) => s.id)));
+  for (const pass of TRAIL_PASSES) {
+    const ids = new Set([...svg.matchAll(new RegExp(`<path class="${pass}[ "][^>]*?data-id="([^"]+)"`, 'g'))].map((m) => m[1]));
+    const missing = [...segs].filter((id) => !ids.has(id));
+    assert.deepEqual(missing.slice(0, 5), [], `${missing.length} routed segment(s) have no ${pass} path to draw`);
+  }
 });
 
 test("TEETH: the chain encoding this parses is the one the engine writes", () => {

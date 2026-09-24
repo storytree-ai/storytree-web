@@ -148,6 +148,14 @@
 //     <g class="tw-land">         <g class="tw-ground" data-id="cli"> … the disc and its cells
 //     <g class="tw-flora-layer">  <g class="tw-terr"   data-id="cli"> … trees, crown, name plate
 //
+// ⚠ SINCE ADR-0608 THE PUBLIC FORESTS EMIT TWO OF THE THREE. The 3D land under the SVG draws the
+// ground and the trees, so `sceneToLandSvg` never writes `tw-land`/`tw-ground` (nor any `tw-cell`,
+// crown or flat flower). What an island still is, in the served markup, is its coast outline
+// (`tw-isle` — ROAM's selection ring, TELL's island lens) and its territory (`tw-terr` — the
+// signposts and the nameplate). `tw-isle` is emitted only for an island WITH coast loops;
+// `tw-terr` is emitted for every island, because it always carries the nameplate — so the island
+// LIST is read from `tw-terr`, and `forest-growth.test.ts` checks it against the real served map.
+//
 // Hiding `.tw-isle` therefore hides a coastline and leaves the visible island exactly where it
 // was. The first draft did that and its own instrument agreed with it, because the instrument
 // counted `.tw-isle` too — an expectation derived from the same mistake as its subject. It was
@@ -158,7 +166,8 @@
 // ── ⚠ THE LAND SCALES; THE TREES DO NOT. THAT IS MEASURED, NOT A STYLE CHOICE ───────────────────
 //
 // `tw-isle` and `tw-ground` are the same disc — their bounding-box centres agree within three user
-// units, so `transform-box: fill-box` scales both about the island's real body. `tw-terr` is NOT:
+// units, so `transform-box: fill-box` scales both about the island's real body. (Only `tw-isle`
+// survives ADR-0608 in the public markup; the rule is unchanged for it.) `tw-terr` is NOT:
 // it wraps the trees AND the name plate hanging below, so where the disc sits inside its box
 // varies with the island's height. Measured across four islands on the live snapshot, the disc
 // centre lands between 28.7% and 50.4% of the terr box vertically. A fixed percentage origin would
@@ -176,7 +185,8 @@
 // each tree and plant individually on top of that.
 //
 // That is not portable to a static SVG page, and the reason is countable rather than aesthetic:
-// the served map holds **5,454 `.tw-cell` paths** across its 35 islands (472 on the largest).
+// the served map held **5,454 `.tw-cell` paths** across its 35 islands (472 on the largest) — and
+// since ADR-0608 it holds none, because the 3D land draws the ground.
 // Per-cell accretion here would mean 5,454 concurrently-scheduled CSS animations on paint-level
 // properties inside one SVG, where the app pays for the same effect once per frame through a
 // memoised cursor. The app can afford its mechanism because it re-renders a scene; a page cannot.
@@ -209,10 +219,15 @@ export const DRAW_REVERSED_CLASS = 'is-drawing-rev';
  * `lib/worldSvg.ts` (the emitter that writes these groups) and reds if the two disagree, so adding
  * a layer to the engine reds this repo rather than half-animating it.
  */
-export const ISLAND_LAYERS = ['tw-isle', 'tw-ground', 'tw-terr'] as const;
-/** The layers that carry the island's LAND, and are therefore safe to scale about a shared fill-box
- *  origin (their bounding boxes are the same disc). */
-export const LAND_LAYERS = ['tw-isle', 'tw-ground'] as const;
+export const ISLAND_LAYERS = ['tw-isle', 'tw-terr'] as const;
+/** The layers that carry the island's LAND outline, and are therefore safe to scale about their own
+ *  fill-box origin. Since ADR-0608 only the coast outline — the ground disc is the 3D land's. */
+export const LAND_LAYERS = ['tw-isle'] as const;
+
+/** The per-island layer the island LIST is read from. `tw-terr` because it is the one emitted for
+ *  EVERY island — it always carries the nameplate — where `tw-isle` is skipped for an island with no
+ *  coast loops (ADR-0608 retired `tw-ground`, the list's previous source). */
+export const ISLAND_LIST_LAYER = 'tw-terr';
 
 /**
  * Groups the engine stamps `data-id` onto that this module deliberately does NOT animate, with the
@@ -224,22 +239,19 @@ export const LAND_LAYERS = ['tw-isle', 'tw-ground'] as const;
  * to achieve exactly what its ancestor already does.
  */
 export const NESTED_LAYERS = ['tw-flora'] as const;
+// ⚠ `tw-flora` is not emitted on the public forests at all since ADR-0608 (the land draws the plant
+// ring); the exclusion stays so a flora group that came back would be recognised, not animated.
 
 /**
- * The trail passes the engine draws one path per segment into, all keyed by the same `data-id`.
+ * The trail passes the public map carries one path per segment in, all keyed by the same `data-id`.
  *
- * ⚠ ALL FOUR ARE STAMPED EVEN THOUGH THIS SURFACE ONLY SHOWS ONE. `index.astro` sets
- * `.tw-trail-shadow` and `.tw-trail-casing` to `display: none` on the public map and the engine
- * emits no ghosts for it, so today only the fill is visible. Stamping the schedule on all four
- * anyway means un-hiding a pass is a stylesheet decision that cannot half-animate the arrival —
- * the alternative is a road whose shadow appears 4 seconds before the road.
+ * ⚠ BOTH ARE STAMPED EVEN THOUGH THIS SURFACE ONLY SHOWS ONE. Since ADR-0608 the public forests
+ * emit no shadow or ghost pass (the land draws the road); `index.astro` sets `.tw-trail-casing` to
+ * `display: none`, so only the fill is visible — and only when selected or lensed. Stamping the
+ * schedule on the casing anyway means un-hiding it is a stylesheet decision that cannot
+ * half-animate the arrival. `forest-growth.test.ts` derives the pass list from the real served map.
  */
-export const TRAIL_PASSES = [
-  'tw-trail-shadow',
-  'tw-trail-casing',
-  'tw-trail-fill',
-  'tw-trail-ghost',
-] as const;
+export const TRAIL_PASSES = ['tw-trail-casing', 'tw-trail-fill'] as const;
 
 /** When the first island lands, measured from mount. The land layer is cross-fading up from the
  *  storm underneath, so the board is legible before the first island arrives on it. */
@@ -598,7 +610,7 @@ export function readGrowthGraph(
   map: Element,
   measure: (path: Element) => number | null = defaultMeasure,
 ): GrowthGraph {
-  const storyIds = Array.from(map.querySelectorAll('.tw-ground[data-id]'))
+  const storyIds = Array.from(map.querySelectorAll(`.${ISLAND_LIST_LAYER}[data-id]`))
     .map((el) => el.getAttribute('data-id'))
     .filter((id): id is string => id !== null && id !== '');
 
