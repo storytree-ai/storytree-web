@@ -119,3 +119,8 @@ export {
 export { landStreamFromDrawing, trueGroundFromDrawing } from './true-ground';
 
 export { deriveNativePropHitRecords, type NativePropHitRecord } from './native-prop-hit-records';
+
+export {
+  projectNativePropHitEnvelope,
+  type NativePropHitEnvelope,
+} from './native-prop-hit-projection';
