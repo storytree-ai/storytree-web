@@ -124,3 +124,5 @@ export {
   projectNativePropHitEnvelope,
   type NativePropHitEnvelope,
 } from './native-prop-hit-projection';
+
+export { nativePropTargets } from './native-prop-targets';
