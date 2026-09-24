@@ -58,9 +58,17 @@
 
 import { COVER_DENSITY, COVER_SIZE, dressCover } from './cover-dressing';
 import { RECIPE_ISLAND_AREA, islandExclusion } from './dressing-ground';
-import { capabilityFactsFrom, dressIslandFromKit, type KitPlacement, type RoleFootprints } from './kit-vocabulary';
+import { landHeight } from './land-relief';
+import {
+  capabilityFactsFrom,
+  coverageFloraAssembly,
+  coverageFoliageTint,
+  dressIslandFromKit,
+  type KitPlacement,
+  type RoleFootprints,
+} from './kit-vocabulary';
 import { cellsByIsland, parcelCellsFrom, type LayoutCell } from './parcel-cells';
-import { type Descriptor3D, type InstanceKind } from './world-to-3d';
+import { type CoverageFloraDescriptor, type Descriptor3D, type InstanceKind } from './world-to-3d';
 
 export interface MapDressingOptions {
   /** The relief amplitude the ground is built at, so props sit ON the land rather than through it. */
@@ -305,6 +313,23 @@ function dressMap(
       { blooms: 0, buds: 0, wilts: 0 },
     ),
   );
+
+  for (const descriptor of descriptors) {
+    if (descriptor.kind !== 'coverage-flora') continue;
+    const coverage = descriptor as CoverageFloraDescriptor;
+    const placement: KitPlacement = {
+      role: 'coverageFlora',
+      assembly: coverageFloraAssembly(coverage.theme),
+      capId: coverage.capability,
+      tint: coverageFoliageTint(coverage.theme, coverage.material),
+      at: { x: coverage.transform.x, z: coverage.transform.z },
+      y: landHeight(coverage.transform.x, coverage.transform.z, opts.relief),
+      yaw: 0,
+      scale: coverage.floraScale / 0.4,
+    };
+    out.push(placement);
+    islandByPlacement?.set(placement, coverage.island);
+  }
 
   return out;
 }
