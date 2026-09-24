@@ -39,16 +39,17 @@ import {
   rand01,
   rankStories,
   ringsOf,
-  routeTrails,
   storyEdges,
+  composePublicGroundScene,
+  projectPublicGroundScene,
+  type PublicGroundFacts,
   type Pt,
-  type RelaxedCell,
+  type SceneG,
   type SceneInput,
   type SceneStatus,
-  type SceneTerritoryInput,
 } from '../lib/forest-world';
 import { sceneToSvg } from '../lib/worldSvg';
-import { buildDisc, escXml } from './act2-walkthrough';
+import { escXml } from './act2-walkthrough';
 
 // ── the published artifact's shape ──────────────────────────────────────────
 //
@@ -435,76 +436,77 @@ export function frameFor(placed: readonly Placed[]): { width: number; height: nu
   };
 }
 
-/** Build the scene input for the whole forest. Pure — same snapshot in, same SVG out. */
+/**
+ * The scene input for the whole forest, AT THE LAND CAMERA: the snapshot's plan composed by the
+ * shared core and projected to the declared 50° (`publicGroundFacts` below owns the facts). Pure —
+ * same snapshot in, same SVG out. `width` / `height` are the PROJECTED frame, which is what the
+ * `viewBox` of every serialised map is.
+ */
 export function forestSceneInput(snap: ForestSnapshot): SceneInput & { width: number; height: number } {
+  return projectPublicGroundScene(composePublicGroundScene(publicGroundFacts(snap)));
+}
+
+/**
+ * THE PUBLIC FOREST AS ONE DRAWING — the facts of the laid-out snapshot handed to the shared
+ * render core, composed as a plan (`composePublicGroundScene`), re-expressed at the declared 50°
+ * land camera (`projectPublicGroundScene`) and folded ONCE by `buildScene` (ADR-0608 D4).
+ *
+ * ⚠ ONE DRAWING, TWO READERS. The retained SVG (`forestSvg` / `forestArrivalSvg`) serialises this
+ * `SceneG`, and the 3D land reads the SAME `SceneG` through `landStreamFromDrawing`
+ * (`src/pages/forest-land.json.ts`). No second layout, sizer, picker, camera or clock exists for
+ * the land: if the two disagree, the fault is upstream of both.
+ *
+ * ⚠ NO NEW PUBLISHED FIELD, AND COVERAGE STAYS UNREPORTED. The snapshot does not carry
+ * per-capability test counts (ADR-0494), so none is passed: the core reads an absent count as
+ * "unreported", never as zero.
+ */
+export function publicGroundFacts(snap: ForestSnapshot): PublicGroundFacts {
   const placed = placeStories(snap.stories);
-  const byId = new Map(snap.stories.map((s) => [s.id, s]));
-  const cells: RelaxedCell[] = [];
-  const territories: SceneTerritoryInput[] = [];
-
-  placed.forEach(({ story, centre, radius, rings }, owner) => {
-    const disc = buildDisc(centre, rings, `forest-disc-${story.id}`);
-    for (const c of disc.cells) cells.push({ ...c, owner });
-    const capCount = story.capabilities.length;
-    const proven = story.capabilities.filter((c) => c.status === 'healthy').length;
-    territories.push({
-      id: story.id,
-      status: toSceneStatus(story.status),
-      caps: capCount,
-      centroid: centre,
-      // One declared radius feeding both spaces — see the note on the same split in
-      // act2-walkthrough.ts. The islands here are discs, so the two agree.
-      groundRadius: radius,
-      screenRadius: radius,
-      treeSpot: disc.treeSpot,
-      labelY: centre.y + PLATE_Y,
-      coastGroundLoops: disc.coastGroundLoops,
-      decor: disc.decor,
-      plants: [],
-      treeTitle: `${story.title} — ${provenTally(proven, capCount)}`,
-      // no wisps: a snapshot has no live session (see the file header)
-      wisps: [],
-      plate: {
-        w: Math.max(96, story.id.length * 7.4 + 24),
-        h: 30,
-        rx: 7,
-        idY: 14,
-        subY: 26,
-        idText: story.id,
-        subText: nameplateTally(capCount),
-        title: story.title,
-      },
-    });
-  });
-
-  const trails = routeTrails(
-    placed.map((p) => ({ id: p.story.id, x: p.centre.x, y: p.centre.y, r: p.radius })),
-    storyEdges(
-      snap.stories.map((s) => ({
-        id: s.id,
-        dependsOn: [...s.dependsOn],
-        capabilities: s.capabilities.map((c) => ({ id: c.id, dependsOn: [...c.dependsOn] })),
-      })),
-    ).map((e) => ({
-      from: e.from,
-      to: e.to,
-      title: `${byId.get(e.to)?.title ?? e.to} needs ${byId.get(e.from)?.title ?? e.from}`,
-    })),
-    'forest-snapshot-trails',
-  );
-
   const frame = frameFor(placed);
   return {
     offset: frame.offset,
     width: frame.width,
     height: frame.height,
-    empties: [],
-    relaxedCells: cells,
-    drawTiles: [],
-    wheatSets: [],
-    trails,
-    territories,
+    islands: placed.map(({ story, centre, radius, rings }) => {
+      const capCount = story.capabilities.length;
+      const proven = story.capabilities.filter((c) => c.status === 'healthy').length;
+      return {
+        id: story.id,
+        status: toSceneStatus(story.status),
+        dependsOn: [...story.dependsOn],
+        centre,
+        rings,
+        groundRadius: radius,
+        treeSpot: { x: centre.x, y: centre.y - 6 },
+        labelY: centre.y + PLATE_Y,
+        plate: {
+          w: Math.max(96, story.id.length * 7.4 + 24),
+          h: 30,
+          rx: 7,
+          idY: 14,
+          subY: 26,
+          idText: story.id,
+          subText: nameplateTally(capCount),
+          title: story.title,
+        },
+        treeTitle: `${story.title} — ${provenTally(proven, capCount)}`,
+        capabilities: story.capabilities.map((c) => ({
+          id: c.id,
+          status: toSceneStatus(c.status),
+          dependsOn: [...c.dependsOn],
+        })),
+        uatLegs: story.uat.map((criterion, index) => ({
+          state: toRoamUatState(criterion.state),
+          presentationKey: `${story.id}#uat-${index}`,
+        })),
+      };
+    }),
   };
+}
+
+/** The one public drawing — see {@link publicGroundFacts}. Pure: same snapshot, same scene. */
+export function publicForestDrawing(snap: ForestSnapshot): SceneG {
+  return buildScene(forestSceneInput(snap));
 }
 
 /** Every island's on-screen DIAMETER, in the map's own units — what the designed resting frame is

@@ -160,3 +160,74 @@
 @media (prefers-reduced-motion: reduce) {
   .tw-wisp, .tw-crown { animation: none; }
 }
+
+/* ── THE 3D LAND, UNDER THE MAP (ADR-0608 D4) ─────────────────────────────────────────────────
+   `forest-land-mount.tsx` places `.forest-land-layer` exactly over the map's `<svg>` and marks the
+   host `.has-land` once the land is drawn. The land paints UNDER the SVG — the z-order is stated,
+   not left to DOM order — and it is pointer-inert: every click, drag, focus and hit-test reaches
+   straight through it to the map.
+
+   ⚠ ONLY THE FLAT PICTURE THE LAND REPLACES GOES, AND ONLY WHILE THE LAND IS DRAWN. The board,
+   the painted ground and coast, the hero tree and the flat roads are hidden; nameplates, hit
+   targets, ROAM's selection ring and TELL's highlighted trails stay (ADR-0608 D2). Until `.has-land`
+   is set — loading, unsupported, failed — the map is untouched.
+
+   ⚠ `visibility` IS USED WHERE GROWTH ANIMATES THE ELEMENT. The growth keyframes animate opacity
+   and transform on islands, crowns and roads, and an animation outranks a normal rule — an
+   `opacity: 0` would lose to it and paint the flat look over the land for the whole growth. */
+.forest-land-layer {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+.has-land > svg {
+  position: relative;
+  z-index: 1;
+}
+.has-land .tw-bg,
+.has-land .tw-land {
+  opacity: 0;
+}
+.has-land .tw-isle:not(.roam-selected),
+.has-land .tw-crown,
+.has-land .tw-trail-fill:not(.roam-selected) {
+  visibility: hidden;
+}
+/* The selected island keeps a RING: its own coast, unfilled — the selection feedback the painted
+   ground's drop-shadow gave, drawn over the land instead of as a patch of flat ground. */
+.has-land .tw-isle.roam-selected .tw-shore {
+  fill: none;
+  stroke: rgba(74, 58, 38, 0.9);
+  stroke-width: 3;
+}
+/* TELL's trail lens highlights every road; the land keeps them readable under it. */
+#storm-land.tell-lens-trails .has-land .tw-trail-fill {
+  visibility: visible;
+}
+
+/* The land's own states — loading, unsupported, failed — spoken and visible in the host, never a
+   second map (ADR-0608 D5). */
+.forest-land-status {
+  position: absolute;
+  z-index: 2;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(34rem, calc(100% - 2rem));
+  margin: 0;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(251, 243, 234, 0.92);
+  color: #4a3a26;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(40, 30, 20, 0.12);
+}
+.forest-land-status[hidden] {
+  display: none;
+}
+[data-land-state='unsupported'] > .forest-land-status,
+[data-land-state='failed'] > .forest-land-status {
+  border-radius: 12px;
+}

@@ -1,13 +1,14 @@
 // ---------------------------------------------------------------------------
 // inflection — the transform-to-chapter-2 handoff (ADR-0134 §2, ADR-0145, ADR-0148 §5, reshaped by
 // ADR-0165). This is the destination the first act's "show me the better way" transform lands the
-// visitor in — one path, ZERO WebGL.
+// visitor in — one path.
 //
 // Reached EXCLUSIVELY via dynamic import() from the storm engine at the transform click
-// (act1-storm's `import('./inflection')`). Since ADR-0148 this module — and everything it reaches —
-// is pure SVG/DOM: no React, no three.js, no @react-three, no WebGL context. The parent's
-// `check:web-experience-closure` walks the STATIC closure from index.astro and this seam is only
-// ever a DYNAMIC import, so it stays outside that closure regardless.
+// (act1-storm's `import('./inflection')`). This module's own STATIC closure is pure SVG/DOM: no
+// React, no three.js, no @react-three. Since ADR-0608 D4 the real 3D land mounts under the map, and
+// it arrives through a SECOND dynamic import (`./forest-land-mount`), so the WebGL chunk is fetched
+// only once a forest lands. The parent's `check:web-experience-closure` walks the STATIC closure
+// from index.astro and both seams are DYNAMIC imports, so they stay outside that closure.
 //
 // ⚠ THAT DYNAMIC SEAM IS ALSO WHY TELL MOUNTS HERE RATHER THAN FROM A `<script>` ON THE PAGE. A new
 // `<script>` block in `index.astro` is a CLIENT SEED: the closure rung would walk the whole static
@@ -50,6 +51,18 @@ import { mountForestGrowth, type GrowthHandle } from './forest-growth';
 import { mountRoam, type RoamHandle } from './act2-roam';
 import { mountTell, type TellHandle } from './act2-tell';
 import { mountAsk, type AskHandle } from './act2-ask';
+import { LAND_MESSAGES } from './forest-land-layer';
+import type { LandMountHandle } from './forest-land-mount';
+
+/** The land's chunk never arrived: say so in the host, where the mount would have said it. */
+function sayLandFailed(host: HTMLElement): void {
+  const status = document.createElement('p');
+  status.className = 'forest-land-status';
+  status.setAttribute('role', 'status');
+  status.textContent = LAND_MESSAGES.failed;
+  host.dataset.landState = 'failed';
+  host.appendChild(status);
+}
 
 /** The exported handle the storm engine holds — name kept for the unchanged
  *  contract (act1-storm calls `mod.mountForestLand(landCanvasEl)`). */
@@ -71,8 +84,8 @@ function prefersReducedMotion(): boolean {
 
 /**
  * Mount chapter 2 into `container` (the first act's #storm-land-canvas mount): the real forest
- * framed at its designed resting view, and TELL's prose over it. No WebGL, no R3F — the collapse
- * choreography has already played; this is where it lands.
+ * framed at its designed resting view, the 3D land under it (lazily), and TELL's prose over it.
+ * The collapse choreography has already played; this is where it lands.
  *
  * `container` is the land canvas; the overlay mounts onto the #storm-land layer (its closest
  * ancestor) so it shares the land's fade-up and disarm path.
@@ -94,7 +107,32 @@ export function mountForestLand(container: HTMLElement): InflectionHandle {
   // TELL says has to land on a forest that is arriving rather than one still waiting to (growth
   // first). `MS_LEAD_IN` is timed to overlap the last waves on purpose — the name over a forest
   // still assembling is the opening; queueing the two would be two events where there is one.
+  const growthStartedAt = performance.now();
   const growth: GrowthHandle | null = map !== null ? mountForestGrowth(map, reducedMotion) : null;
+
+  // THE 3D LAND, UNDER THE MAP (ADR-0608 D4). Behind its own dynamic import — three.js and R3F
+  // stay out of this module's closure and out of any reader's download until a forest mounts —
+  // and handed the growth plan just derived, at the moment it started, so the land arrives with
+  // the islands rather than on a clock of its own. Reduced motion has no plan: the land is simply
+  // there. A chunk that fails to load is SAID, never a silent blank (D5).
+  let land: LandMountHandle | null = null;
+  let landGone = false;
+  if (map instanceof SVGSVGElement) {
+    const plan = growth?.plan ?? null;
+    import('./forest-land-mount')
+      .then((mod) => {
+        if (landGone) return;
+        land = mod.mountForestLandLayer({
+          host: container,
+          svg: map,
+          growth: plan === null ? null : { plan, startedAt: growthStartedAt },
+        });
+      })
+      .catch((err: unknown) => {
+        console.error('forest-land:', err);
+        if (!landGone) sayLandFailed(container);
+      });
+  }
 
   // TELL speaks over that forest. Both of its inputs come from the map itself — the counts it
   // quotes and the status of the island it points at — so if the map is missing or unreadable,
@@ -135,6 +173,8 @@ export function mountForestLand(container: HTMLElement): InflectionHandle {
       // Before the map framing goes, so a mid-growth skip leaves every island revealed rather than
       // parked at scale 0.62 under a class nothing will now remove.
       growth?.unmount();
+      landGone = true;
+      land?.unmount();
       arrival.unmount();
     },
   };
