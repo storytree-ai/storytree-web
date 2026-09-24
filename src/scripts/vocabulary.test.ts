@@ -222,7 +222,9 @@ function visitorProse(): Prose[] {
   out.push({ where: 'MAP stamp', text: renderStamp(snap) });
   out.push({ where: 'MAP arrival label', text: arrivalLabel(snap) });
   for (const n of [0, 1, 6]) {
-    out.push({ where: `MAP nameplateTally(${n})`, text: nameplateTally(n) });
+    for (const status of ['healthy', 'proposed', 'mapped', 'building', 'unhealthy', 'unknown'] as const) {
+      out.push({ where: `MAP nameplateTally(${n}, ${status})`, text: nameplateTally(n, status) });
+    }
     out.push({ where: `MAP provenTally(${n})`, text: provenTally(n, n + 1) });
   }
 

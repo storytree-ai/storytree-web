@@ -362,7 +362,7 @@ export const STATUS_READING: Readonly<Record<RoamStatus, { word: string; sentenc
   healthy: {
     word: 'proven',
     sentence:
-      'Green means a signed verdict proved it. Nothing goes green here because somebody marked it done.',
+      'Proven means a signed verdict proved it. Nothing is marked proven here because somebody said it was done.',
   },
   proposed: {
     word: 'not yet proven',

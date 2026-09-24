@@ -50,6 +50,7 @@ import {
 } from '../lib/forest-world';
 import { sceneToSvg } from '../lib/worldSvg';
 import { escXml } from './act2-walkthrough';
+import { STATUS_READING } from './act2-roam';
 
 // ── the published artifact's shape ──────────────────────────────────────────
 //
@@ -237,8 +238,8 @@ export function renderStamp(snap: ForestSnapshot): string {
     // strings in index.astro, and this fifth surface was generated here and scanned by nothing.
     // `vocabulary.test.ts` now renders this stamp against the real snapshot and holds it to the same
     // list.
-    `${proven} microservices are proven — each one green because a signed test said so, not because ` +
-    `anyone marked it done. This is a snapshot, refreshed from time to time. It is not live.`
+    `${proven} microservices are proven — each one labelled so under its name because a signed test ` +
+    `said so, not because anyone marked it done. This is a snapshot, refreshed from time to time. It is not live.`
   );
 }
 
@@ -256,9 +257,24 @@ export function renderStamp(snap: ForestSnapshot): string {
 // are our untranslated ids ON PURPOSE (ADR-0453 D3) and a fence that read one would report the
 // substrate as a violation.
 
-/** A nameplate's second line: how many components the island holds. */
-export function nameplateTally(capCount: number): string {
-  return capCount === 1 ? '1 component' : `${capCount} components`;
+/**
+ * A nameplate's second line: whether the microservice is proven, then how many components it holds.
+ *
+ * ⚠ THE STATUS WORD LEADS BECAUSE IT IS THE ONLY MARK OF IT LEFT (ADR-0608 D2). The flat map told a
+ * proven island by its hero tree's colour; the 3D land colours its ground per COMPONENT, so a
+ * microservice that is not yet proven can stand on all-green ground (every component proven, its
+ * acceptance not yet signed) and a proven one can carry yellow patches. The word is ROAM's own
+ * (`STATUS_READING`), so the label and the panel a click opens cannot say different things.
+ */
+export function nameplateTally(capCount: number, status: SceneStatus): string {
+  const count = capCount === 1 ? '1 component' : `${capCount} components`;
+  return `${STATUS_READING[status].word} · ${count}`;
+}
+
+/** How wide a nameplate must be to hold both of its lines — the name at the title face, the tally
+ *  at the smaller one. Character widths are the faces' measured averages, with a margin. */
+export function nameplateWidth(idText: string, subText: string): number {
+  return Math.max(96, idText.length * 7.4 + 24, subText.length * 5.9 + 20);
 }
 
 /** An island's hover title, minus its name: how much of it is proven. */
@@ -275,7 +291,7 @@ export function provenTally(proven: number, total: number): string {
 export function arrivalLabel(snap: ForestSnapshot): string {
   return (
     `A map of storytree's own system as of ${formatStampDate(snap.generatedAt)}: ` +
-    `${snap.storyCount} islands, one microservice each, ${snap.provenStoryCount} of them green ` +
+    `${snap.storyCount} islands, one microservice each, ${snap.provenStoryCount} of them labelled proven ` +
     `because a signed test proved them, connected by trails where one depends on another. ` +
     `Not live. Drag to move around it; scroll to zoom.`
   );
@@ -480,13 +496,13 @@ export function publicGroundFacts(snap: ForestSnapshot): PublicGroundFacts {
         treeSpot: { x: centre.x, y: centre.y - 6 },
         labelY: centre.y + PLATE_Y,
         plate: {
-          w: Math.max(96, story.id.length * 7.4 + 24),
+          w: nameplateWidth(story.id, nameplateTally(capCount, toSceneStatus(story.status))),
           h: 30,
           rx: 7,
           idY: 14,
           subY: 26,
           idText: story.id,
-          subText: nameplateTally(capCount),
+          subText: nameplateTally(capCount, toSceneStatus(story.status)),
           title: story.title,
         },
         treeTitle: `${story.title} — ${provenTally(proven, capCount)}`,
@@ -754,7 +770,7 @@ export function forestArrivalSvg(snap: ForestSnapshot): string {
 export function forestSvg(snap: ForestSnapshot): string {
   const label =
     `A map of storytree's own system as of ${formatStampDate(snap.generatedAt)}: ` +
-    `${snap.storyCount} story islands, ${snap.provenStoryCount} of them green because a signed ` +
+    `${snap.storyCount} islands, one microservice each, ${snap.provenStoryCount} of them labelled proven because a signed ` +
     `test proved them, connected by trails where one depends on another. Not live.`;
   const input = forestSceneInput(snap);
   return (

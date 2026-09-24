@@ -21,7 +21,8 @@
 // Read against `forestSceneInput` and `placeStories` in `forest-snapshot-map.ts`, because a key
 // that explains a signal the picture does not carry is worse than no key:
 //
-//   1. COLOUR   — the island's status, folded by `toSceneStatus` and worn as its `st-*` class.
+//   1. STATUS   — the island's status, folded by `toSceneStatus`, worn as its `st-*` class and
+//                 written under its name; its GROUND is coloured per component (see below).
 //   2. SIZE     — `estRadius(quotaOf(story))`: a bigger island holds more components.
 //   3. POSITION — `placeStories` stacks rows by dependency RANK, foundations at the bottom and
 //                 whatever rests on them fanning up. The least guessable signal on the map.
@@ -80,8 +81,27 @@ export interface LegendRow {
  */
 export const LEGEND_ISLAND_ROW: LegendRow = { term: 'island', text: 'one microservice' };
 
-/** The term above the colour chips. The chips themselves carry the readings. */
-export const LEGEND_COLOUR_TERM = 'colour';
+/**
+ * THE TWO COLOUR ROWS — and why there are two since the land went 3D (ADR-0608 D4, 2026-09-24).
+ *
+ * The flat map painted each island ONE colour, its own status, so one `colour` row decoded it. The
+ * 3D land colours its ground per COMPONENT instead: a microservice that is not yet proven can stand
+ * on all-green ground (every component proven, its acceptance not yet signed off) and a proven one
+ * can carry patches of a component that is not. Measured on the published snapshot: `app-surface`
+ * (not yet proven) read all green and `cli` (proven) read half yellow under a key that still said
+ * "colour — proven / not yet proven". The key described a picture that was no longer drawn.
+ *
+ * So the microservice's status moved to a WORD under its name (`nameplateTally`), and the key now
+ * decodes the two marks separately: `status` is that word, `ground` is the per-component colour.
+ * The chips of each are the statuses actually painted on the map, read from the same fold.
+ */
+export const LEGEND_STATUS_TERM = 'status';
+/** Where the status is written — the qualifier after the status chips. */
+export const LEGEND_STATUS_NOTE = 'under each name';
+/** The term above the ground chips. */
+export const LEGEND_GROUND_TERM = 'ground';
+/** What one ground colour belongs to — the qualifier after the ground chips. */
+export const LEGEND_GROUND_NOTE = 'for each component';
 
 /**
  * The three signals that are not colour — the ones a visitor has no chance of guessing.
@@ -147,6 +167,21 @@ export function legendSwatches(snap: ForestSnapshot): LegendSwatch[] {
 }
 
 /**
+ * The ground chips this snapshot earns — the COMPONENT statuses actually on the land, in reading
+ * order. The land colours each component's ground by its own status (folded by the same
+ * `toSceneStatus` that folds the islands'), so this lists what the ground can show and no more.
+ */
+export function legendGroundSwatches(snap: ForestSnapshot): LegendSwatch[] {
+  const painted = new Set<SceneStatus>(
+    snap.stories.flatMap((s) => s.capabilities.map((c) => toSceneStatus(c.status))),
+  );
+  return LEGEND_STATUS_ORDER.filter((status) => painted.has(status)).map((status) => ({
+    status,
+    word: STATUS_READING[status].word,
+  }));
+}
+
+/**
  * Every string the key can put in front of a visitor.
  *
  * Exported for the fences rather than for the page: `vocabulary.test.ts` folds this into
@@ -159,7 +194,10 @@ export function legendProse(): string[] {
     LEGEND_TITLE,
     LEGEND_ISLAND_ROW.term,
     LEGEND_ISLAND_ROW.text,
-    LEGEND_COLOUR_TERM,
+    LEGEND_STATUS_TERM,
+    LEGEND_STATUS_NOTE,
+    LEGEND_GROUND_TERM,
+    LEGEND_GROUND_NOTE,
     ...LEGEND_SHAPE_ROWS.flatMap((row) => [row.term, row.text]),
     ...LEGEND_STATUS_ORDER.map((status) => STATUS_READING[status].word),
   ];

@@ -53,6 +53,7 @@ import { mountTell, type TellHandle } from './act2-tell';
 import { mountAsk, type AskHandle } from './act2-ask';
 import { LAND_MESSAGES } from './forest-land-layer';
 import type { LandMountHandle } from './forest-land-mount';
+import { clearUnder } from './prose-clearing';
 
 /** The land's chunk never arrived: say so in the host, where the mount would have said it. */
 function sayLandFailed(host: HTMLElement): void {
@@ -146,6 +147,15 @@ export function mountForestLand(container: HTMLElement): InflectionHandle {
   // eleventh beat (the owner has an open question about the sequence's LENGTH).
   const ask: AskHandle | null = host instanceof HTMLElement ? mountAsk({ host }) : null;
 
+  // NOTHING ON THE MAP SITS UNDER THE FURNITURE (`prose-clearing.ts`). The key, the stamp and the
+  // ending are drawn over the map for as long as it is on screen, and TELL's close-up beats and any
+  // pan can bring an island under them — so the map is cleared under each of them, measured live.
+  // TELL clears under its own prose the same way, and the mask is the union of both.
+  const liftFurniture =
+    host instanceof HTMLElement
+      ? clearUnder(container, [...host.querySelectorAll('.storm-land-footer > *')])
+      : null;
+
   const tell: TellHandle | null =
     host instanceof HTMLElement && map !== null
       ? mountTell({ host, map, stage: arrival, reducedMotion, onDone: () => ask?.reveal() })
@@ -167,6 +177,7 @@ export function mountForestLand(container: HTMLElement): InflectionHandle {
 
   return {
     unmount(): void {
+      liftFurniture?.();
       roam?.unmount();
       ask?.unmount();
       tell?.unmount();

@@ -59,16 +59,21 @@ import { assertSnapshot, forestArrivalSvg, renderStamp } from '../scripts/forest
 // present on the page even when the script never runs. `forest-legend.ts` carries the reasoning and
 // the four signals it decodes; `forest-legend.test.ts` holds it to the exporter's own status union.
 import {
-  LEGEND_COLOUR_TERM,
+  LEGEND_GROUND_NOTE,
+  LEGEND_GROUND_TERM,
+  LEGEND_STATUS_NOTE,
+  LEGEND_STATUS_TERM,
   LEGEND_ISLAND_ROW,
   LEGEND_SHAPE_ROWS,
   LEGEND_TITLE,
+  legendGroundSwatches,
   legendSwatches,
 } from '../scripts/forest-legend';
 const forestSnapshot = assertSnapshot(snapshotJson);
 const forestArrival = forestArrivalSvg(forestSnapshot);
 const forestStamp = renderStamp(forestSnapshot);
 const forestKeyChips = legendSwatches(forestSnapshot);
+const forestGroundChips = legendGroundSwatches(forestSnapshot);
 // ---------------------------------------------------------------------------
 // THE HOME FLIP (ADR-0134 Act 1): the page ships two top-level branches.
 //   1. The storm  — [data-experience-entry] — a diegetic AI-agent terminal
@@ -295,16 +300,28 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
           <dl class="storm-land-key__rows">
             <dt>{LEGEND_ISLAND_ROW.term}</dt>
             <dd>{LEGEND_ISLAND_ROW.text}</dd>
-            <dt>{LEGEND_COLOUR_TERM}</dt>
+            <dt>{LEGEND_STATUS_TERM}</dt>
             <dd class="storm-land-key__chips">
               {
                 forestKeyChips.map((chip) => (
-                  <span class="storm-land-key__chip">
-                    <span class={`legend-dot st-${chip.status}`} />
+                  <span class={`storm-land-key__chip storm-land-key__word st-${chip.status}`}>
                     {chip.word}
                   </span>
                 ))
               }
+              <span class="storm-land-key__note">{LEGEND_STATUS_NOTE}</span>
+            </dd>
+            <dt>{LEGEND_GROUND_TERM}</dt>
+            <dd class="storm-land-key__chips">
+              {
+                forestGroundChips.map((chip) => (
+                  <span class="storm-land-key__chip">
+                    <span class={`legend-dot legend-ground st-${chip.status}`} />
+                    {chip.word}
+                  </span>
+                ))
+              }
+              <span class="storm-land-key__note">{LEGEND_GROUND_NOTE}</span>
             </dd>
             {
               LEGEND_SHAPE_ROWS.map((row) => (
@@ -766,6 +783,21 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   .storm-land[hidden] { display: none; }
   .storm-root.is-resolved .storm-land { opacity: 1; pointer-events: auto; }
   .storm-land-canvas { position: absolute; inset: 0; }
+  /* NOTHING ON THE MAP SITS UNDER PAGE TEXT (`prose-clearing.ts`). The map and its 3D land fade
+     out under every piece of text drawn over them — TELL's prose and diagram, the key, the stamp,
+     the ending — through one alpha mask the script draws from their measured boxes. ⚠ ON THE TWO
+     LAYERS, NOT THE FRAME: the frame paints the board, and masking it would open a hole onto the
+     storm behind. Both layers are placed exactly over the frame, so the mask's coordinates are
+     theirs, and it is sized to the layer rather than tiled. */
+  .storm-land-canvas.has-prose-clearing > svg,
+  .storm-land-canvas.has-prose-clearing > .forest-land-layer {
+    -webkit-mask-image: var(--prose-clear-mask);
+    mask-image: var(--prose-clear-mask);
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
 
   /* GROW: the real forest fills the layer, and the SVG's own viewBox does the framing — the
      client script sets it to the designed resting view (ADR-0471) on mount and on resize.
@@ -880,6 +912,33 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     align-items: center;
     gap: 0.34rem;
   }
+  /* THE STATUS CHIP IS THE WORD ITSELF, in the colour it wears under each name — the mark it
+     decodes is a word, so a dot would be decoding something the map no longer draws. */
+  .storm-land-key__word {
+    font-weight: 650;
+    color: var(--st-unknown);
+    padding: 0 0.4rem;
+    border-radius: 4px;
+    border: 1px solid rgba(70, 50, 25, 0.14);
+    background: #fffdfa;
+  }
+  /* The nameplate's own tint (`tree-world-map.css`), so the chip looks like the plate it decodes. */
+  .storm-land-key__word.st-healthy { color: var(--st-healthy); background: #dcebd0; }
+  .storm-land-key__word.st-proposed { color: var(--st-proposed); background: #f7dfc6; }
+  .storm-land-key__word.st-mapped { color: var(--st-mapped); background: #f7dfc6; }
+  .storm-land-key__word.st-building { color: var(--st-building); background: #d9e8ec; }
+  .storm-land-key__word.st-unhealthy { color: var(--st-unhealthy); background: #f2d3cf; }
+  .storm-land-key__note { color: #8a7560; }
+  /* THE GROUND CHIPS WEAR THE LAND'S DELIVERED COLOURS, not the flat island hues above, because they
+     decode the land. `healthy` and `proposed` are the medians sampled off the rendered 3D ground on
+     2026-09-24 (lit and textured, which is why they are darker than the palette they start from);
+     the other four are the ground palette's own values, since no published snapshot paints them. */
+  .legend-dot.legend-ground { background: var(--ground-unknown); }
+  .legend-dot.legend-ground.st-healthy { background: var(--ground-healthy); }
+  .legend-dot.legend-ground.st-proposed { background: var(--ground-proposed); }
+  .legend-dot.legend-ground.st-mapped { background: var(--ground-mapped); }
+  .legend-dot.legend-ground.st-building { background: var(--ground-building); }
+  .legend-dot.legend-ground.st-unhealthy { background: var(--ground-unhealthy); }
   /* ⚠ THE KEY IS SIZED AGAINST THE MAP, NOT AGAINST THE VIEWPORT, AND THE MAP GETS DENSER AS THE
      FRAME NARROWS. The forest is bottom-anchored and cropped to fill (`xMidYMid slice`), so a
      narrow frame shows a tighter slice with the islands packed closer together — measured on the
@@ -1306,6 +1365,12 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
   #storm-land.tell-lens-proven .forest-arrival-svg .tw-isle.st-healthy {
     filter: drop-shadow(0 6px 16px rgba(56, 92, 46, 0.4));
   }
+  /* ⚠ ONCE THE LAND IS DRAWN THE FLAT ISLAND BODIES ARE HIDDEN, so the two rules above dim nothing.
+     What a visitor reads the status off on the land is the WORD under each name (ADR-0608 D2), so
+     the proven lens holds the proven nameplates and lets the rest fall back instead. */
+  #storm-land.tell-lens-proven .has-land .tw-terr:not(.st-healthy) .tw-plate {
+    opacity: 0.38;
+  }
   /* The camera has flown to one island; ring it so the sentence has a referent
      even before the reader finds it. */
   #storm-land.tell-lens-self .forest-arrival-svg .tw-isle:not([data-id='website-experience']) {
@@ -1531,6 +1596,12 @@ import { BOOT_BANNER, PROMPT_CHIPS, DEFAULT_PROMPT } from '../scripts/storm-scri
     --st-building: #4a7d8c;
     --st-unhealthy: #9f2d22;
     --st-unknown: #9ca3af;
+    --ground-healthy: #678353;
+    --ground-proposed: #b29d47;
+    --ground-mapped: #b3b7a8;
+    --ground-building: #f2bb4e;
+    --ground-unhealthy: #a08c62;
+    --ground-unknown: #b6b3a6;
   }
   .roam-chip { display: inline-flex; align-items: center; gap: 0.42rem; }
   .roam-dot,

@@ -162,6 +162,19 @@ const BASE: Partial<Record<SceneKind, string>> = {
   'cave-apron': 'apron',
   'cave-arch': 'arch',
   'cave-rim': 'rim',
+  // UAT criterion markers (ADR-0600 D1: one flower per criterion, whatever its state). The wrapper's
+  // kind carries the state; every body part keeps its own name, the studio's convention. ⚠ UNMAPPED,
+  // they serialised with NO class and so painted in SVG's default black fill — the black spiky marks
+  // over the 3D land on 2026-09-24. `tw-uat` is also what `.has-land` hides: the land draws its own.
+  'tall-flower-proven': 'tw-uat tall-flower-proven',
+  'tall-flower-pending': 'tw-uat tall-flower-pending',
+  'tall-flower-failing': 'tw-uat tall-flower-failing',
+  'tall-flower-stem': 'tall-flower-stem',
+  'tall-flower-leaf': 'tall-flower-leaf',
+  'tall-flower-petal': 'tall-flower-petal',
+  'tall-flower-center': 'tall-flower-center',
+  'tall-flower-bud': 'tall-flower-bud',
+  'tall-flower-glow': 'tall-flower-glow',
 };
 
 /** The class(es) for a node — the website's class for the role, plus folded
