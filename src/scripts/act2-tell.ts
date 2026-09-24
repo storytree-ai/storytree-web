@@ -72,6 +72,7 @@ import { buildLoopDiagram, HONEST_LOOP } from './act2-loop-diagram';
 // them. A second parser here would be the shape where one consumer gets a correction and the other
 // does not. The two modules already ship in the same entry chunk, so the import costs nothing.
 import { parseTrailEdges } from './act2-roam';
+import { clearUnder } from './prose-clearing';
 
 // ── the vocabulary ──────────────────────────────────────────────────────────
 
@@ -305,11 +306,11 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
     // not this increment's, but it must not be copied forward.)
     id: 'proven',
     lines: [
-      '{proven} of them are green.',
+      '{proven} of them are proven — it says so under each name.',
       // Shorter than what it replaced ("Nothing goes green here because somebody said it was
       // done") and saying the same thing — the comprehension pass's ordinary shape (ADR-0501 D2).
       // ⚠ IT STILL REFUSES TO NAME THE SIGNER, for the reason above: not every green is a test's.
-      'Nothing turns green because someone said so.',
+      'Nothing is marked proven because someone said so.',
     ],
     lens: 'proven',
     figure: 'none',
@@ -450,12 +451,12 @@ export const TELL_SCRIPT: readonly TellBeat[] = [
  * that survives its own subject going green is the only copy that can be trusted to stay true.
  */
 export const SELF_CLAUSE = {
-  notGreen: 'It is not green. Nobody signed it off, so the map does not say otherwise.',
+  notGreen: 'Not proven yet. Nobody signed it off, so the map does not say otherwise.',
   // ⚠ IT NO LONGER SAYS "a test proved it", AND THE REASON IS THE ONE THE `proven` BEAT GIVES:
   // green requires a signed verdict, but the signer is not always a test — an operator-attested
   // journey goes green on a person's signature (ADR-0070 stage 2). The branch that ships when this
   // island goes green must be as true as the branch that ships today.
-  green: 'It went green like everything else — something else checked, and signed.',
+  green: 'It was proven like everything else — something else checked, and signed.',
 } as const;
 
 // ── rendering the copy ──────────────────────────────────────────────────────
@@ -1217,6 +1218,9 @@ export function mountTell(opts: TellOptions): TellHandle {
     parkedTabIndex = [];
   };
 
+  /** Lifts the map's clearing under the prose — set once the layer is on the page. */
+  let liftClearing = (): void => {};
+
   const finish = (): void => {
     if (torn) return;
     layer.classList.add('is-over');
@@ -1227,6 +1231,8 @@ export function mountTell(opts: TellOptions): TellHandle {
     timers.push(
       window.setTimeout(() => {
         layer.remove();
+        // The map comes back under the column only once the prose has faded off it.
+        liftClearing();
       }, 900),
     );
   };
@@ -1288,6 +1294,11 @@ export function mountTell(opts: TellOptions): TellHandle {
   }
 
   host.append(layer);
+  // Nothing on the map sits under the prose (`prose-clearing.ts`): the element holding the map and
+  // its 3D land is faded out under the column's measured box, beat by beat, for as long as the
+  // prose is on screen. Under reduced motion the static column never leaves, so neither does this.
+  const mapFrame = map.parentElement;
+  if (mapFrame) liftClearing = clearUnder(mapFrame, [column, figureSlot], 'top-left');
 
   return {
     unmount(): void {
@@ -1308,6 +1319,7 @@ export function mountTell(opts: TellOptions): TellHandle {
       host.removeEventListener('pointerdown', onLockedReach);
       host.removeEventListener('wheel', onLockedReach);
       layer.remove();
+      liftClearing();
       delete (window as unknown as Record<string, unknown>).__act2tell;
     },
   };

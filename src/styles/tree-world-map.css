@@ -110,6 +110,19 @@
 .tw-flora .litter { fill: #a07a4a; opacity: 0.7; }
 .tw-flora .flora-hit { fill: transparent; }
 
+/* UAT criterion flowers (ADR-0600 D1) — the flat map's own marker, one per criterion. The palette is
+   the studio's (`apps/studio/src/index.css`, the `--flower-*` tokens), transcribed rather than
+   invented, so the two drawings of one criterion agree. A PENDING criterion draws only a closed bud.
+   Without these rules the marks fell back to SVG's default black fill. */
+.tw-uat { pointer-events: none; }
+.tw-uat .tall-flower-stem { fill: none; stroke: #6f9257; stroke-linecap: round; stroke-linejoin: round; }
+.tw-uat .tall-flower-leaf { fill: #7ea363; }
+.tw-uat .tall-flower-bud { fill: #7f9d5c; }
+.tw-uat .tall-flower-glow { fill: #f4d98a; }
+.tw-uat.tall-flower-proven .tall-flower-petal { fill: #fbf3e0; }
+.tw-uat.tall-flower-proven .tall-flower-center { fill: #eab94e; }
+.tw-uat.tall-flower-failing .tall-flower-petal { fill: #b9b3a7; }
+.tw-uat.tall-flower-failing .tall-flower-center { fill: #8f8672; }
 /* decorative conifers */
 .tw-conifer .body { fill: #4f7a3f; } .tw-conifer.c-1 .body { fill: #5d8a46; } .tw-conifer.c-2 .body { fill: #46703a; }
 .tw-conifer .snow { fill: #cfe3b3; opacity: 0.8; }
@@ -150,6 +163,40 @@
 .tw-plate .ttl { font: 650 12px var(--font-body); fill: var(--ink); }
 .tw-plate .sub { font: 500 9.5px var(--font-body); fill: #5d564c; text-transform: capitalize; }
 
+/* THE STATUS WORD (ADR-0608 D2). On the two public forests a nameplate's second line leads with
+   whether the microservice is proven — the land colours ground per COMPONENT, so the island's own
+   status has no other mark once the land is drawn. The word carries it, in the status's colour,
+   and the second line is left in the case it was written in (`capitalize` would turn
+   "not yet proven" into "Not Yet Proven"). */
+.forest-snapshot-svg .tw-plate .sub,
+.forest-arrival-svg .tw-plate .sub { text-transform: none; font-weight: 650; }
+.forest-snapshot-svg .tw-plate .sub,
+.forest-arrival-svg .tw-plate .sub { fill: #6b7280; }
+/* …AND THE PLATE ITSELF WEARS THE STATUS, because the word alone is a few pixels tall wherever the
+   whole map is shown at once (the `/forest/` poster above all) and a status nobody can read at a
+   glance is the proven-at-a-glance message lost again. Tints of the same two hues the key uses. */
+.forest-snapshot-svg .tw-terr.st-healthy .tw-plate .bg,
+.forest-arrival-svg .tw-terr.st-healthy .tw-plate .bg { fill: #dcebd0; stroke: rgba(47, 107, 63, 0.45); }
+.forest-snapshot-svg .tw-terr.st-proposed .tw-plate .bg,
+.forest-arrival-svg .tw-terr.st-proposed .tw-plate .bg,
+.forest-snapshot-svg .tw-terr.st-mapped .tw-plate .bg,
+.forest-arrival-svg .tw-terr.st-mapped .tw-plate .bg { fill: #f7dfc6; stroke: rgba(176, 106, 36, 0.5); }
+.forest-snapshot-svg .tw-terr.st-building .tw-plate .bg,
+.forest-arrival-svg .tw-terr.st-building .tw-plate .bg { fill: #d9e8ec; stroke: rgba(74, 125, 140, 0.5); }
+.forest-snapshot-svg .tw-terr.st-unhealthy .tw-plate .bg,
+.forest-arrival-svg .tw-terr.st-unhealthy .tw-plate .bg { fill: #f2d3cf; stroke: rgba(159, 45, 34, 0.5); }
+/* The same five hues the key's status chips and ROAM's dot wear (`index.astro`'s `--st-*`), so the
+   word under a name and the chip that decodes it are one value. */
+.forest-snapshot-svg .tw-terr.st-healthy .tw-plate .sub,
+.forest-arrival-svg .tw-terr.st-healthy .tw-plate .sub { fill: #2f6b3f; }
+.forest-snapshot-svg .tw-terr.st-proposed .tw-plate .sub,
+.forest-arrival-svg .tw-terr.st-proposed .tw-plate .sub { fill: #b06a24; }
+.forest-snapshot-svg .tw-terr.st-mapped .tw-plate .sub,
+.forest-arrival-svg .tw-terr.st-mapped .tw-plate .sub { fill: #7d5f3b; }
+.forest-snapshot-svg .tw-terr.st-building .tw-plate .sub,
+.forest-arrival-svg .tw-terr.st-building .tw-plate .sub { fill: #4a7d8c; }
+.forest-snapshot-svg .tw-terr.st-unhealthy .tw-plate .sub,
+.forest-arrival-svg .tw-terr.st-unhealthy .tw-plate .sub { fill: #9f2d22; }
 /* the interactive hit disc (inert in the Act 2 diorama — the walk makes it so) */
 .tw-hit { fill: transparent; cursor: pointer; outline: none; }
 .tw-hit:focus-visible { outline: 2.5px solid var(--amber); outline-offset: -3px; }
@@ -190,9 +237,15 @@
 }
 .has-land .tw-isle:not(.roam-selected),
 .has-land .tw-crown,
+.has-land .tw-uat,
+.has-land .tw-terr .sh,
 .has-land .tw-trail-fill:not(.roam-selected) {
   visibility: hidden;
 }
+/* ⚠ THE FLAT FLOWERS AND THE HERO TREE'S SHADOW GO TOO. The land stands its own flower for every
+   criterion (the kit's, ADR-0600 D1) and its own trees, so the flat ones are a second drawing of
+   the same mark — and, unstyled, they read as black spikes floating off the islands (2026-09-24).
+   They sit inside `.tw-terr` beside the nameplate, which stays, so they are hidden by name. */
 /* The selected island keeps a RING: its own coast, unfilled — the selection feedback the painted
    ground's drop-shadow gave, drawn over the land instead of as a patch of flat ground. */
 .has-land .tw-isle.roam-selected .tw-shore {

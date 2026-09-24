@@ -364,6 +364,9 @@ export function mountForestArrival(container: HTMLElement): ArrivalHandle {
   if (!payload) return inert;
 
   let box: ViewBox = { x: 0, y: 0, w: payload.width, h: payload.height };
+  /** The composition GROW settles on — re-taken on every settle, so `resetView` returns to the view
+   *  the CURRENT frame and furniture call for rather than the one measured at mount. */
+  let restingBox: ViewBox = { ...box };
   let restingW = payload.width;
   let wholeW = payload.width;
 
@@ -384,6 +387,7 @@ export function mountForestArrival(container: HTMLElement): ArrivalHandle {
     restingW = box.w;
     wholeW = wholeWorldWidth(payload, frameW, frameH);
     apply();
+    restingBox = { ...box };
   };
 
   // ── pan ──────────────────────────────────────────────────────────────────
@@ -453,6 +457,14 @@ export function mountForestArrival(container: HTMLElement): ArrivalHandle {
       if (!readerHasMoved) settle();
     });
     resizeObserver.observe(container);
+    // ⚠ AND THE STAMP, WHICH CAN CHANGE HEIGHT WITHOUT THE FRAME CHANGING AT ALL. Its copy wraps
+    // against the viewport and re-wraps when the web font arrives, so an inset measured once at
+    // mount can be a line short for the life of the page. Measured 2026-09-24 on the built site at
+    // 1600x1000: the world was anchored for a ~90px stamp while the stamp settled at 156px, which
+    // put four nameplates of the bottom row under it. Re-measuring on the stamp's own resize is what
+    // keeps "an island behind the stamp is not on screen" true after the first frame.
+    const stamp = (container.closest('#storm-land') ?? container).querySelector('.storm-land-stamp');
+    if (stamp) resizeObserver.observe(stamp);
   } catch {
     resizeObserver = null;
   }
@@ -499,7 +511,6 @@ export function mountForestArrival(container: HTMLElement): ArrivalHandle {
   svg.addEventListener('wheel', markMoved, { passive: true });
 
   settle();
-  const restingBox: ViewBox = { ...box };
 
   return {
     unmount(): void {

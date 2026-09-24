@@ -14,11 +14,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  LEGEND_COLOUR_TERM,
+  LEGEND_GROUND_NOTE,
+  LEGEND_GROUND_TERM,
   LEGEND_ISLAND_ROW,
   LEGEND_SHAPE_ROWS,
+  LEGEND_STATUS_NOTE,
   LEGEND_STATUS_ORDER,
+  LEGEND_STATUS_TERM,
   LEGEND_TITLE,
+  legendGroundSwatches,
   legendProse,
   legendSwatches,
 } from './forest-legend';
@@ -113,6 +117,22 @@ test('a colour that is not on the map gets no row — and an empty forest gets n
   assert.deepEqual(legendSwatches({ ...SNAP, stories: [] }), []);
 });
 
+test('the GROUND chips are exactly the component statuses the land paints — not the islands\' (2026-09-24)', () => {
+  // ⚠ THE DEFECT THIS PINS. The 3D land colours ground per COMPONENT, so a key that decoded the
+  // ground with the ISLANDS' statuses would describe a picture that is not drawn: on the published
+  // snapshot a not-yet-proven island stands on all-green ground and a proven one carries yellow.
+  const painted = new Set(SNAP.stories.flatMap((s) => s.capabilities.map((c) => toSceneStatus(c.status))));
+  const listed = legendGroundSwatches(SNAP).map((s) => s.status);
+  assert.deepEqual([...listed].sort(), [...painted].sort());
+  assert.deepEqual(listed, LEGEND_STATUS_ORDER.filter((s) => painted.has(s)));
+  for (const chip of legendGroundSwatches(SNAP)) assert.equal(chip.word, STATUS_READING[chip.status].word);
+  // Independent of the island statuses: every island proven, a component still not.
+  const allProven = { ...SNAP, stories: SNAP.stories.map((s) => ({ ...s, status: 'healthy' })) };
+  assert.deepEqual(legendSwatches(allProven).map((s) => s.status), ['healthy']);
+  assert.deepEqual(legendGroundSwatches(allProven), legendGroundSwatches(SNAP));
+  assert.deepEqual(legendGroundSwatches({ ...SNAP, stories: [] }), []);
+});
+
 // ── it is a KEY, and it stays one ───────────────────────────────────────────
 
 test('every row is a gloss, not a sentence — a key that grows paragraphs is a second narrator', () => {
@@ -128,7 +148,11 @@ test('every row is a gloss, not a sentence — a key that grows paragraphs is a 
     // reading as the same voice speaking twice.
     assert.doesNotMatch(row.text, /\.$/, `"${row.text}" ends in a full stop — a key row is not a sentence`);
   }
-  assert.ok(rows.length + 1 <= 6, 'the card has grown past a key');
+  // The two colour rows (status, ground) are chips rather than glosses — counted here all the same.
+  assert.ok(rows.length + 2 <= 6, 'the card has grown past a key');
+  for (const note of [LEGEND_STATUS_NOTE, LEGEND_GROUND_NOTE]) {
+    assert.ok(note.split(/\s+/).length <= 4, `"${note}" qualifies a row of chips — it is not a gloss`);
+  }
 });
 
 test('no number is written into the key — the forest is republished by a job', () => {
@@ -148,7 +172,7 @@ test('the key names no island — ADR-0453 D3 fences the map’s own labels, and
     assert.equal(copy.includes(story.id.toLowerCase()), false, `the key names the island '${story.id}'`);
   }
   assert.equal(copy.includes(LEGEND_TITLE.toLowerCase()), true);
-  assert.ok(LEGEND_COLOUR_TERM.length > 0);
+  assert.ok(LEGEND_STATUS_TERM.length > 0 && LEGEND_GROUND_TERM.length > 0);
 });
 
 test('the page renders the key from THIS module — copy inlined into the template is copy no fence can see', () => {
@@ -161,7 +185,11 @@ test('the page renders the key from THIS module — copy inlined into the templa
     'forest-legend',
     'LEGEND_TITLE',
     'LEGEND_ISLAND_ROW',
-    'LEGEND_COLOUR_TERM',
+    'LEGEND_STATUS_TERM',
+    'LEGEND_STATUS_NOTE',
+    'LEGEND_GROUND_TERM',
+    'LEGEND_GROUND_NOTE',
+    'legendGroundSwatches',
     'LEGEND_SHAPE_ROWS',
     'legendSwatches',
   ]) {
@@ -176,8 +204,13 @@ test('the page renders the key from THIS module — copy inlined into the templa
 });
 
 test('the four signals the map carries each have a row — and nothing it does not draw does', () => {
-  const terms = [LEGEND_ISLAND_ROW.term, LEGEND_COLOUR_TERM, ...LEGEND_SHAPE_ROWS.map((r) => r.term)];
-  assert.deepEqual(terms, ['island', 'colour', 'size', 'position', 'trail']);
+  const terms = [
+    LEGEND_ISLAND_ROW.term,
+    LEGEND_STATUS_TERM,
+    LEGEND_GROUND_TERM,
+    ...LEGEND_SHAPE_ROWS.map((r) => r.term),
+  ];
+  assert.deepEqual(terms, ['island', 'status', 'ground', 'size', 'position', 'trail']);
   // The published snapshot draws no terrain, no props and no wisps (ADR-0453 D5), so a row about
   // them would explain a picture that is not on the screen — the rule ROAM keeps, kept here too.
   const scene = forestSceneInput(SNAP);
