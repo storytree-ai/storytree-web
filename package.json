@@ -3,6 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
+  "license": "PolyForm-Shield-1.0.0",
   "description": "The public front door for storytree — an experiment in building software with AI agents.",
   "scripts": {
     "dev": "astro dev",
